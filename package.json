@@ -1,0 +1,16 @@
+{
+  "name": "cricbid",
+  "version": "1.0.0",
+  "description": "Cricket player auction platform — backend, frontend, and mobile",
+  "scripts": {
+    "backend": "cd backend && npm run start",
+    "frontend": "cd frontend && npm run dev",
+    "mobile": "cd mobile && npm run start",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ../mobile && npm install"
+  },
+  "workspaces": [
+    "backend",
+    "frontend",
+    "mobile"
+  ]
+}
