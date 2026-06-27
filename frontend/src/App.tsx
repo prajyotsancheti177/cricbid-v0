@@ -19,7 +19,7 @@ import TournamentDetail from "./pages/TournamentDetail";
 import TournamentManagement from "./pages/TournamentManagement";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
-import Analytics from "./pages/Analytics";
+// import Analytics from "./pages/Analytics"; // hidden pending SQL migration
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
@@ -110,14 +110,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              {/* Analytics hidden pending SQL migration (aggregation pipelines not yet ported) */}
+              {/* <Route
                 path="/analytics"
                 element={
                   <ProtectedRoute>
                     <Analytics />
                   </ProtectedRoute>
                 }
-              />
+              /> */}
 
               {/* Redirect for malformed WhatsApp URLs */}
               <Route path="/tournament/:placeholder/:tournamentId" element={<TournamentRedirect />} />
