@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config');
+const prisma = require('../db/prisma');
 const whatsappLogService = require('./whatsappLogService');
 
 /**
@@ -46,8 +47,7 @@ const sendPlayerSoldNotification = async (playerData) => {
         
         // Fetch tournament name dynamically if not provided
         if (!tournamentName && tournamentId) {
-            const Tournament = require('../models/tournament');
-            const tournament = await Tournament.findById(tournamentId);
+            const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
             tournamentName = tournament?.name || 'Tournament';
             logData.tournamentName = tournamentName;
         }
@@ -174,8 +174,7 @@ const sendPlayerUnsoldNotification = async (playerData) => {
         
         // Fetch tournament name dynamically if not provided
         if (!tournamentName && tournamentId) {
-            const Tournament = require('../models/tournament');
-            const tournament = await Tournament.findById(tournamentId);
+            const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
             tournamentName = tournament?.name || 'Tournament';
             logData.tournamentName = tournamentName;
         }
@@ -265,25 +264,21 @@ const sendPlayerUnsoldNotification = async (playerData) => {
  * @returns {Object} Result with success/failure counts
  */
 const sendAuctionAnnouncementBroadcast = async ({ tournamentId, tournamentName }) => {
-    const Player = require('../models/players');
-    const Team = require('../models/team');
-    const Tournament = require('../models/tournament');
-    
     // Fetch tournament name if not provided
     if (!tournamentName && tournamentId) {
-        const tournament = await Tournament.findById(tournamentId);
+        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         tournamentName = tournament?.name || 'Tournament';
     }
-    
+
     // Collect all recipients
     const recipients = [];
-    
+
     // Get all players with mobile numbers
-    const players = await Player.find({ 
-        touranmentId: tournamentId, 
-        mobile: { $exists: true, $ne: null, $ne: '' } 
-    }).select('name mobile');
-    
+    const players = await prisma.player.findMany({
+        where: { touranmentId: tournamentId, mobile: { not: null } },
+        select: { name: true, mobile: true },
+    });
+
     players.forEach(player => {
         if (player.mobile) {
             recipients.push({
@@ -293,18 +288,18 @@ const sendAuctionAnnouncementBroadcast = async ({ tournamentId, tournamentName }
             });
         }
     });
-    
+
     // Get all team owners with mobile numbers
-    const teams = await Team.find({ 
-        touranmentId: tournamentId,
-        'owner.mobile': { $exists: true, $ne: null, $ne: '' }
-    }).select('owner.name owner.mobile');
-    
+    const teams = await prisma.team.findMany({
+        where: { touranmentId: tournamentId, ownerMobile: { not: null } },
+        select: { ownerName: true, ownerMobile: true },
+    });
+
     teams.forEach(team => {
-        if (team.owner?.mobile) {
+        if (team.ownerMobile) {
             recipients.push({
-                name: team.owner.name || 'Team Owner',
-                mobile: team.owner.mobile.toString(),
+                name: team.ownerName || 'Team Owner',
+                mobile: team.ownerMobile.toString(),
                 type: 'teamOwner'
             });
         }
@@ -422,19 +417,14 @@ const sendAuctionAnnouncementBroadcast = async ({ tournamentId, tournamentName }
  * @returns {Object} Recipient counts
  */
 const getAnnouncementRecipientCount = async ({ tournamentId }) => {
-    const Player = require('../models/players');
-    const Team = require('../models/team');
-    
     // Get player count with mobile numbers
-    const playerCount = await Player.countDocuments({ 
-        touranmentId: tournamentId, 
-        mobile: { $exists: true, $ne: null, $ne: '' } 
+    const playerCount = await prisma.player.count({
+        where: { touranmentId: tournamentId, mobile: { not: null } },
     });
-    
+
     // Get team owner count with mobile numbers
-    const teamOwnerCount = await Team.countDocuments({ 
-        touranmentId: tournamentId,
-        'owner.mobile': { $exists: true, $ne: null, $ne: '' }
+    const teamOwnerCount = await prisma.team.count({
+        where: { touranmentId: tournamentId, ownerMobile: { not: null } },
     });
     
     // Note: actual unique count may be less due to deduplication
@@ -455,10 +445,6 @@ const getAnnouncementRecipientCount = async ({ tournamentId }) => {
  * @param {string} params.tournamentId - Tournament ID
  */
 const sendTeamPurchaseSummary = async ({ teamId, playerName, amountPaid, tournamentId }) => {
-    const Team = require('../models/team');
-    const Player = require('../models/players');
-    const Tournament = require('../models/tournament');
-    
     let logData = {
         messageType: 'team_purchase_summary',
         templateName: 'team_purchase_summary',
@@ -466,24 +452,24 @@ const sendTeamPurchaseSummary = async ({ teamId, playerName, amountPaid, tournam
         status: 'failed',
         timestamp: new Date()
     };
-    
+
     try {
         // Get team info
-        const team = await Team.findById(teamId);
-        if (!team || !team.owner?.mobile) {
+        const team = await prisma.team.findUnique({ where: { id: teamId } });
+        if (!team || !team.ownerMobile) {
             console.log('[WhatsApp] Team owner mobile not found, skipping summary');
             return null;
         }
-        
+
         // Get tournament for budget
-        const tournament = await Tournament.findById(tournamentId);
+        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         const totalBudget = tournament?.totalBudget || 0;
-        
+
         // Get all players bought by this team
-        const teamPlayers = await Player.find({ 
-            teamId: teamId,
-            sold: true 
-        }).select('name amtSold');
+        const teamPlayers = await prisma.player.findMany({
+            where: { teamId: teamId, sold: true },
+            select: { name: true, amtSold: true },
+        });
         
         // Calculate totals
         const playerCount = teamPlayers.length;
@@ -507,7 +493,7 @@ const sendTeamPurchaseSummary = async ({ teamId, playerName, amountPaid, tournam
         };
         
         // Format mobile
-        let formattedMobile = team.owner.mobile.toString();
+        let formattedMobile = team.ownerMobile.toString();
         if (!formattedMobile.startsWith('+')) {
             formattedMobile = `+91${formattedMobile}`;
         }
@@ -531,7 +517,7 @@ const sendTeamPurchaseSummary = async ({ teamId, playerName, amountPaid, tournam
                     {
                         type: "body",
                         parameters: [
-                            { type: "text", text: team.owner.name || "Team Owner" },
+                            { type: "text", text: team.ownerName || "Team Owner" },
                             { type: "text", text: playerName },
                             { type: "text", text: formatCurrency(amountPaid) },
                             { type: "text", text: playerCount.toString() },

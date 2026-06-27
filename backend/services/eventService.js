@@ -1,4 +1,10 @@
+const prisma = require("../db/prisma");
+// Deferred analytics-aggregation methods below still use the Mongoose model
+// (getEventStats, getDailyPageViews, ... getUniqueIPsByDateRange) pending the
+// analytics-page port. Write paths and simple reads use Prisma.
 const UserEvent = require("../models/userEvent");
+
+const serEvent = (e) => (e ? { ...e, _id: e.id } : e);
 
 /**
  * Track a single user event
@@ -6,19 +12,20 @@ const UserEvent = require("../models/userEvent");
  * @returns {Object} Created event
  */
 const trackEvent = async (eventData) => {
-    const event = new UserEvent({
-        userId: eventData.userId || null,
-        sessionId: eventData.sessionId,
-        tournamentId: eventData.tournamentId,
-        eventType: eventData.eventType,
-        eventData: eventData.eventData,
-        page: eventData.page,
-        userAgent: eventData.userAgent,
-        ipAddress: eventData.ipAddress,
-        timestamp: eventData.timestamp || new Date()
+    const created = await prisma.userEvent.create({
+        data: {
+            userId: eventData.userId || null,
+            sessionId: eventData.sessionId ?? null,
+            tournamentId: eventData.tournamentId ?? null,
+            eventType: eventData.eventType,
+            eventData: eventData.eventData ?? null,
+            page: eventData.page ?? null,
+            userAgent: eventData.userAgent ?? null,
+            ipAddress: eventData.ipAddress ?? null,
+            timestamp: eventData.timestamp ? new Date(eventData.timestamp) : new Date(),
+        },
     });
-
-    return await event.save();
+    return serEvent(created);
 };
 
 /**
@@ -33,17 +40,19 @@ const trackEvents = async (events) => {
 
     const preparedEvents = events.map(event => ({
         userId: event.userId || null,
-        sessionId: event.sessionId,
-        tournamentId: event.tournamentId,
+        sessionId: event.sessionId ?? null,
+        tournamentId: event.tournamentId ?? null,
         eventType: event.eventType,
-        eventData: event.eventData,
-        page: event.page,
-        userAgent: event.userAgent,
-        ipAddress: event.ipAddress,
-        timestamp: event.timestamp || new Date()
+        eventData: event.eventData ?? null,
+        page: event.page ?? null,
+        userAgent: event.userAgent ?? null,
+        ipAddress: event.ipAddress ?? null,
+        timestamp: event.timestamp ? new Date(event.timestamp) : new Date()
     }));
 
-    return await UserEvent.insertMany(preparedEvents);
+    const res = await prisma.userEvent.createMany({ data: preparedEvents });
+    // controller reads result.length
+    return { length: res.count, insertedCount: res.count };
 };
 
 /**
@@ -53,21 +62,19 @@ const trackEvents = async (events) => {
  * @returns {Array} List of events
  */
 const getEventsByUser = async (userId, filters = {}) => {
-    const query = { userId };
-
-    if (filters.eventType) {
-        query.eventType = filters.eventType;
-    }
-
+    const where = { userId };
+    if (filters.eventType) where.eventType = filters.eventType;
     if (filters.startDate || filters.endDate) {
-        query.timestamp = {};
-        if (filters.startDate) query.timestamp.$gte = new Date(filters.startDate);
-        if (filters.endDate) query.timestamp.$lte = new Date(filters.endDate);
+        where.timestamp = {};
+        if (filters.startDate) where.timestamp.gte = new Date(filters.startDate);
+        if (filters.endDate) where.timestamp.lte = new Date(filters.endDate);
     }
-
-    return await UserEvent.find(query)
-        .sort({ timestamp: -1 })
-        .limit(filters.limit || 100);
+    const rows = await prisma.userEvent.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        take: filters.limit || 100,
+    });
+    return rows.map(serEvent);
 };
 
 /**
@@ -77,21 +84,19 @@ const getEventsByUser = async (userId, filters = {}) => {
  * @returns {Array} List of events
  */
 const getEventsByTournament = async (tournamentId, filters = {}) => {
-    const query = { tournamentId };
-
-    if (filters.eventType) {
-        query.eventType = filters.eventType;
-    }
-
+    const where = { tournamentId };
+    if (filters.eventType) where.eventType = filters.eventType;
     if (filters.startDate || filters.endDate) {
-        query.timestamp = {};
-        if (filters.startDate) query.timestamp.$gte = new Date(filters.startDate);
-        if (filters.endDate) query.timestamp.$lte = new Date(filters.endDate);
+        where.timestamp = {};
+        if (filters.startDate) where.timestamp.gte = new Date(filters.startDate);
+        if (filters.endDate) where.timestamp.lte = new Date(filters.endDate);
     }
-
-    return await UserEvent.find(query)
-        .sort({ timestamp: -1 })
-        .limit(filters.limit || 500);
+    const rows = await prisma.userEvent.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        take: filters.limit || 500,
+    });
+    return rows.map(serEvent);
 };
 
 /**
