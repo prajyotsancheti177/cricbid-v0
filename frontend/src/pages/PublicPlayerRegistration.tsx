@@ -479,6 +479,27 @@ const PublicPlayerRegistration = () => {
                 </Alert>
               )}
 
+
+              {/* Payment QR Code */}
+              <div className="space-y-3 pt-4 border-t border-border">
+                <h3 className="text-lg font-semibold text-foreground text-center">
+                  Scan & Pay Registration Fee
+                </h3>
+<h3 className="text-lg font-semibold text-foreground text-center">
+  Doctors - 2000/-<br />
+  Pharma - 1000/-<br />
+  New Talent - 1000/-
+</h3>
+               <div className="flex justify-center">
+                  <img
+                    src="/form-banner.jpg"
+                    alt="Payment QR Code - Scan to Pay"
+                    className="max-w-xs w-full rounded-lg shadow-md border border-border/50"
+                  />
+                </div>
+              </div>
+
+
               <Button type="submit" disabled={submitting} className="w-full mt-6 py-6 text-lg font-semibold tracking-wide">
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 Register Now
