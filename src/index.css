@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 240 20% 7%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 15% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 15% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 263 70% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 263 70% 65%;
+
+    --secondary: 30 100% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-glow: 30 100% 65%;
+
+    --muted: 240 10% 20%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 10% 20%;
+    --input: 240 10% 15%;
+    --ring: 263 70% 50%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(263 70% 50%), hsl(263 70% 65%));
+    --gradient-secondary: linear-gradient(135deg, hsl(30 100% 55%), hsl(30 100% 65%));
+    --gradient-accent: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 50%));
+    --gradient-dark: linear-gradient(180deg, hsl(240 20% 7%), hsl(240 25% 10%));
+    
+    --shadow-glow: 0 0 40px hsl(263 70% 50% / 0.3);
+    --shadow-glow-secondary: 0 0 40px hsl(30 100% 55% / 0.3);
+    --shadow-elevated: 0 20px 50px -10px hsl(240 20% 5% / 0.8);
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Force transparent background for OBS overlays */
+  body.overlay-mode {
+    background: transparent !important;
+  }
+  body.overlay-mode #root,
+  body.overlay-mode #root > div {
+    background: transparent !important;
+  }
+
+  /* Mobile-first base font sizes - smaller on mobile */
+  html {
+    font-size: 14px;
+  }
+  
+  @media (min-width: 640px) {
+    html {
+      font-size: 15px;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  /* Tighter spacing on mobile */
+  .container {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+}
+
+/* Mobile-optimized component utilities */
+@layer utilities {
+  /* Compact cards for mobile */
+  .card-compact {
+    @apply p-3 sm:p-4 md:p-6;
+  }
+
+  /* Smaller gaps on mobile */
+  .gap-responsive {
+    @apply gap-2 sm:gap-3 md:gap-4 lg:gap-6;
+  }
+
+  /* Mobile-friendly grid */
+  .grid-mobile-friendly {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  /* Compact text for mobile */
+  .text-mobile-compact {
+    @apply text-xs sm:text-sm md:text-base;
+  }
+
+  /* Responsive headings */
+  .heading-responsive-xl {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl;
+  }
+
+  .heading-responsive-lg {
+    @apply text-xl sm:text-2xl md:text-3xl;
+  }
+
+  .heading-responsive-md {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+
+  /* Compact padding */
+  .py-section {
+    @apply py-8 sm:py-12 md:py-16 lg:py-24;
+  }
+
+  .px-content {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+
+  /* Mobile-friendly buttons */
+  .btn-mobile {
+    @apply px-3 py-2 sm:px-4 sm:py-2.5 md:px-6 md:py-3 text-sm sm:text-base;
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .no-scrollbar,
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Thin custom scrollbar for panels */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 4px;
+  }
+
+  /* Mobile card hover states */
+  @media (hover: none) {
+    .hover\:scale-105:active {
+      transform: scale(1.02);
+    }
+  }
+}
+
+/* Table responsiveness for mobile */
+@layer components {
+  .table-responsive {
+    @apply w-full overflow-x-auto;
+  }
+
+  .table-responsive table {
+    @apply min-w-full;
+  }
+
+  .table-responsive th,
+  .table-responsive td {
+    @apply text-xs sm:text-sm md:text-base px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4;
+  }
+}
