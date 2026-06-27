@@ -1,6 +1,4 @@
-const { Schema, default: mongoose } = require("mongoose");
-const players = require("../models/players");
-const team = require("../models/team");
+const prisma = require("../db/prisma");
 
 const playersService = require("../services/playerService");
 const tournamentService = require('../services/tournamentService');
@@ -241,9 +239,9 @@ const getSyncDiff = async (req, res) => {
             }
         });
 
-        const dbPlayers = await players.find({ touranmentId });
+        const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
         const dbPlayerMap = {};
-        dbPlayers.forEach(p => dbPlayerMap[p._id.toString()] = p);
+        dbPlayers.forEach(p => dbPlayerMap[p.id] = p);
 
         const diffs = [];
         for (let i = 1; i < sheetData.length; i++) {
@@ -262,7 +260,7 @@ const getSyncDiff = async (req, res) => {
                 if (map.type === 'standard') {
                      dbVal = dbPlayer[map.key] || '';
                 } else if (map.type === 'custom') {
-                     dbVal = (dbPlayer.customFields && dbPlayer.customFields.get(map.key)) || '';
+                     dbVal = (dbPlayer.customFields && dbPlayer.customFields[map.key]) || '';
                 }
                 
                 const cleanCell = String(cellVal || '').trim();
@@ -297,19 +295,38 @@ const getSyncDiff = async (req, res) => {
 const applySync = async (req, res) => {
     try {
         const { diffs } = req.body;
+        const intFields = new Set(['age', 'amtSold', 'auctionSerialNumber']);
+        const boolFields = new Set(['sold', 'auctionStatus']);
         for (const diff of diffs) {
-            const player = await players.findById(diff.playerId);
+            const player = await prisma.player.findUnique({ where: { id: diff.playerId } });
             if (!player) continue;
 
+            const data = {};
+            const customFields = (player.customFields && typeof player.customFields === 'object')
+                ? { ...player.customFields } : {};
+            let customTouched = false;
+
             diff.changes.forEach(c => {
-                 if (c.dbType === 'standard') {
-                     player[c.dbKey] = c.new;
-                 } else if (c.dbType === 'custom') {
-                     if (!player.customFields) player.customFields = new Map();
-                     player.customFields.set(c.dbKey, c.new);
-                 }
+                if (c.dbType === 'standard') {
+                    if (intFields.has(c.dbKey)) {
+                        const n = Number(c.new);
+                        data[c.dbKey] = Number.isFinite(n) ? Math.trunc(n) : null;
+                    } else if (boolFields.has(c.dbKey)) {
+                        const v = String(c.new).trim().toLowerCase();
+                        data[c.dbKey] = v === 'yes' || v === 'true';
+                    } else if (c.dbKey === 'mobile') {
+                        data[c.dbKey] = c.new === '' ? null : String(c.new);
+                    } else {
+                        data[c.dbKey] = c.new;
+                    }
+                } else if (c.dbType === 'custom') {
+                    customFields[c.dbKey] = c.new;
+                    customTouched = true;
+                }
             });
-            await player.save();
+            if (customTouched) data.customFields = customFields;
+
+            await prisma.player.update({ where: { id: diff.playerId }, data });
         }
         return sendSuccess(res, 200, "Sync applied successfully");
     } catch(err) {
@@ -327,7 +344,7 @@ const syncToSheet = async (req, res) => {
             throw new Error("Google Sheet Sync is not configured for this tournament");
         }
 
-        const dbPlayers = await players.find({ touranmentId });
+        const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
         await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
         
         return sendSuccess(res, 200, "Successfully exported database to Google Sheet");
