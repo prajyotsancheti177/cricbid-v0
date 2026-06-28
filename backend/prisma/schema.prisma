@@ -92,6 +92,7 @@ model Tournament {
   categoryBasePrices   Json?    // Map<string, number>
   bidIncrementSlabs    Json?    // [{ minBid, maxBid, increment }]
   registrationFormConfig Json?  // deeply nested config blob
+  features               Json?  // { whatsappNotifications, obsOverlays, publicPlayerRegistration, publicTeamRegistration, googleSheetsSync, dataExport }
 
   // back-relations
   players             Player[]

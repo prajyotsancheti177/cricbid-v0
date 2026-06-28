@@ -8,6 +8,15 @@ import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
 
+export interface TournamentFeatures {
+  whatsappNotifications?: boolean;
+  obsOverlays?: boolean;
+  publicPlayerRegistration?: boolean;
+  publicTeamRegistration?: boolean;
+  googleSheetsSync?: boolean;
+  dataExport?: boolean;
+}
+
 export interface WorkspaceTournament {
   _id: string;
   name?: string;
@@ -16,8 +25,13 @@ export interface WorkspaceTournament {
   minPlayersPerTeam?: number;
   maxPlayersPerTeam?: number;
   playerCategories?: string[];
+  features?: TournamentFeatures;
   [key: string]: unknown;
 }
+
+/** Returns true if the feature is enabled (missing/null treated as enabled for backward compat). */
+export const isFeatureOn = (tournament: WorkspaceTournament, key: keyof TournamentFeatures): boolean =>
+  (tournament.features as TournamentFeatures | undefined)?.[key] !== false;
 
 // Sections in the tournament workspace sidebar
 const SECTIONS = [

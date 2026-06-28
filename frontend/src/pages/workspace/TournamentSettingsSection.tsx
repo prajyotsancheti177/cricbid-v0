@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -10,7 +12,7 @@ import { Pencil, RotateCcw, UsersRound, UserMinus, Trash2, Loader2 } from "lucid
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
-import { useWorkspace } from "./TournamentWorkspace";
+import { useWorkspace, TournamentFeatures, isFeatureOn } from "./TournamentWorkspace";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -25,6 +27,15 @@ type DangerAction = {
   redirectAfter?: boolean;
 };
 
+const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description: string }[] = [
+  { key: "whatsappNotifications", label: "WhatsApp notifications", description: "Send players a WhatsApp message when they are sold or unsold." },
+  { key: "obsOverlays", label: "OBS live streaming overlays", description: "Show overlay links for Camera HUD, fullscreen scoreboard, and split-screen layouts." },
+  { key: "publicPlayerRegistration", label: "Public player registration", description: "Allow players to self-register via a shareable public link." },
+  { key: "publicTeamRegistration", label: "Public team registration", description: "Allow team owners to register via a shareable public link." },
+  { key: "googleSheetsSync", label: "Google Sheets sync", description: "Enable bi-directional sync between the database and a connected Google Sheet." },
+  { key: "dataExport", label: "Data export (CSV & PDF)", description: "Allow downloading player and team data as CSV or PDF files." },
+];
+
 const TournamentSettingsSection = () => {
   const { tournament, reload } = useWorkspace();
   const navigate = useNavigate();
@@ -32,6 +43,7 @@ const TournamentSettingsSection = () => {
   const [pending, setPending] = useState<DangerAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [savingFeature, setSavingFeature] = useState<string | null>(null);
 
   const user = getUser();
   const post = (path: string, body: Record<string, unknown>) =>
@@ -40,6 +52,26 @@ const TournamentSettingsSection = () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
+  const toggleFeature = async (key: keyof TournamentFeatures, value: boolean) => {
+    setSavingFeature(key);
+    const newFeatures: TournamentFeatures = { ...(tournament.features as TournamentFeatures ?? {}), [key]: value };
+    try {
+      const res = await post("/api/tournament/update", {
+        tournamentId: tournament._id,
+        userId: user?._id,
+        userRole: user?.role,
+        features: newFeatures,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || "Save failed");
+      reload();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Save failed", variant: "destructive" });
+    } finally {
+      setSavingFeature(null);
+    }
+  };
 
   const actions: DangerAction[] = [
     {
@@ -114,6 +146,36 @@ const TournamentSettingsSection = () => {
           <SummaryRow label="Teams" value={String(tournament.noOfTeams ?? "—")} />
           <SummaryRow label="Players per team" value={`${tournament.minPlayersPerTeam ?? 0} – ${tournament.maxPlayersPerTeam ?? 0}`} />
           <SummaryRow label="Categories" value={(tournament.playerCategories || []).join(", ") || "—"} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Features</CardTitle>
+          <CardDescription>Enable or disable features for this tournament. Changing a setting takes effect immediately.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {FEATURE_DEFS.map(({ key, label, description }) => {
+            const enabled = isFeatureOn(tournament, key);
+            const saving = savingFeature === key;
+            return (
+              <div key={key} className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Label htmlFor={`feature-${key}`} className="text-sm font-medium cursor-pointer">{label}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  <Switch
+                    id={`feature-${key}`}
+                    checked={enabled}
+                    disabled={saving}
+                    onCheckedChange={(v) => toggleFeature(key, v)}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileDown, RefreshCw, Upload, Loader2 } from "lucide-react";
+import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
-import { useWorkspace } from "./TournamentWorkspace";
+import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
 
 const getUser = () => {
@@ -25,8 +26,17 @@ const downloadCSV = (content: string, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+const FeatureDisabled = ({ label, navigate }: { label: string; navigate: ReturnType<typeof useNavigate> }) => (
+  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <LockKeyhole className="h-4 w-4 shrink-0" />
+    <span>{label} is disabled for this tournament.</span>
+    <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={() => navigate("../settings")}>Enable in Settings</Button>
+  </div>
+);
+
 const TournamentDataSection = () => {
   const { tournament } = useWorkspace();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const user = getUser();
 
@@ -122,10 +132,12 @@ const TournamentDataSection = () => {
           <CardDescription>Download teams and players as CSV files. Columns match the bulk-upload import format.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleDownloadCSV} disabled={csvBusy} className="gap-2">
-            {csvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download CSV
-          </Button>
+          {isFeatureOn(tournament, "dataExport") ? (
+            <Button onClick={handleDownloadCSV} disabled={csvBusy} className="gap-2">
+              {csvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download CSV
+            </Button>
+          ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>
       </Card>
 
@@ -135,10 +147,12 @@ const TournamentDataSection = () => {
           <CardDescription>Export all teams with their player rosters as a printable PDF.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleExportPdf} disabled={pdfBusy} variant="outline" className="gap-2">
-            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-            Export teams PDF
-          </Button>
+          {isFeatureOn(tournament, "dataExport") ? (
+            <Button onClick={handleExportPdf} disabled={pdfBusy} variant="outline" className="gap-2">
+              {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              Export teams PDF
+            </Button>
+          ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>
       </Card>
 
@@ -148,16 +162,18 @@ const TournamentDataSection = () => {
           <CardDescription>Keep your Google Sheet in sync with the database.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button onClick={handleSyncToSheet} disabled={syncingToSheet} variant="outline" className="gap-2">
-            {syncingToSheet
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Upload className="h-4 w-4" />}
-            Sync database → sheet
-          </Button>
-          <Button onClick={() => setSyncFromSheetOpen(true)} variant="outline" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Sync sheet → database
-          </Button>
+          {isFeatureOn(tournament, "googleSheetsSync") ? (
+            <>
+              <Button onClick={handleSyncToSheet} disabled={syncingToSheet} variant="outline" className="gap-2">
+                {syncingToSheet ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Sync database → sheet
+              </Button>
+              <Button onClick={() => setSyncFromSheetOpen(true)} variant="outline" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Sync sheet → database
+              </Button>
+            </>
+          ) : <FeatureDisabled label="Google Sheets sync" navigate={navigate} />}
         </CardContent>
       </Card>
 

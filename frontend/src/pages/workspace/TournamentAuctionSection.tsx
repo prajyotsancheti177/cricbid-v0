@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Copy, ExternalLink, Video } from "lucide-react";
+import { Play, Copy, ExternalLink, Video, LockKeyhole } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useWorkspace } from "./TournamentWorkspace";
+import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 
 const OVERLAYS = [
   { slug: "camera-hud", label: "Camera HUD" },
@@ -45,26 +45,36 @@ const TournamentAuctionSection = () => {
           <CardTitle className="text-lg flex items-center gap-2"><Video className="h-5 w-5" /> Stream overlays</CardTitle>
           <CardDescription>Add these as Browser Sources in OBS for live streaming.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {OVERLAYS.map(({ slug, label }) => {
-            const link = `${window.location.origin}/overlay/${tournament._id}/${slug}`;
-            return (
-              <div key={slug} className="flex items-center justify-between gap-3 border border-border rounded-lg px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{label}</p>
-                  <p className="text-xs text-muted-foreground truncate">{link}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={() => copy(link, label)} aria-label={`Copy ${label} link`}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => window.open(link, "_blank")} aria-label={`Open ${label}`}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+        <CardContent>
+          {isFeatureOn(tournament, "obsOverlays") ? (
+            <div className="space-y-2">
+              {OVERLAYS.map(({ slug, label }) => {
+                const link = `${window.location.origin}/overlay/${tournament._id}/${slug}`;
+                return (
+                  <div key={slug} className="flex items-center justify-between gap-3 border border-border rounded-lg px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="text-xs text-muted-foreground truncate">{link}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => copy(link, label)} aria-label={`Copy ${label} link`}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => window.open(link, "_blank")} aria-label={`Open ${label}`}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <LockKeyhole className="h-4 w-4 shrink-0" />
+              <span>OBS overlays are disabled for this tournament.</span>
+              <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={() => navigate("../settings")}>Enable in Settings</Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

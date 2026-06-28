@@ -129,7 +129,9 @@ const updatePlayer = async (playerInput) => {
 
             const tournament = await prisma.tournament.findUnique({ where: { id: updatedPlayer.touranmentId } });
             const tournamentName = tournament?.name || 'Tournament';
+            const whatsappEnabled = tournament?.features?.whatsappNotifications !== false;
 
+            if (!whatsappEnabled) return;
             await whatsappService.sendPlayerSoldNotification({
                 name: updatedPlayer.name,
                 mobile: updatedPlayer.mobile,
@@ -161,6 +163,7 @@ const updatePlayer = async (playerInput) => {
         try {
             const tournament = await prisma.tournament.findUnique({ where: { id: updatedPlayer.touranmentId } });
             const tournamentName = tournament?.name || 'Tournament';
+            if (tournament?.features?.whatsappNotifications === false) return;
             await whatsappService.sendPlayerUnsoldNotification({
                 name: updatedPlayer.name,
                 mobile: updatedPlayer.mobile,

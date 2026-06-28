@@ -1,13 +1,23 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Settings2, Copy, ExternalLink } from "lucide-react";
+import { Settings2, Copy, ExternalLink, LockKeyhole } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RegistrationConfigDialog } from "@/components/auction/RegistrationConfigDialog";
-import { useWorkspace } from "./TournamentWorkspace";
+import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
+
+const DisabledRow = ({ label, navigate }: { label: string; navigate: ReturnType<typeof useNavigate> }) => (
+  <div className="flex items-center gap-2 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2">
+    <LockKeyhole className="h-4 w-4 shrink-0" />
+    <span>{label} is disabled.</span>
+    <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={() => navigate("../settings")}>Enable in Settings</Button>
+  </div>
+);
 
 const TournamentRegistrationSection = () => {
   const { tournament } = useWorkspace();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -61,8 +71,12 @@ const TournamentRegistrationSection = () => {
           <CardDescription>Send these to players and team owners to self-register.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          <LinkRow label="Player registration link" link={playerLink} />
-          <LinkRow label="Team registration link" link={teamLink} />
+          {isFeatureOn(tournament, "publicPlayerRegistration")
+            ? <LinkRow label="Player registration link" link={playerLink} />
+            : <DisabledRow label="Public player registration" navigate={navigate} />}
+          {isFeatureOn(tournament, "publicTeamRegistration")
+            ? <LinkRow label="Team registration link" link={teamLink} />
+            : <DisabledRow label="Public team registration" navigate={navigate} />}
         </CardContent>
       </Card>
 

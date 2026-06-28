@@ -6,7 +6,7 @@ const { serializeTournament, serializeTeam, serializePlayer } = require("../util
 const TOURNAMENT_FIELDS = [
     'name', 'tournamentHostId', 'noOfTeams', 'maxPlayersPerTeam', 'minPlayersPerTeam',
     'totalBudget', 'playerCategories', 'categoryBasePrices', 'bidIncrementSlabs',
-    'registrationFormConfig',
+    'registrationFormConfig', 'features',
 ];
 const pickTournament = (data) => {
     const out = {};
