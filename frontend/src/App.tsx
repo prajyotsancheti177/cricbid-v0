@@ -17,9 +17,15 @@ import AddPlayer from "./pages/AddPlayer";
 import Tournaments from "./pages/Tournaments";
 import TournamentDetail from "./pages/TournamentDetail";
 import TournamentManagement from "./pages/TournamentManagement";
+import TournamentWorkspace from "./pages/workspace/TournamentWorkspace";
+import TournamentOverview from "./pages/workspace/TournamentOverview";
+import TournamentRegistrationSection from "./pages/workspace/TournamentRegistrationSection";
+import TournamentAuctionSection from "./pages/workspace/TournamentAuctionSection";
+import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSection";
+import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
-import Analytics from "./pages/Analytics";
+// import Analytics from "./pages/Analytics"; // hidden pending SQL migration
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
@@ -91,6 +97,27 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              {/* Tournament Workspace - per-tournament management hub */}
+              <Route
+                path="/tournament/:tournamentId/manage"
+                element={
+                  <ProtectedRoute>
+                    <TournamentWorkspace />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Navigate to="overview" replace />} />
+                <Route path="overview" element={<TournamentOverview />} />
+                <Route path="players" element={<Players />} />
+                <Route path="teams" element={<Teams />} />
+                <Route path="add-player" element={<AddPlayer />} />
+                <Route path="bulk-upload" element={<BulkUpload />} />
+                <Route path="registration" element={<TournamentRegistrationSection />} />
+                <Route path="auction" element={<TournamentAuctionSection />} />
+                <Route path="data" element={<TournamentDataSection />} />
+                <Route path="settings" element={<TournamentSettingsSection />} />
+              </Route>
+
               {/* Public Auction Routes */}
               <Route path="/auction" element={<LiveAuctionLobby />} />
               <Route path="/auction/room/:tournamentId" element={<Auction />} />
@@ -110,14 +137,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              {/* Analytics hidden pending SQL migration (aggregation pipelines not yet ported) */}
+              {/* <Route
                 path="/analytics"
                 element={
                   <ProtectedRoute>
                     <Analytics />
                   </ProtectedRoute>
                 }
-              />
+              /> */}
 
               {/* Redirect for malformed WhatsApp URLs */}
               <Route path="/tournament/:placeholder/:tournamentId" element={<TournamentRedirect />} />

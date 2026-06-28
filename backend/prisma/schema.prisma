@@ -1,0 +1,369 @@
+// Prisma schema for CricBid — migration target (PostgreSQL)
+// Models mirror the existing Mongoose schemas in ../models.
+// IDs are String so the existing Mongo ObjectId hex values can be carried over
+// during ETL, preserving the `_id` contract the frontend/mobile already use.
+// New rows get a cuid().
+//
+// NOTE: analytics READ pipelines are intentionally not ported yet (Analytics
+// page is hidden). The log tables below (UserEvent, WhatsappLog, IpGeoCache)
+// are still WRITTEN during normal operation, so they are migrated.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums (well-bounded sets enforced by the app today)
+// ---------------------------------------------------------------------------
+
+enum Role {
+  boss
+  super_user
+  tournament_host
+}
+
+enum AuctionMode {
+  category
+  manual
+}
+
+enum AuctionLogStatus {
+  sold
+  unsold
+}
+
+enum SessionStatus {
+  active
+  ended
+  abandoned
+}
+
+// ---------------------------------------------------------------------------
+// Core entities
+// ---------------------------------------------------------------------------
+
+model User {
+  id       String  @id @default(cuid())
+  name     String?
+  email    String  @unique
+  password String
+  role     Role    @default(tournament_host)
+  isActive Boolean @default(true)
+  logo     String?
+
+  // permissions{} object flattened to columns
+  canCreateSuperUser      Boolean @default(false)
+  canCreateTournamentHost Boolean @default(false)
+  canManageTournaments    Boolean @default(true)
+  canManageTeams          Boolean @default(true)
+  canManagePlayers        Boolean @default(true)
+
+  // self-relation: who created this user
+  createdById String?
+  createdBy   User?   @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers User[] @relation("UserCreatedBy")
+
+  // back-relations
+  auctionLogs        AuctionLog[]         @relation("AuctionLogConductedBy")
+  auctionRoomSessions AuctionRoomSession[] @relation("SessionHost")
+  userEvents         UserEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user")
+}
+
+model Tournament {
+  id                String  @id @default(cuid())
+  name              String?
+  tournamentHostId  String?
+  noOfTeams         Int?
+  maxPlayersPerTeam Int?
+  minPlayersPerTeam Int?
+  totalBudget       Int?
+
+  playerCategories     String[] // Postgres text[]
+  categoryBasePrices   Json?    // Map<string, number>
+  bidIncrementSlabs    Json?    // [{ minBid, maxBid, increment }]
+  registrationFormConfig Json?  // deeply nested config blob
+
+  // back-relations
+  players             Player[]
+  teams               Team[]
+  auctionLogs         AuctionLog[]
+  auctionRoomSessions AuctionRoomSession[]
+  userEvents          UserEvent[]
+  whatsappLogs        WhatsappLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tournament")
+}
+
+model Team {
+  id   String  @id @default(cuid())
+  name String?
+  logo String?
+
+  // owner{} object flattened
+  ownerName  String?
+  ownerEmail String?
+  ownerMobile String?
+
+  // NOTE: column kept as the existing (misspelled) `touranmentId` to preserve
+  // the current API contract; rename is a separate cleanup.
+  touranmentId String?
+  tournament   Tournament? @relation(fields: [touranmentId], references: [id])
+
+  players        Player[]
+  wonAuctionLogs AuctionLog[]     @relation("AuctionLogWinningTeam")
+  bids           AuctionLogBid[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("team")
+}
+
+model Player {
+  id     String  @id @default(cuid())
+  name   String?
+  age    Int?
+  gender String?
+  photo  String?
+  skill  String?
+  // NOTE: was Mongoose Number; stored as String here because 10-digit phone
+  // numbers overflow Int. API serialization may need to cast. (flag for review)
+  mobile String?
+  email  String?
+  address String?
+
+  touranmentId String?
+  tournament   Tournament? @relation(fields: [touranmentId], references: [id])
+
+  teamId String?
+  team   Team?  @relation(fields: [teamId], references: [id])
+
+  sold                Boolean?
+  auctionStatus       Boolean?
+  amtSold             Int?
+  playerCategory      String?
+  auctionSerialNumber Int?
+  customFields        Json?   // Map<string, mixed>
+
+  auctionLogs  AuctionLog[]
+  whatsappLogs WhatsappLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("player")
+}
+
+// ---------------------------------------------------------------------------
+// Auction history
+// ---------------------------------------------------------------------------
+
+model AuctionLog {
+  id String @id @default(cuid())
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  playerName     String?
+  playerCategory String?
+  basePrice      Int
+
+  auctionMode AuctionMode
+
+  status          AuctionLogStatus
+  winningTeamId   String?
+  winningTeam     Team?   @relation("AuctionLogWinningTeam", fields: [winningTeamId], references: [id])
+  winningTeamName String?
+  finalPrice      Int?
+
+  // embedded bids[] -> child table
+  bids AuctionLogBid[]
+
+  totalBids          Int @default(0)
+  uniqueTeamsBidding Int @default(0)
+
+  auctionStartedAt     DateTime?
+  auctionEndedAt       DateTime?
+  totalDurationSeconds Int?
+
+  conductedById String?
+  conductedBy   User?   @relation("AuctionLogConductedBy", fields: [conductedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId, status])
+  @@index([tournamentId, playerCategory])
+  @@index([playerId, auctionStartedAt])
+  @@index([tournamentId, auctionEndedAt])
+  @@map("auction_log")
+}
+
+model AuctionLogBid {
+  id String @id @default(cuid())
+
+  auctionLogId String
+  auctionLog   AuctionLog @relation(fields: [auctionLogId], references: [id], onDelete: Cascade)
+
+  teamId   String
+  team     Team   @relation(fields: [teamId], references: [id])
+  teamName String
+
+  bidAmount    Int
+  bidIncrement Int?
+  timestamp    DateTime?
+  bidOrder     Int
+
+  @@index([auctionLogId, bidOrder])
+  @@map("auction_log_bid")
+}
+
+// ---------------------------------------------------------------------------
+// Live auction room session analytics (write-side migrated; reads deferred)
+// ---------------------------------------------------------------------------
+
+model AuctionRoomSession {
+  id String @id @default(cuid())
+
+  tournamentId   String
+  tournament     Tournament @relation(fields: [tournamentId], references: [id])
+  tournamentName String?
+
+  sessionStartedAt        DateTime?
+  sessionEndedAt          DateTime?
+  sessionDurationMinutes  Int?
+
+  hostUserId   String?
+  hostUser     User?   @relation("SessionHost", fields: [hostUserId], references: [id])
+  hostUserName String?
+
+  // arrays kept as Postgres text[] / Json
+  uniqueViewerUserIds String[]
+  anonymousViewerIPs  String[]
+
+  totalUniqueViewers Int @default(0)
+  totalJoins         Int @default(0)
+
+  peakConcurrentViewers Int      @default(0)
+  peakViewerTimestamp   DateTime?
+
+  playersAuctioned Int @default(0)
+  playersSold      Int @default(0)
+  playersUnsold    Int @default(0)
+  totalBids        Int @default(0)
+
+  viewerHistory Json? // [{ timestamp, viewerCount }]
+
+  status SessionStatus @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId, sessionStartedAt])
+  @@index([status, sessionStartedAt])
+  @@index([hostUserId, sessionStartedAt])
+  @@map("auction_room_session")
+}
+
+// ---------------------------------------------------------------------------
+// Logging / cache tables (written in normal flow)
+// ---------------------------------------------------------------------------
+
+model UserEvent {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id])
+
+  sessionId String?
+
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+
+  eventType String // open-ended enum kept as String
+  eventData Json?
+
+  page      String?
+  userAgent String?
+  ipAddress String?
+
+  timestamp DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId, eventType, timestamp])
+  @@index([userId, timestamp])
+  @@index([sessionId, timestamp])
+  @@map("user_event")
+}
+
+model WhatsappLog {
+  id String @id @default(cuid())
+
+  messageType     String
+  templateName    String?
+  recipientMobile String
+
+  playerId   String?
+  player     Player? @relation(fields: [playerId], references: [id])
+  playerName String?
+
+  tournamentId   String?
+  tournament     Tournament? @relation(fields: [tournamentId], references: [id])
+  tournamentName String?
+
+  teamName String?
+  amtSold  Int?
+
+  status       String
+  messageId    String?
+  errorMessage String?
+
+  timestamp DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, timestamp])
+  @@index([messageType, timestamp])
+  @@index([tournamentId, timestamp])
+  @@map("whatsapp_log")
+}
+
+model IpGeoCache {
+  id        String  @id @default(cuid())
+  ipAddress String  @unique
+  city      String?
+  region    String?
+  country   String?
+  countryCode String?
+  lat       Float?
+  lon       Float?
+  isp       String?
+  isValid   Boolean @default(true)
+  // NOTE: Mongo had a 30d TTL index here. Postgres has no native TTL —
+  // needs a periodic cleanup job on cachedAt. (flag for review)
+  cachedAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ip_geo_cache")
+}

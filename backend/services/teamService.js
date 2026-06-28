@@ -1,363 +1,204 @@
-const Team = require("../models/team");
-const Tournament = require("../models/tournament")
-const { Schema, default: mongoose } = require("mongoose");
+const prisma = require("../db/prisma");
+const { serializeTeam, serializePlayer } = require("../utils/serialize");
+
+const sumSpent = (players) => players.reduce((acc, p) => acc + (p.amtSold || 0), 0);
+
+// attach basePrice to a serialized player from the tournament's categoryBasePrices map
+const withBasePrice = (player, categoryBasePrices) => {
+    const s = serializePlayer(player);
+    s.basePrice = (categoryBasePrices && player.playerCategory)
+        ? (categoryBasePrices[player.playerCategory] || 0)
+        : 0;
+    return s;
+};
 
 const addTeam = async (teamInput) => {
-    const team = await Team.findOne({ touranmentId: teamInput.touranmentId, name: teamInput.name })
-    if (team) {
-        const err = new Error("Team already exists!");
-        throw err;
+    const existing = await prisma.team.findFirst({
+        where: { touranmentId: teamInput.touranmentId, name: teamInput.name },
+    });
+    if (existing) {
+        throw new Error("Team already exists!");
     }
-    const newTeam = new Team(teamInput);
-    const savedTeam = newTeam.save();
-    return savedTeam;
-}
+    const created = await prisma.team.create({
+        data: {
+            name: teamInput.name,
+            logo: teamInput.logo ?? null,
+            touranmentId: teamInput.touranmentId ?? null,
+            ownerName: teamInput.owner?.name ?? null,
+            ownerEmail: teamInput.owner?.email ?? null,
+            ownerMobile: teamInput.owner?.mobile ?? null,
+        },
+    });
+    return serializeTeam(created);
+};
 
+/**
+ * Tournament teams report with per-team spend, remaining budget and max-biddable
+ * amount. (Ported from the Mongo aggregation pipeline.)
+ */
 const getTournamentTeamsReport = async (touranmentId) => {
-    const aggegrationPipeline = [
-        {
-            '$match': {
-                '_id': new mongoose.Types.ObjectId(touranmentId)
-            }
-        }, {
-            '$lookup': {
-                'from': 'team',
-                'localField': '_id',
-                'foreignField': 'touranmentId',
-                'as': 'teams',
-                'pipeline': [
-                    {
-                        '$lookup': {
-                            'from': 'player',
-                            'localField': '_id',
-                            'foreignField': 'teamId',
-                            'as': 'players'
-                        }
-                    }, {
-                        '$addFields': {
-                            'totalSpent': {
-                                '$sum': {
-                                    '$map': {
-                                        'input': '$players',
-                                        'as': 'p',
-                                        'in': {
-                                            '$cond': [
-                                                {
-                                                    '$ifNull': [
-                                                        '$$p.amtSold', false
-                                                    ]
-                                                }, '$$p.amtSold', 0
-                                            ]
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }, {
-                        '$addFields': {
-                            'remainingBudget': {
-                                '$subtract': [
-                                    '$$ROOT.totalBudget', '$totalSpent'
-                                ]
-                            }
-                        }
-                    }
-                ]
-            }
-        }, {
-            '$addFields': {
-                'teams': {
-                    '$map': {
-                        'input': '$teams',
-                        'as': 't',
-                        'in': {
-                            '_id': '$$t._id', // Include teamId
-                            'name': '$$t.name',
-                            'logo': '$$t.logo',
-                            'owner': '$$t.owner',
-                            'players': '$$t.players',
-                            'totalSpent': '$$t.totalSpent',
-                            'remainingBudget': {
-                                '$subtract': [
-                                    '$totalBudget', '$$t.totalSpent'
-                                ]
-                            },
-                            'maxPlayersPerTeam': '$maxPlayersPerTeam', // Include maxPlayersPerTeam
-                            'minPlayersPerTeam': '$minPlayersPerTeam' // Include minPlayersPerTeam
-                        }
-                    }
-                }
-            }
-        }, {
-            '$project': {
-                'name': 1,
-                'totalBudget': 1,
-                'maxPlayersPerTeam': 1,
-                'minPlayersPerTeam': 1,
-                'categoryBasePrices': 1,
-                'teams': 1
-            }
-        }
-    ];
-    const report = await Tournament.aggregate(aggegrationPipeline);
+    const tournament = await prisma.tournament.findUnique({ where: { id: touranmentId } });
+    if (!tournament) return []; // matched-nothing -> [] (as aggregate did)
 
-    // Add base prices to players from tournament categoryBasePrices
-    if (report && report.length > 0 && report[0].teams) {
-        const tournamentData = await Tournament.findById(touranmentId);
+    const teams = await prisma.team.findMany({
+        where: { touranmentId },
+        include: { players: true },
+    });
 
-        // Calculate minimum base price across all categories
-        let minBasePrice = 0;
-        if (tournamentData && tournamentData.categoryBasePrices) {
-            const basePrices = Array.from(tournamentData.categoryBasePrices.values());
-            minBasePrice = basePrices.length > 0 ? Math.min(...basePrices) : 0;
-        }
+    const categoryBasePrices = tournament.categoryBasePrices || {};
+    const basePriceValues = Object.values(categoryBasePrices);
+    const minBasePrice = basePriceValues.length > 0 ? Math.min(...basePriceValues) : 0;
+    const minPlayersPerTeam = tournament.minPlayersPerTeam || 0;
 
-        const minPlayersPerTeam = report[0].minPlayersPerTeam || 0;
+    const teamsOut = teams.map((t) => {
+        const players = t.players.map((p) => withBasePrice(p, categoryBasePrices));
+        const totalSpent = sumSpent(t.players);
+        const remainingBudget = (tournament.totalBudget || 0) - totalSpent;
 
-        report[0].teams = report[0].teams.map(team => {
-            if (team.players && Array.isArray(team.players)) {
-                team.players = team.players.map(player => {
-                    if (tournamentData && tournamentData.categoryBasePrices && player.playerCategory) {
-                        const basePrice = tournamentData.categoryBasePrices.get(player.playerCategory);
-                        player.basePrice = basePrice || 0;
-                    } else {
-                        player.basePrice = 0;
-                    }
-                    return player;
-                });
-            }
+        const playersAlreadyBought = players.length;
+        const slotsToFill = Math.max(0, minPlayersPerTeam - playersAlreadyBought - 1);
+        const reservedAmount = minBasePrice * slotsToFill;
+        const maxBiddableAmount = Math.max(0, remainingBudget - reservedAmount);
 
-            // Calculate max biddable amount
-            // Formula: (Amount left - (min base price × (min players per team - players already bought - 1)))
-            // The -1 accounts for the current player being purchased
-            const playersAlreadyBought = team.players ? team.players.length : 0;
-            const slotsToFill = Math.max(0, minPlayersPerTeam - playersAlreadyBought - 1);
-            const reservedAmount = minBasePrice * slotsToFill;
-            const maxBiddableAmount = Math.max(0, (team.remainingBudget || 0) - reservedAmount);
+        return {
+            _id: String(t.id), // string for strict equality in state manager
+            name: t.name,
+            logo: t.logo,
+            owner: { name: t.ownerName, email: t.ownerEmail, mobile: t.ownerMobile },
+            players,
+            totalSpent,
+            remainingBudget,
+            maxPlayersPerTeam: tournament.maxPlayersPerTeam,
+            minPlayersPerTeam: tournament.minPlayersPerTeam,
+            maxBiddableAmount,
+            playersCount: playersAlreadyBought,
+        };
+    });
 
-            team.maxBiddableAmount = maxBiddableAmount;
-            team.playersCount = playersAlreadyBought;
+    return [{
+        _id: tournament.id,
+        name: tournament.name,
+        totalBudget: tournament.totalBudget,
+        maxPlayersPerTeam: tournament.maxPlayersPerTeam,
+        minPlayersPerTeam: tournament.minPlayersPerTeam,
+        categoryBasePrices: tournament.categoryBasePrices ?? undefined,
+        teams: teamsOut,
+    }];
+};
 
-            // Ensure _id is string for strict equality checks in state manager
-            if (team._id) {
-                team._id = team._id.toString();
-            }
-
-            return team;
-        });
-    }
-
-    return report;
-}
-
+/**
+ * Single team report with spend / remaining budget and tournament summary.
+ * (Ported from the Mongo aggregation pipeline.)
+ */
 const getTeamReport = async (teamId) => {
-    const aggregationPipeline = [
-        {
-            '$match': {
-                '_id': new mongoose.Types.ObjectId(teamId)
-            }
-        }, {
-            '$lookup': {
-                'from': 'player',
-                'localField': '_id',
-                'foreignField': 'teamId',
-                'as': 'players'
-            }
-        }, {
-            '$lookup': {
-                'from': 'tournament',
-                'localField': 'touranmentId',
-                'foreignField': '_id',
-                'as': 'tournament'
-            }
-        }, {
-            '$unwind': {
-                'path': '$tournament',
-                'preserveNullAndEmptyArrays': true
-            }
-        }, {
-            '$addFields': {
-                'totalSpent': {
-                    '$sum': {
-                        '$map': {
-                            'input': '$players',
-                            'as': 'p',
-                            'in': {
-                                '$ifNull': [
-                                    '$$p.amtSold', 0
-                                ]
-                            }
-                        }
-                    }
-                },
-                'remainingBudget': {
-                    '$subtract': [
-                        '$tournament.totalBudget', {
-                            '$sum': {
-                                '$map': {
-                                    'input': '$players',
-                                    'as': 'p',
-                                    'in': {
-                                        '$ifNull': [
-                                            '$$p.amtSold', 0
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-        }, {
-            '$project': {
-                '_id': 1,
-                'name': 1,
-                'logo': 1,
-                'owner': 1,
-                'totalSpent': 1,
-                'remainingBudget': 1,
-                'players': 1,
-                'tournament._id': 1,
-                'tournament.name': 1,
-                'tournament.totalBudget': 1
-            }
-        }
-    ]
+    const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        include: { players: true },
+    });
+    if (!team) return [];
 
-    const teamReport = await Team.aggregate(aggregationPipeline);
+    const tournament = team.touranmentId
+        ? await prisma.tournament.findUnique({ where: { id: team.touranmentId } })
+        : null;
 
-    // Add base prices to players from tournament categoryBasePrices
-    if (teamReport && teamReport.length > 0 && teamReport[0].players) {
-        const tournamentId = teamReport[0].tournament?._id;
-        if (tournamentId) {
-            const tournamentData = await Tournament.findById(tournamentId);
+    const categoryBasePrices = tournament?.categoryBasePrices || {};
+    const totalSpent = sumSpent(team.players);
+    const remainingBudget = (tournament?.totalBudget || 0) - totalSpent;
+    const players = team.players.map((p) => withBasePrice(p, categoryBasePrices));
 
-            teamReport[0].players = teamReport[0].players.map(player => {
-                if (tournamentData && tournamentData.categoryBasePrices && player.playerCategory) {
-                    const basePrice = tournamentData.categoryBasePrices.get(player.playerCategory);
-                    player.basePrice = basePrice || 0;
-                } else {
-                    player.basePrice = 0;
-                }
-                return player;
-            });
-        }
-    }
-
-    return teamReport;
-}
+    return [{
+        _id: team.id,
+        name: team.name,
+        logo: team.logo,
+        owner: { name: team.ownerName, email: team.ownerEmail, mobile: team.ownerMobile },
+        totalSpent,
+        remainingBudget,
+        players,
+        tournament: tournament
+            ? { _id: tournament.id, name: tournament.name, totalBudget: tournament.totalBudget }
+            : undefined,
+    }];
+};
 
 const updateTeam = async (payload) => {
     const { teamId, name, logo, owner } = payload;
-
     if (!teamId) throw new Error("teamId is required");
 
     const updateData = {};
     if (name) updateData.name = name.trim();
     if (logo !== undefined) updateData.logo = logo;
     if (owner) {
-        updateData.owner = {};
-        if (owner.name) updateData.owner.name = owner.name.trim();
-        if (owner.email) updateData.owner.email = owner.email.trim().toLowerCase();
-        if (owner.mobile) updateData.owner.mobile = owner.mobile;
+        if (owner.name) updateData.ownerName = owner.name.trim();
+        if (owner.email) updateData.ownerEmail = owner.email.trim().toLowerCase();
+        if (owner.mobile) updateData.ownerMobile = owner.mobile;
     }
 
-    const updatedTeam = await Team.findByIdAndUpdate(
-        teamId,
-        { $set: updateData },
-        { new: true }
-    );
-
-    if (!updatedTeam) throw new Error("Team not found");
-    return updatedTeam;
-}
+    let updated;
+    try {
+        updated = await prisma.team.update({ where: { id: teamId }, data: updateData });
+    } catch (e) {
+        if (e.code === 'P2025') throw new Error("Team not found");
+        throw e;
+    }
+    return serializeTeam(updated);
+};
 
 const getTeamNames = async (touranmentId) => {
     if (!touranmentId) throw new Error("touranmentId is required");
+    const teams = await prisma.team.findMany({
+        where: { touranmentId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+    });
+    return teams.map((t) => ({ _id: t.id, name: t.name }));
+};
 
-    const teams = await Team.find(
-        { touranmentId: new mongoose.Types.ObjectId(touranmentId) },
-        { _id: 1, name: 1 }
-    ).sort({ name: 1 });
-
-    return teams;
-}
-
+// Legacy: tournament has no embedded `teams` array (never did in the schema);
+// kept to preserve the /names-budget endpoint shape.
 const getTeamNamesAndBudget = async (touranmentId) => {
-    try {
-        const teams = await tournament.findById(touranmentId).select('teams.name teams.totalBudget');
-        return teams;
-    } catch (error) {
-        throw error;
-    }
+    const t = await prisma.tournament.findUnique({ where: { id: touranmentId }, select: { id: true } });
+    return t ? { _id: t.id } : null;
 };
 
 const bulkCreateTeams = async (teams, touranmentId) => {
-    try {
-        // Check for duplicates in the input data
-        const teamNames = teams.map(t => t.name);
-        const duplicateNames = teamNames.filter((name, index) => teamNames.indexOf(name) !== index);
-
-        if (duplicateNames.length > 0) {
-            const err = new Error(`Duplicate team names found in CSV: ${[...new Set(duplicateNames)].join(', ')}`);
-            throw err;
-        }
-
-        // Check for existing teams in database
-        const existingTeams = await Team.find({
-            touranmentId: touranmentId,
-            name: { $in: teamNames }
-        });
-
-        if (existingTeams.length > 0) {
-            const existingNames = existingTeams.map(t => t.name).join(', ');
-            const err = new Error(`Teams already exist: ${existingNames}`);
-            throw err;
-        }
-
-        // Create team documents
-        const createdTeams = await Team.insertMany(teams);
-
-        // Get team IDs
-        const teamIds = createdTeams.map(t => t._id);
-
-        // Update tournament with team IDs
-        await Tournament.findByIdAndUpdate(
-            touranmentId,
-            { $push: { teams: { $each: teamIds } } },
-            { new: true }
-        );
-
-        return createdTeams;
-    } catch (error) {
-        throw error;
+    const teamNames = teams.map((t) => t.name);
+    const duplicateNames = teamNames.filter((name, index) => teamNames.indexOf(name) !== index);
+    if (duplicateNames.length > 0) {
+        throw new Error(`Duplicate team names found in CSV: ${[...new Set(duplicateNames)].join(', ')}`);
     }
+
+    const existingTeams = await prisma.team.findMany({
+        where: { touranmentId, name: { in: teamNames } },
+        select: { name: true },
+    });
+    if (existingTeams.length > 0) {
+        throw new Error(`Teams already exist: ${existingTeams.map((t) => t.name).join(', ')}`);
+    }
+
+    const created = await prisma.team.createManyAndReturn({
+        data: teams.map((t) => ({
+            name: t.name,
+            logo: t.logo ?? null,
+            touranmentId: t.touranmentId ?? touranmentId ?? null,
+            ownerName: t.owner?.name ?? null,
+            ownerEmail: t.owner?.email ?? null,
+            ownerMobile: t.owner?.mobile ?? null,
+        })),
+    });
+    return created.map(serializeTeam);
 };
 
 /**
  * Delete all teams for a tournament
- * @param {String} tournamentId - Tournament ID
- * @returns {Object} Deletion result with count
  */
 const deleteAllTeamsByTournament = async (tournamentId) => {
     if (!tournamentId) {
         throw new Error("Tournament ID is required");
     }
-
-    const result = await Team.deleteMany({
-        touranmentId: new mongoose.Types.ObjectId(tournamentId)
-    });
-
-    // Also update the tournament to clear the teams array
-    await Tournament.findByIdAndUpdate(
-        tournamentId,
-        { $set: { teams: [] } },
-        { new: true }
-    );
-
+    const result = await prisma.team.deleteMany({ where: { touranmentId: tournamentId } });
     return {
-        deletedCount: result.deletedCount,
-        message: `Successfully deleted ${result.deletedCount} teams`
+        deletedCount: result.count,
+        message: `Successfully deleted ${result.count} teams`,
     };
 };
 
@@ -369,16 +210,5 @@ module.exports = {
     getTeamNames,
     getTeamNamesAndBudget,
     bulkCreateTeams,
-    deleteAllTeamsByTournament
-}
-
-
-
-// module.exports = {
-//     addTeam,
-//     getTournamentTeamsReport,
-//     getTeamReport,
-//     updateTeam,
-//     getTeamNames,
-//     getTeamNamesAndBudget
-// }
+    deleteAllTeamsByTournament,
+};
