@@ -459,30 +459,6 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Stats Section */}
-            <section className="py-12 md:py-24 relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-secondary/10" />
-
-                <div className="container mx-auto px-4 relative z-10">
-                    <motion.div
-                        {...staggerContainer}
-                        className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8"
-                    >
-                        {stats.map((stat, index) => (
-                            <motion.div
-                                key={index}
-                                {...staggerItem}
-                                className="text-center"
-                            >
-                                <div className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-1 sm:mb-2">
-                                    {stat.value}
-                                </div>
-                                <div className="text-muted-foreground text-sm sm:text-lg">{stat.label}</div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </div>
-            </section>
 
             {/* Trust Badges */}
             <section className="py-16">
@@ -524,8 +500,8 @@ export default function Home() {
                         <motion.div {...fadeInUp}>
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-2 text-foreground">Is Vardhaman CricBid free to use?</h3>
-                                    <p className="text-muted-foreground">Yes! Vardhaman CricBid is completely free cricket auction software. You can host unlimited IPL-style auctions with automatic bidding, WhatsApp notifications, OBS live streaming overlays, and Google Sheets sync at no cost.</p>
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">What is the pricing for Vardhaman CricBid?</h3>
+                                    <p className="text-muted-foreground">Vardhaman CricBid offers very competitive and flexible pricing tailored to your needs. If you just need the essentials — live bidding, player management, and team tracking — the basic plan is extremely affordable. For organizers who want premium features like WhatsApp notifications, OBS live streaming overlays, and Google Sheets sync, those are available at an additional price. You only pay for what you actually use.</p>
                                 </CardContent>
                             </Card>
                         </motion.div>
