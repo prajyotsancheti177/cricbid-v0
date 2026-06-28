@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Trophy, Users, DollarSign, Download, UserMinus, UsersRound, RotateCcw, Plus, Link, FileDown, Loader2, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
 import {
   DropdownMenu,
@@ -108,6 +109,7 @@ export default function TournamentManagement() {
   const { toast } = useToast();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [tournamentHosts, setTournamentHosts] = useState<TournamentHost[]>([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -776,13 +778,11 @@ export default function TournamentManagement() {
                     <TableCell className="text-center">
                       <div className="flex justify-center items-center gap-1">
                         <Button
-                          variant="outline"
                           size="sm"
-                          onClick={() => handleOpenDialog(tournament)}
+                          onClick={() => navigate(`/tournament/${tournament._id}/manage/overview`)}
                           className="gap-1"
                         >
-                          <Pencil className="h-4 w-4" />
-                          Edit
+                          Manage
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -791,6 +791,13 @@ export default function TournamentManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Setup</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleOpenDialog(tournament)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit tournament details
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
                             <DropdownMenuLabel>Registration</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
