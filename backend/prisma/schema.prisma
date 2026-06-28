@@ -101,6 +101,7 @@ model Tournament {
   auctionRoomSessions AuctionRoomSession[]
   userEvents          UserEvent[]
   whatsappLogs        WhatsappLog[]
+  backups             TournamentBackup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -346,6 +347,19 @@ model WhatsappLog {
   @@index([messageType, timestamp])
   @@index([tournamentId, timestamp])
   @@map("whatsapp_log")
+}
+
+model TournamentBackup {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  label        String?    // optional user-provided name
+  snapshot     Json       // { players: [{id, name, sold, auctionStatus, teamId, amtSold}] }
+  playerCount  Int        @default(0)
+  soldCount    Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@map("tournament_backup")
 }
 
 model IpGeoCache {

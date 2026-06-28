@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, useNavigate, useOutletContext } from "react-router-dom";
 import {
   LayoutDashboard, Users, Shield, UserPlus, Upload, Link as LinkIcon,
-  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database,
+  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
@@ -43,6 +43,7 @@ const SECTIONS = [
   { to: "registration", label: "Registration", icon: LinkIcon },
   { to: "auction", label: "Auction", icon: Gavel },
   { to: "data", label: "Data & export", icon: Database },
+  { to: "backups", label: "Backups", icon: History },
   { to: "settings", label: "Settings", icon: Settings },
 ];
 
