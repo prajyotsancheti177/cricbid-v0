@@ -1,5 +1,5 @@
 const backupService = require("../services/backupService");
-const { sendSuccess, sendError } = require("../utils/responseHandler");
+const { sendSuccess, sendError } = require("../utils");
 
 const createBackup = async (req, res) => {
     try {
