@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { Pencil, Trash2, Trophy, Users, DollarSign, Download, UserMinus, UsersRound, RotateCcw, Plus, Link, FileDown, Loader2 } from "lucide-react";
+import { Pencil, Trash2, Trophy, Users, DollarSign, Download, UserMinus, UsersRound, RotateCcw, Plus, Link, FileDown, Loader2, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { RegistrationConfigDialog } from "@/components/auction/RegistrationConfigDialog";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
@@ -766,120 +774,121 @@ export default function TournamentManagement() {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex justify-center gap-1 flex-wrap">
+                      <div className="flex justify-center items-center gap-1">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => handleOpenDialog(tournament)}
-                          title="Edit Tournament"
+                          className="gap-1"
                         >
                           <Pencil className="h-4 w-4" />
+                          Edit
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionTournamentId(tournament._id);
-                            setActionTournamentName(tournament.name || "");
-                            setConfigDialogOpen(true);
-                          }}
-                          title="Customize Registration Form"
-                        >
-                          <Link className="h-4 w-4 text-purple-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/team-register/${tournament._id}`);
-                            toast({ title: "Copied!", description: "Team Registration link copied to clipboard" });
-                          }}
-                          title="Copy Team Registration Link"
-                        >
-                          <Users className="h-4 w-4 text-indigo-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionTournamentId(tournament._id);
-                            setSyncDialogOpen(true);
-                          }}
-                          title="Sync Sheet Data to DB"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-emerald-600"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleSyncToSheet(tournament._id)}
-                          disabled={isSyncingToSheet === tournament._id}
-                          title="Sync DB Data back to Sheet"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-4 w-4 text-emerald-600 ${isSyncingToSheet === tournament._id ? 'animate-bounce' : ''}`}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownloadData(tournament._id, tournament.name || 'tournament')}
-                          title="Download Data"
-                        >
-                          <Download className="h-4 w-4 text-blue-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleExportPdf(tournament._id, tournament.name || 'Tournament')}
-                          disabled={exportingPdfId === tournament._id}
-                          title="Export Teams PDF"
-                        >
-                          {exportingPdfId === tournament._id ? (
-                            <Loader2 className="h-4 w-4 text-teal-500 animate-spin" />
-                          ) : (
-                            <FileDown className="h-4 w-4 text-teal-500" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionTournamentId(tournament._id);
-                            setDeleteAllTeamsDialogOpen(true);
-                          }}
-                          title="Delete All Teams"
-                        >
-                          <UsersRound className="h-4 w-4 text-orange-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionTournamentId(tournament._id);
-                            setDeleteAllPlayersDialogOpen(true);
-                          }}
-                          title="Delete All Players"
-                        >
-                          <UserMinus className="h-4 w-4 text-orange-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setActionTournamentId(tournament._id);
-                            setResetUnsoldDialogOpen(true);
-                          }}
-                          title="Reset Unsold Players to Pending"
-                        >
-                          <RotateCcw className="h-4 w-4 text-amber-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openDeleteDialog(tournament._id)}
-                          title="Delete Tournament"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" aria-label="More actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Registration</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setActionTournamentId(tournament._id);
+                                setActionTournamentName(tournament.name || "");
+                                setConfigDialogOpen(true);
+                              }}
+                            >
+                              <Link className="h-4 w-4 mr-2 text-purple-500" />
+                              Customize registration form
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/team-register/${tournament._id}`);
+                                toast({ title: "Copied!", description: "Team Registration link copied to clipboard" });
+                              }}
+                            >
+                              <Users className="h-4 w-4 mr-2 text-indigo-500" />
+                              Copy team registration link
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Google Sheet</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setActionTournamentId(tournament._id);
+                                setSyncDialogOpen(true);
+                              }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-2 text-emerald-600" />
+                              Sync sheet → database
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleSyncToSheet(tournament._id)}
+                              disabled={isSyncingToSheet === tournament._id}
+                            >
+                              <Upload className={`h-4 w-4 mr-2 text-emerald-600 ${isSyncingToSheet === tournament._id ? 'animate-bounce' : ''}`} />
+                              Sync database → sheet
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Data</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => handleDownloadData(tournament._id, tournament.name || 'tournament')}
+                            >
+                              <Download className="h-4 w-4 mr-2 text-blue-500" />
+                              Download CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleExportPdf(tournament._id, tournament.name || 'Tournament')}
+                              disabled={exportingPdfId === tournament._id}
+                            >
+                              {exportingPdfId === tournament._id ? (
+                                <Loader2 className="h-4 w-4 mr-2 text-teal-500 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4 mr-2 text-teal-500" />
+                              )}
+                              Export teams PDF
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-red-500">Danger zone</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setActionTournamentId(tournament._id);
+                                setResetUnsoldDialogOpen(true);
+                              }}
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2 text-amber-500" />
+                              Reset unsold players
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setActionTournamentId(tournament._id);
+                                setDeleteAllTeamsDialogOpen(true);
+                              }}
+                            >
+                              <UsersRound className="h-4 w-4 mr-2 text-orange-500" />
+                              Delete all teams
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setActionTournamentId(tournament._id);
+                                setDeleteAllPlayersDialogOpen(true);
+                              }}
+                            >
+                              <UserMinus className="h-4 w-4 mr-2 text-orange-500" />
+                              Delete all players
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openDeleteDialog(tournament._id)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete tournament
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>

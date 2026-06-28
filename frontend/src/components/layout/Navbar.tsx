@@ -1,61 +1,52 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Trophy, LogOut, User, Menu, X, Phone } from "lucide-react";
+import { Trophy, LogOut, User, Menu, X, Phone, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { trackEvent } from "@/lib/eventTracker";
 import { getSocket } from "@/lib/socket";
 import logo from "@/assets/logo.png";
 
-const buildNavLinks = () => {
-  let showUsers = false;
-  let showManageTournaments = false;
-  let showBulkUpload = false;
+// Public links shown in the main bar for everyone
+const PUBLIC_LINKS = [
+  { path: "/", label: "Home" },
+  { path: "/tournaments", label: "Tournaments" },
+  { path: "/auction", label: "Live Auction" },
+];
 
+// Admin/account links — tucked into the right-side account menu (and the mobile
+// menu). Built from the logged-in user's role.
+const buildAdminLinks = () => {
+  const links: { path: string; label: string }[] = [];
   try {
-    // Check if user is boss or super_user
     const userStr = localStorage.getItem("user");
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      if (user.role === 'boss' || user.role === 'super_user') {
-        showUsers = true;
-      }
-      // Show manage tournaments for authenticated users
-      showManageTournaments = true;
+    if (!userStr) return links;
+    const user = JSON.parse(userStr);
 
-      // Show bulk upload for tournament_host and above
-      if (user.role === 'tournament_host' || user.role === 'super_user' || user.role === 'boss') {
-        showBulkUpload = true;
-      }
+    // Authenticated users manage tournaments
+    links.push({ path: "/tournaments/manage", label: "Manage Tournaments" });
+    links.push({ path: "/add-player", label: "Add Player" });
+
+    if (user.role === 'tournament_host' || user.role === 'super_user' || user.role === 'boss') {
+      links.push({ path: "/bulk-upload", label: "Bulk Upload" });
+    }
+    if (user.role === 'boss' || user.role === 'super_user') {
+      links.push({ path: "/users", label: "Users" });
+      // Analytics hidden pending SQL migration (aggregation pipelines not yet ported)
+      // links.push({ path: "/analytics", label: "Analytics" });
     }
   } catch {
     // ignore localStorage errors
   }
-
-  // Public links (always visible for everyone)
-  const links = [
-    { path: "/", label: "Home" },
-    { path: "/tournaments", label: "Tournaments" },
-    { path: "/auction", label: "Live Auction" },
-  ];
-
-  // Protected links (only for authenticated users)
-  if (showManageTournaments) {
-    links.push({ path: "/tournaments/manage", label: "Manage Tournaments" });
-    links.push({ path: "/add-player", label: "Add Player" });
-  }
-
-  if (showBulkUpload) {
-    links.push({ path: "/bulk-upload", label: "Bulk Upload" });
-  }
-
-  if (showUsers) {
-    links.unshift({ path: "/users", label: "Users" });
-    // Analytics hidden pending SQL migration (aggregation pipelines not yet ported)
-    // links.push({ path: "/analytics", label: "Analytics" });
-  }
-
   return links;
 };
 
@@ -143,7 +134,9 @@ export const Navbar = () => {
   };
 
   const userName = getUserName();
-  const navLinks = buildNavLinks();
+  const publicLinks = PUBLIC_LINKS;
+  const adminLinks = buildAdminLinks();
+  const mobileLinks = [...publicLinks, ...adminLinks];
 
   const handleNavClick = (path: string) => {
     setMobileMenuOpen(false);
@@ -168,7 +161,7 @@ export const Navbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
             <div className="flex gap-1">
-              {navLinks.map((link) => (
+              {publicLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
@@ -194,19 +187,29 @@ export const Navbar = () => {
 
             {userName ? (
               <div className="flex items-center gap-2 border-l pl-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span>{userName}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="gap-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Logout</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="max-w-[140px] truncate">{userName}</span>
+                      <ChevronDown className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="truncate">{userName}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {adminLinks.map((link) => (
+                      <DropdownMenuItem key={link.path} onClick={() => navigate(link.path)}>
+                        {link.label}
+                      </DropdownMenuItem>
+                    ))}
+                    {adminLinks.length > 0 && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ) : (
               <div className="flex items-center gap-2 border-l pl-4">
@@ -279,7 +282,7 @@ export const Navbar = () => {
         <div className="md:hidden border-t border-border bg-background/80 backdrop-blur-2xl h-[calc(100vh-3.5rem)] overflow-y-auto">
           <div className="container mx-auto px-3 py-4 pb-20">
             <div className="flex flex-col gap-2">
-              {navLinks.map((link) => (
+              {mobileLinks.map((link) => (
                 <button
                   key={link.path}
                   onClick={() => handleNavClick(link.path)}
