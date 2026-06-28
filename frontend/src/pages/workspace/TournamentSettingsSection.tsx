@@ -9,6 +9,7 @@ import {
 import { Pencil, RotateCcw, UsersRound, UserMinus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
+import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
 import { useWorkspace } from "./TournamentWorkspace";
 
 const getUser = () => {
@@ -25,11 +26,12 @@ type DangerAction = {
 };
 
 const TournamentSettingsSection = () => {
-  const { tournament } = useWorkspace();
+  const { tournament, reload } = useWorkspace();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pending, setPending] = useState<DangerAction | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const user = getUser();
   const post = (path: string, body: Record<string, unknown>) =>
@@ -102,7 +104,7 @@ const TournamentSettingsSection = () => {
             <CardTitle className="text-lg">Details</CardTitle>
             <CardDescription>Core tournament configuration.</CardDescription>
           </div>
-          <Button variant="outline" className="gap-2" onClick={() => navigate("/tournaments/manage")}>
+          <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
             <Pencil className="h-4 w-4" /> Edit details
           </Button>
         </CardHeader>
@@ -150,6 +152,13 @@ const TournamentSettingsSection = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TournamentFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        tournament={tournament as Parameters<typeof TournamentFormDialog>[0]["tournament"]}
+        onSuccess={reload}
+      />
     </div>
   );
 };

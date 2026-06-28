@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2, Trophy, Users, DollarSign, Download, UserMinus, UsersRound, RotateCcw, Plus, Link, FileDown, Loader2, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
+import { Trash2, Trophy, Users, DollarSign, UserMinus, UsersRound, RotateCcw, Plus, Link, Loader2, MoreHorizontal, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -9,10 +9,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { RegistrationConfigDialog } from "@/components/auction/RegistrationConfigDialog";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
-import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
+import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,14 +21,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Table,
   TableBody,
   TableCell,
@@ -37,15 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -74,46 +56,18 @@ interface Tournament {
   totalBudget?: number;
   playerCategories?: string[];
   categoryBasePrices?: { [key: string]: number };
-  bidIncrementSlabs?: Array<{
-    minBid: number;
-    maxBid: number | null;
-    increment: number;
-  }>;
+  bidIncrementSlabs?: Array<{ minBid: number; maxBid: number | null; increment: number }>;
   createdAt?: string;
   updatedAt?: string;
-}
-
-interface TournamentHost {
-  _id: string;
-  name: string;
-  email: string;
-}
-
-interface TournamentFormData {
-  name: string;
-  tournamentHostId?: string;
-  noOfTeams: number | string;
-  maxPlayersPerTeam: number | string;
-  minPlayersPerTeam: number | string;
-  totalBudget: number | string;
-  playerCategories: string;
-  categoryBasePrices: { [key: string]: string };
-  bidIncrementSlabs: Array<{
-    minBid: number;
-    maxBid: number | null;
-    increment: number;
-  }>;
 }
 
 export default function TournamentManagement() {
   const { toast } = useToast();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [tournamentHosts, setTournamentHosts] = useState<TournamentHost[]>([]);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteAllTeamsDialogOpen, setDeleteAllTeamsDialogOpen] = useState(false);
@@ -124,33 +78,12 @@ export default function TournamentManagement() {
   const [isResettingUnsold, setIsResettingUnsold] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
-  const [isSyncingToSheet, setIsSyncingToSheet] = useState<string | null>(null);
-  const [exportingPdfId, setExportingPdfId] = useState<string | null>(null);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const isTournamentHost = user.role === "tournament_host";
-  const canSelectHost = user.role === "boss" || user.role === "super_user";
-
-  const [formData, setFormData] = useState<TournamentFormData>({
-    name: "",
-    tournamentHostId: "",
-    noOfTeams: "",
-    maxPlayersPerTeam: "",
-    minPlayersPerTeam: "",
-    totalBudget: "",
-    playerCategories: "",
-    categoryBasePrices: {},
-    bidIncrementSlabs: [
-      { minBid: 0, maxBid: 499, increment: 50 },
-      { minBid: 500, maxBid: null, increment: 100 }
-    ],
-  });
+  const isTournamentHost = user.role === "tournament_host"; // used in table column visibility
 
   useEffect(() => {
     fetchTournaments();
-    if (canSelectHost) {
-      fetchTournamentHosts();
-    }
   }, []);
 
   const fetchTournaments = async () => {
@@ -188,175 +121,6 @@ export default function TournamentManagement() {
     }
   };
 
-  const fetchTournamentHosts = async () => {
-    try {
-      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/hosts`, {
-        headers: {
-          "x-user-id": user._id
-        }
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setTournamentHosts(data.data || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch tournament hosts:", error);
-    }
-  };
-
-  const handleInputChange = (field: keyof TournamentFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      tournamentHostId: "",
-      noOfTeams: "",
-      maxPlayersPerTeam: "",
-      minPlayersPerTeam: "",
-      totalBudget: "",
-      playerCategories: "",
-      categoryBasePrices: {},
-      bidIncrementSlabs: [
-        { minBid: 0, maxBid: 499, increment: 50 },
-        { minBid: 500, maxBid: null, increment: 100 }
-      ],
-    });
-    setIsEditing(false);
-    setEditingId(null);
-  };
-
-  const handleOpenDialog = (tournament?: Tournament) => {
-    if (tournament) {
-      setIsEditing(true);
-      setEditingId(tournament._id);
-      const basePrices: { [key: string]: string } = {};
-      if (tournament.categoryBasePrices) {
-        Object.entries(tournament.categoryBasePrices).forEach(([key, value]) => {
-          basePrices[key] = value.toString();
-        });
-      }
-      setFormData({
-        name: tournament.name || "",
-        tournamentHostId: typeof tournament.tournamentHostId === 'object'
-          ? tournament.tournamentHostId?._id || ""
-          : (tournament.tournamentHostId as unknown as string) || "",
-        noOfTeams: tournament.noOfTeams || "",
-        maxPlayersPerTeam: tournament.maxPlayersPerTeam || "",
-        minPlayersPerTeam: tournament.minPlayersPerTeam || "",
-        totalBudget: tournament.totalBudget || "",
-        playerCategories: tournament.playerCategories?.join(", ") || "",
-        categoryBasePrices: basePrices,
-        bidIncrementSlabs: tournament.bidIncrementSlabs || [
-          { minBid: 0, maxBid: 499, increment: 50 },
-          { minBid: 500, maxBid: null, increment: 100 }
-        ],
-      });
-    } else {
-      resetForm();
-    }
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    resetForm();
-  };
-
-  const handleSubmit = async () => {
-    // Validation
-    if (!formData.name || !formData.noOfTeams || !formData.maxPlayersPerTeam ||
-      !formData.minPlayersPerTeam || !formData.totalBudget) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (canSelectHost && !formData.tournamentHostId) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a tournament host",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const categories = formData.playerCategories
-        .split(",")
-        .map((cat) => cat.trim())
-        .filter((cat) => cat);
-
-      // Validate base prices for all categories
-      const categoryBasePrices: { [key: string]: number } = {};
-      for (const category of categories) {
-        const basePrice = formData.categoryBasePrices[category];
-        if (!basePrice || Number(basePrice) <= 0) {
-          toast({
-            title: "Validation Error",
-            description: `Please enter a valid base price for category: ${category}`,
-            variant: "destructive",
-          });
-          return;
-        }
-        categoryBasePrices[category] = Number(basePrice);
-      }
-
-      const payload = {
-        name: formData.name,
-        noOfTeams: Number(formData.noOfTeams),
-        maxPlayersPerTeam: Number(formData.maxPlayersPerTeam),
-        minPlayersPerTeam: Number(formData.minPlayersPerTeam),
-        totalBudget: Number(formData.totalBudget),
-        playerCategories: categories,
-        categoryBasePrices: categoryBasePrices,
-        bidIncrementSlabs: formData.bidIncrementSlabs,
-        userId: user._id,
-        userRole: user.role,
-        ...(canSelectHost && { tournamentHostId: formData.tournamentHostId }),
-      };
-
-      let url = `${apiConfig.baseUrl}/api/tournament/register`;
-      if (isEditing && editingId) {
-        url = `${apiConfig.baseUrl}/api/tournament/update`;
-        Object.assign(payload, { tournamentId: editingId });
-      }
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: isEditing
-            ? "Tournament updated successfully"
-            : "Tournament created successfully",
-        });
-        handleCloseDialog();
-        fetchTournaments();
-      } else {
-        toast({
-          title: "Error",
-          description: data.message || "Failed to save tournament",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "An error occurred while saving the tournament",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleDelete = async () => {
     if (!deletingId) return;
@@ -531,152 +295,6 @@ export default function TournamentManagement() {
     }
   };
 
-  const downloadCSV = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadData = async (tournamentId: string, tournamentName: string) => {
-    try {
-      console.log("Exporting data for tournament:", tournamentId);
-      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/export`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": user._id
-        },
-        body: JSON.stringify({
-          tournamentId,
-          userId: user._id,
-        }),
-      });
-
-      const result = await response.json();
-      console.log("Export response:", result);
-
-      if (!response.ok) {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to export data",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const data = result.data;
-
-      if (!data) {
-        toast({
-          title: "Error",
-          description: "No data returned from server",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const safeName = tournamentName.replace(/[^a-zA-Z0-9]/g, '_');
-
-      // Create Teams CSV - matches import format: Team Name,Team Logo URL,Owner Name,Owner Contact Number
-      const teamsHeaders = "Team Name,Team Logo URL,Owner Name,Owner Contact Number";
-      const teamsRows = (data.teams || []).map((t: { name: string; logo: string; ownerName: string; ownerMobile: string }) =>
-        `"${t.name || ''}","${t.logo || ''}","${t.ownerName || ''}","${t.ownerMobile || ''}"`
-      ).join("\n");
-      const teamsCSV = `${teamsHeaders}\n${teamsRows}`;
-
-      // Create Players CSV - matches import format: Serial Number,Player Name,Age,Photo URL,Category,Skill,Phone Number
-      // Plus additional columns for auction status
-      const playersHeaders = "Serial Number,Player Name,Age,Photo URL,Category,Skill,Phone Number,Team (Sold To),Sold,Amount Sold";
-      const playersRows = (data.players || []).map((p: { auctionSerialNumber: number | string; name: string; age: string; photo: string; playerCategory: string; skill: string; mobile: string; teamName: string; sold: string; amtSold: number }) =>
-        `"${p.auctionSerialNumber || ''}","${p.name || ''}","${p.age || ''}","${p.photo || ''}","${p.playerCategory || ''}","${p.skill || ''}","${p.mobile || ''}","${p.teamName || ''}","${p.sold || ''}","${p.amtSold || 0}"`
-      ).join("\n");
-      const playersCSV = `${playersHeaders}\n${playersRows}`;
-
-      // Download teams first
-      downloadCSV(teamsCSV, `${safeName}_teams.csv`);
-
-      // Download players after a short delay
-      setTimeout(() => {
-        downloadCSV(playersCSV, `${safeName}_players.csv`);
-        toast({
-          title: "Success",
-          description: `Exported ${data.teams?.length || 0} teams and ${data.players?.length || 0} players`,
-        });
-      }, 300);
-
-    } catch (error) {
-      console.error("Export error:", error);
-      toast({
-        title: "Error",
-        description: "An error occurred while exporting data",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSyncToSheet = async (tournamentId: string) => {
-    try {
-      setIsSyncingToSheet(tournamentId);
-      const response = await fetch(`${apiConfig.baseUrl}/api/player/sync-to-sheet`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": user._id,
-          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
-        },
-        body: JSON.stringify({ touranmentId: tournamentId }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        toast({
-          title: "Sync Complete",
-          description: "Database successfully exported to Google Sheet.",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message || "Failed to sync to Google Sheet",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "An error occurred while pushing data to Google Sheet",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSyncingToSheet(null);
-    }
-  };
-
-  const handleExportPdf = async (tournamentId: string, tournamentName: string) => {
-    try {
-      setExportingPdfId(tournamentId);
-      await exportTeamsPdf(tournamentName, tournamentId);
-      toast({
-        title: "Success",
-        description: "PDF downloaded successfully!",
-      });
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      toast({
-        title: "Error",
-        description: "Failed to export PDF. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setExportingPdfId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -702,7 +320,7 @@ export default function TournamentManagement() {
                   : "Manage all tournaments in the system"}
               </CardDescription>
             </div>
-            <Button onClick={() => handleOpenDialog()} size="lg">
+            <Button onClick={() => { setEditingTournament(null); setFormDialogOpen(true); }} size="lg">
               <Plus className="h-5 w-5 mr-2" />
               Create Tournament
             </Button>
@@ -792,7 +410,7 @@ export default function TournamentManagement() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel>Setup</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleOpenDialog(tournament)}>
+                            <DropdownMenuItem onClick={() => { setEditingTournament(tournament); setFormDialogOpen(true); }}>
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit tournament details
                             </DropdownMenuItem>
@@ -817,45 +435,6 @@ export default function TournamentManagement() {
                             >
                               <Users className="h-4 w-4 mr-2 text-indigo-500" />
                               Copy team registration link
-                            </DropdownMenuItem>
-
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Google Sheet</DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setActionTournamentId(tournament._id);
-                                setSyncDialogOpen(true);
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-2 text-emerald-600" />
-                              Sync sheet → database
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleSyncToSheet(tournament._id)}
-                              disabled={isSyncingToSheet === tournament._id}
-                            >
-                              <Upload className={`h-4 w-4 mr-2 text-emerald-600 ${isSyncingToSheet === tournament._id ? 'animate-bounce' : ''}`} />
-                              Sync database → sheet
-                            </DropdownMenuItem>
-
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Data</DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() => handleDownloadData(tournament._id, tournament.name || 'tournament')}
-                            >
-                              <Download className="h-4 w-4 mr-2 text-blue-500" />
-                              Download CSV
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleExportPdf(tournament._id, tournament.name || 'Tournament')}
-                              disabled={exportingPdfId === tournament._id}
-                            >
-                              {exportingPdfId === tournament._id ? (
-                                <Loader2 className="h-4 w-4 mr-2 text-teal-500 animate-spin" />
-                              ) : (
-                                <FileDown className="h-4 w-4 mr-2 text-teal-500" />
-                              )}
-                              Export teams PDF
                             </DropdownMenuItem>
 
                             <DropdownMenuSeparator />
@@ -906,7 +485,13 @@ export default function TournamentManagement() {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Tournament Dialog */}
+      <TournamentFormDialog
+        open={formDialogOpen}
+        onOpenChange={setFormDialogOpen}
+        tournament={editingTournament}
+        onSuccess={fetchTournaments}
+      />
+
       {configDialogOpen && actionTournamentId && (
         <RegistrationConfigDialog
           isOpen={configDialogOpen}
@@ -922,203 +507,6 @@ export default function TournamentManagement() {
           tournamentId={actionTournamentId}
         />
       )}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Edit Tournament" : "Create New Tournament"}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing
-                ? "Update the tournament details below"
-                : "Fill in the details to create a new tournament"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Tournament Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., IPL 2025"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-              />
-            </div>
-
-            {canSelectHost && (
-              <div className="grid gap-2">
-                <Label htmlFor="host">Tournament Host *</Label>
-                <Select
-                  value={formData.tournamentHostId}
-                  onValueChange={(value) =>
-                    handleInputChange("tournamentHostId", value)
-                  }
-                  disabled={isEditing && isTournamentHost}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select tournament host" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tournamentHosts.map((host) => (
-                      <SelectItem key={host._id} value={host._id}>
-                        {host.name} ({host.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="teams">Number of Teams *</Label>
-                <Input
-                  id="teams"
-                  type="number"
-                  placeholder="e.g., 8"
-                  value={formData.noOfTeams}
-                  onChange={(e) => handleInputChange("noOfTeams", e.target.value)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="budget">Total Budget *</Label>
-                <Input
-                  id="budget"
-                  type="number"
-                  placeholder="e.g., 100000"
-                  value={formData.totalBudget}
-                  onChange={(e) => handleInputChange("totalBudget", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="minPlayers">Min Players per Team *</Label>
-                <Input
-                  id="minPlayers"
-                  type="number"
-                  placeholder="e.g., 11"
-                  value={formData.minPlayersPerTeam}
-                  onChange={(e) =>
-                    handleInputChange("minPlayersPerTeam", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="maxPlayers">Max Players per Team *</Label>
-                <Input
-                  id="maxPlayers"
-                  type="number"
-                  placeholder="e.g., 15"
-                  value={formData.maxPlayersPerTeam}
-                  onChange={(e) =>
-                    handleInputChange("maxPlayersPerTeam", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="categories">
-                Player Categories (comma-separated) *
-              </Label>
-              <Input
-                id="categories"
-                placeholder="e.g., Batsman, Bowler, All-rounder, Wicket-keeper"
-                value={formData.playerCategories}
-                onChange={(e) => {
-                  const categories = e.target.value;
-                  handleInputChange("playerCategories", categories);
-
-                  // Auto-create base price fields for each category
-                  const categoryList = categories
-                    .split(",")
-                    .map((cat) => cat.trim())
-                    .filter((cat) => cat);
-
-                  const newBasePrices: { [key: string]: string } = {};
-                  categoryList.forEach((cat) => {
-                    // Keep existing value if category already had a base price
-                    newBasePrices[cat] = formData.categoryBasePrices[cat] || "";
-                  });
-                  setFormData((prev) => ({
-                    ...prev,
-                    playerCategories: categories,
-                    categoryBasePrices: newBasePrices,
-                  }));
-                }}
-              />
-              <p className="text-xs text-gray-500">
-                Separate multiple categories with commas
-              </p>
-            </div>
-
-            {/* Base Prices for Categories */}
-            {formData.playerCategories.split(",").map((cat) => cat.trim()).filter((cat) => cat).length > 0 && (
-              <div className="grid gap-3 p-4 border rounded-lg bg-gray-50">
-                <Label className="font-semibold text-base dark:text-gray-100 text-gray-900">Base Prices for Categories *</Label>
-                <div className="grid gap-4">
-                  {formData.playerCategories
-                    .split(",")
-                    .map((cat) => cat.trim())
-                    .filter((cat) => cat)
-                    .map((category, idx) => (
-                      <div key={idx} className="grid gap-2">
-                        <Label htmlFor={`basePrice-${idx}`} className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {category}
-                        </Label>
-                        <Input
-                          id={`basePrice-${idx}`}
-                          type="number"
-                          placeholder="e.g., 500"
-                          value={formData.categoryBasePrices[category] || ""}
-                          onChange={(e) => {
-                            setFormData((prev) => ({
-                              ...prev,
-                              categoryBasePrices: {
-                                ...prev.categoryBasePrices,
-                                [category]: e.target.value,
-                              },
-                            }));
-                          }}
-                        />
-                      </div>
-                    ))}
-                </div>
-                <p className="text-xs text-gray-500">
-                  Enter the base auction price (in points) for each category
-                </p>
-              </div>
-            )}
-
-            {/* Bid Increment Slabs */}
-            <div className="grid gap-3 p-4 border rounded-lg bg-gray-50">
-              <Label className="font-semibold text-base dark:text-gray-100 text-gray-900">Bid Increment Settings *</Label>
-              <BidSlabEditor
-                slabs={formData.bidIncrementSlabs}
-                onChange={(slabs) => setFormData(prev => ({ ...prev, bidIncrementSlabs: slabs }))}
-              />
-              <p className="text-xs text-gray-500">
-                Configure bid increments for different price ranges during auction
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit}>
-              {isEditing ? "Update Tournament" : "Create Tournament"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

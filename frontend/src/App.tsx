@@ -22,6 +22,7 @@ import TournamentOverview from "./pages/workspace/TournamentOverview";
 import TournamentRegistrationSection from "./pages/workspace/TournamentRegistrationSection";
 import TournamentAuctionSection from "./pages/workspace/TournamentAuctionSection";
 import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSection";
+import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 // import Analytics from "./pages/Analytics"; // hidden pending SQL migration
@@ -113,6 +114,7 @@ const App = () => (
                 <Route path="bulk-upload" element={<BulkUpload />} />
                 <Route path="registration" element={<TournamentRegistrationSection />} />
                 <Route path="auction" element={<TournamentAuctionSection />} />
+                <Route path="data" element={<TournamentDataSection />} />
                 <Route path="settings" element={<TournamentSettingsSection />} />
               </Route>
 
