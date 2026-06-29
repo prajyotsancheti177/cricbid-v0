@@ -1,11 +1,18 @@
 /**
  * Shared Prisma client singleton.
- * Used by services being migrated from Mongoose to PostgreSQL.
- * (Mongoose connection in ./index.js still serves not-yet-ported services.)
+ * Uses @prisma/adapter-pg (WASM/driverAdapters mode) so no native engine binary is needed.
  */
 const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
 
-const prisma = global.__prisma || new PrismaClient();
+function createPrismaClient() {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ adapter });
+}
+
+const prisma = global.__prisma || createPrismaClient();
 if (process.env.NODE_ENV !== 'production') global.__prisma = prisma;
 
 module.exports = prisma;
