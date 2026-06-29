@@ -9,7 +9,8 @@
 // are still WRITTEN during normal operation, so they are migrated.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["queryCompiler", "driverAdapters"]
 }
 
 datasource db {
@@ -130,6 +131,25 @@ model Team {
   updatedAt DateTime @updatedAt
 
   @@map("team")
+}
+
+model PlayerProfile {
+  id           String  @id @default(cuid())
+  mobile       String  @unique
+  password     String?
+  sessionToken String? @unique
+  name         String?
+  age          Int?
+  gender       String?
+  photo        String?
+  skill        String?
+  email        String?
+  address      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("player_profile")
 }
 
 model Player {

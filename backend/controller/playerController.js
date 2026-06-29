@@ -3,6 +3,7 @@ const prisma = require("../db/prisma");
 const playersService = require("../services/playerService");
 const tournamentService = require('../services/tournamentService');
 const googleService = require('../utils/googleService');
+const playerProfileService = require('../services/playerProfileService');
 const { sendSuccess, sendError } = require("../utils");
 
 
@@ -93,6 +94,15 @@ const registerPlayerPublic = async (req, res) => {
         };
 
         const player = await playersService.registerPlayer(safePayload);
+
+        // Upsert player profile so future tournament registrations can pre-fill
+        if (mobile) {
+            try {
+                await playerProfileService.upsertProfile({ name, age, gender, mobile, email, address, skill, photo: photoUrl });
+            } catch (profileErr) {
+                console.error("Failed to upsert player profile (non-fatal)", profileErr);
+            }
+        }
 
         try {
             if (config && config.googleSheetId) {
