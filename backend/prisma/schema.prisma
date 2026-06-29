@@ -132,6 +132,23 @@ model Team {
   @@map("team")
 }
 
+model PlayerProfile {
+  id      String  @id @default(cuid())
+  mobile  String  @unique
+  name    String?
+  age     Int?
+  gender  String?
+  photo   String?
+  skill   String?
+  email   String?
+  address String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("player_profile")
+}
+
 model Player {
   id     String  @id @default(cuid())
   name   String?

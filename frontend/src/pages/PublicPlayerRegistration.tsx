@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UserPlus, Trophy, Loader2 } from "lucide-react";
+import { UserPlus, Trophy, Loader2, Search, CheckCircle2 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 
@@ -20,7 +20,12 @@ const PublicPlayerRegistration = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
+
+  const [profileLookupMobile, setProfileLookupMobile] = useState("");
+  const [lookingUpProfile, setLookingUpProfile] = useState(false);
+  const [profileFound, setProfileFound] = useState(false);
+  const [profileLookupAttempted, setProfileLookupAttempted] = useState(false);
+
   const [config, setConfig] = useState<any>(null);
   const [tournamentName, setTournamentName] = useState("");
   const [playerCategories, setPlayerCategories] = useState<string[]>([]);
@@ -67,6 +72,49 @@ const PublicPlayerRegistration = () => {
       setError("Failed to fetch tournament registration configuration.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLookupProfile = async () => {
+    const mobile = profileLookupMobile.trim().replace(/\D/g, '');
+    if (mobile.length < 10) {
+      setError("Please enter a valid 10-digit mobile number to look up your profile.");
+      return;
+    }
+    setLookingUpProfile(true);
+    setError("");
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player-profile/lookup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile }),
+      });
+      const data = await res.json();
+      setProfileLookupAttempted(true);
+      if (res.ok && data.data?.found && data.data?.profile) {
+        const p = data.data.profile;
+        setProfileFound(true);
+        setFormData((prev: any) => ({
+          ...prev,
+          name: p.name || prev.name,
+          age: p.age ? String(p.age) : prev.age,
+          gender: p.gender || prev.gender,
+          mobile: p.mobile || mobile,
+          email: p.email || prev.email,
+          address: p.address || prev.address,
+          skill: p.skill || prev.skill,
+        }));
+      } else {
+        setProfileFound(false);
+        // Pre-fill mobile at minimum
+        setFormData((prev: any) => ({ ...prev, mobile }));
+      }
+    } catch {
+      setProfileLookupAttempted(true);
+      setProfileFound(false);
+      setFormData((prev: any) => ({ ...prev, mobile: profileLookupMobile.trim() }));
+    } finally {
+      setLookingUpProfile(false);
     }
   };
 
@@ -330,7 +378,42 @@ const PublicPlayerRegistration = () => {
                </Alert>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
+              {/* Profile Quick-Fill */}
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+                <p className="text-sm font-medium text-foreground">
+                  Registered before? Enter your mobile number to auto-fill your details.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter mobile number"
+                    type="tel"
+                    value={profileLookupMobile}
+                    onChange={(e) => { setProfileLookupMobile(e.target.value); setProfileLookupAttempted(false); setProfileFound(false); }}
+                    className="flex-1"
+                    disabled={lookingUpProfile}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleLookupProfile}
+                    disabled={lookingUpProfile || !profileLookupMobile.trim()}
+                  >
+                    {lookingUpProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    <span className="ml-1 hidden sm:inline">Find Profile</span>
+                  </Button>
+                </div>
+                {profileLookupAttempted && profileFound && (
+                  <div className="flex items-center gap-2 text-green-700 text-sm">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Profile found! Your details have been pre-filled. Review and edit before submitting.
+                  </div>
+                )}
+                {profileLookupAttempted && !profileFound && (
+                  <p className="text-sm text-muted-foreground">No saved profile found. Please fill in your details below.</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name *</Label>
