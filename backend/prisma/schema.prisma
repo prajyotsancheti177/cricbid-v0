@@ -617,6 +617,30 @@ model TournamentBackup {
   @@map("tournament_backup")
 }
 
+model WhatsappIncoming {
+  id          String   @id @default(cuid())
+
+  from        String
+  senderName  String?
+  messageId   String   @unique
+  messageType String   @default("text")
+  body        String?
+  mediaUrl    String?
+
+  tournamentId String?
+
+  isRead     Boolean  @default(false)
+  receivedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([from, receivedAt])
+  @@index([receivedAt(sort: Desc)])
+  @@index([isRead])
+  @@map("whatsapp_incoming")
+}
+
 model IpGeoCache {
   id        String  @id @default(cuid())
   ipAddress String  @unique
