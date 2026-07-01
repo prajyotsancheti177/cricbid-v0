@@ -5,6 +5,7 @@ const playerService = require("../services/playerService");
 const auctionLogService = require("../services/auctionLogService");
 const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
+const whatsappService = require("../services/whatsappService");
 const prisma = require("../db/prisma");
 
 // Store interval IDs for viewer history sampling per tournament
@@ -336,6 +337,12 @@ module.exports = (io) => {
         if (selResult.success) {
           auctionNamespace.to(tournamentId).emit("auction:state", selResult.state);
           auctionNamespace.to(tournamentId).emit("auction:playerSelected", player);
+
+          // WhatsApp — notify players in this category that their turn is starting
+          if (category && category !== 'All') {
+            whatsappService.sendCategoryStartingNotification({ tournamentId, category })
+              .catch(e => console.error('[WhatsApp] category notification error:', e.message));
+          }
         } else {
           socket.emit("auction:error", selResult.error || "Failed to select player");
         }
@@ -509,13 +516,38 @@ module.exports = (io) => {
             winningTeamName: result.team ? result.team.name : 'Unknown',
             finalPrice: result.amount,
             bids: result.bids,
-            auctionStartedAt: new Date(Date.now() - 60000), // Approximate if not tracked
+            auctionStartedAt: new Date(Date.now() - 60000),
             auctionEndedAt: new Date(),
             conductedBy: userId
           });
         } catch (logError) {
           console.error("Error saving auction log:", logError);
         }
+
+        // WhatsApp — fire-and-forget, never block the auction
+        const _player = result.player;
+        const _team   = result.team;
+        const _amount = result.amount;
+        whatsappService.sendPlayerSoldNotification({
+          playerId: _player._id,
+          name: _player.name,
+          mobile: _player.mobile,
+          teamName: _team?.name,
+          amtSold: _amount,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] sold notification error:', e.message));
+
+        whatsappService.sendTeamPurchaseSummary({
+          teamId: result.teamId,
+          playerName: _player.name,
+          amountPaid: _amount,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] team purchase error:', e.message));
+
+        whatsappService.sendBudgetWarning({
+          teamId: result.teamId,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] budget warning error:', e.message));
 
         // --- POST-SALE FLOW ---
         const auctionRaw = auctionStateManager.getOrCreateAuction(tournamentId);
@@ -606,6 +638,14 @@ module.exports = (io) => {
         } catch (error) {
           console.error("Error updating/logging unsold player:", error);
         }
+
+        // WhatsApp — fire-and-forget
+        whatsappService.sendPlayerUnsoldNotification({
+          playerId: result.player._id,
+          name: result.player.name,
+          mobile: result.player.mobile,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] unsold notification error:', e.message));
 
         // Broadcast updated state
         const newState = auctionStateManager.getAuctionState(tournamentId);

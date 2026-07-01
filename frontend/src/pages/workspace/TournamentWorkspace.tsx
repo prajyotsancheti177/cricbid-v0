@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, useNavigate, useOutletContext } from "react-router-dom";
 import {
   LayoutDashboard, Users, Shield, UserPlus, Upload, Link as LinkIcon,
-  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History,
+  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History, MessageSquare, CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
@@ -33,8 +33,9 @@ export interface WorkspaceTournament {
 export const isFeatureOn = (tournament: WorkspaceTournament, key: keyof TournamentFeatures): boolean =>
   (tournament.features as TournamentFeatures | undefined)?.[key] !== false;
 
-// Sections in the tournament workspace sidebar
-const SECTIONS = [
+// Sections in the tournament workspace sidebar.
+// adminOnly sections are only shown when a user is logged in.
+const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
   { to: "players", label: "Players", icon: Users },
   { to: "teams", label: "Teams", icon: Shield },
@@ -42,6 +43,8 @@ const SECTIONS = [
   { to: "bulk-upload", label: "Bulk upload", icon: Upload },
   { to: "registration", label: "Registration", icon: LinkIcon },
   { to: "auction", label: "Auction", icon: Gavel },
+  { to: "schedule", label: "Schedule & Scores", icon: CalendarDays, adminOnly: true },
+  { to: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { to: "data", label: "Data & export", icon: Database },
   { to: "backups", label: "Backups", icon: History },
   { to: "settings", label: "Settings", icon: Settings },
@@ -110,6 +113,9 @@ const TournamentWorkspace = () => {
     );
   }
 
+  const authUser = getAuthUser();
+  const isLoggedIn = Boolean(authUser);
+
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumb / header */}
@@ -125,7 +131,7 @@ const TournamentWorkspace = () => {
         {/* Sidebar (desktop) / horizontal tabs (mobile) */}
         <aside className="md:w-56 shrink-0">
           <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
-            {SECTIONS.map(({ to, label, icon: Icon }) => (
+            {SECTIONS.filter(s => !s.adminOnly || isLoggedIn).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

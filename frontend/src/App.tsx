@@ -22,6 +22,8 @@ import TournamentOverview from "./pages/workspace/TournamentOverview";
 import TournamentRegistrationSection from "./pages/workspace/TournamentRegistrationSection";
 import TournamentAuctionSection from "./pages/workspace/TournamentAuctionSection";
 import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSection";
+import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSection";
+import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
 import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection";
 import UserManagement from "./pages/UserManagement";
@@ -32,6 +34,8 @@ import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
 import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import DeleteAccount from "./pages/DeleteAccount";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +67,9 @@ const App = () => (
       <BrowserRouter>
         <div className="min-h-screen bg-background text-foreground">
           <Routes>
+            {/* Standalone pages — no navbar */}
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/delete-account" element={<DeleteAccount />} />
             {/* Landing Page - Standalone (No Navbar) */}
             <Route path="/" element={<Home />} />
             <Route path="/register/:tournamentId" element={<PublicPlayerRegistration />} />
@@ -114,6 +121,8 @@ const App = () => (
                 <Route path="add-player" element={<AddPlayer />} />
                 <Route path="bulk-upload" element={<BulkUpload />} />
                 <Route path="registration" element={<TournamentRegistrationSection />} />
+                <Route path="whatsapp" element={<TournamentWhatsAppSection />} />
+                <Route path="schedule" element={<TournamentScheduleSection />} />
                 <Route path="auction" element={<TournamentAuctionSection />} />
                 <Route path="data" element={<TournamentDataSection />} />
                 <Route path="backups" element={<TournamentBackupsSection />} />

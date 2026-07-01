@@ -93,6 +93,7 @@ model Tournament {
   bidIncrementSlabs    Json?    // [{ minBid, maxBid, increment }]
   registrationFormConfig Json?  // deeply nested config blob
   features               Json?  // { whatsappNotifications, obsOverlays, publicPlayerRegistration, publicTeamRegistration, googleSheetsSync, dataExport }
+  whatsappConfig         Json?  // per-tournament WhatsApp template toggles — see WhatsApp config schema docs
 
   // back-relations
   players             Player[]
@@ -102,6 +103,7 @@ model Tournament {
   userEvents          UserEvent[]
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
+  matches             Match[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -127,6 +129,9 @@ model Team {
   players        Player[]
   wonAuctionLogs AuctionLog[]     @relation("AuctionLogWinningTeam")
   bids           AuctionLogBid[]
+  homeMatches    Match[]          @relation("MatchTeamA")
+  awayMatches    Match[]          @relation("MatchTeamB")
+  battingInnings Innings[]        @relation("InningsBattingTeam")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -347,6 +352,256 @@ model WhatsappLog {
   @@index([messageType, timestamp])
   @@index([tournamentId, timestamp])
   @@map("whatsapp_log")
+}
+
+// ---------------------------------------------------------------------------
+// Match schedule & score tracker
+// ---------------------------------------------------------------------------
+
+enum MatchStatus {
+  upcoming
+  live
+  completed
+  cancelled
+  no_result
+}
+
+enum MatchFormat {
+  T20
+  ODI
+  T10
+  custom
+}
+
+model Match {
+  id           String      @id @default(cuid())
+  tournamentId String
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id])
+
+  matchNumber  Int?
+  round        String?     // "League", "Quarter Final", "Semi Final", "Final"
+  venue        String?
+  scheduledAt  DateTime?
+  format       MatchFormat @default(T20)
+  totalOvers   Int         @default(20)
+
+  teamAId      String
+  teamA        Team        @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamBId      String
+  teamB        Team        @relation("MatchTeamB", fields: [teamBId], references: [id])
+
+  status       MatchStatus @default(upcoming)
+  tossWonById  String?     // team id
+  tossDecision String?     // "bat" | "field"
+
+  winnerId     String?     // team id, null if tie/no result
+  resultNote   String?     // "Team A won by 5 wickets", auto-generated or manual override
+
+  innings      Innings[]
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([tournamentId, scheduledAt])
+  @@index([tournamentId, status])
+  @@map("match")
+}
+
+model Innings {
+  id            String  @id @default(cuid())
+  matchId       String
+  match         Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  inningsNumber Int     // 1 or 2
+  battingTeamId String
+  battingTeam   Team    @relation("InningsBattingTeam", fields: [battingTeamId], references: [id])
+
+  runs          Int     @default(0)
+  wickets       Int     @default(0)
+  oversBowled   Float   @default(0) // e.g. 18.4 means 18 overs 4 balls
+  extras        Int     @default(0)
+  isCompleted   Boolean @default(false)
+
+  // ball-by-ball back-relations
+  ballEvents     BallEvent[]
+  batsmanInnings BatsmanInnings[]
+  bowlerInnings  BowlerInnings[]
+  partnerships   Partnership[]
+  fallOfWickets  FallOfWicket[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([matchId, inningsNumber])
+  @@map("innings")
+}
+
+// ---------------------------------------------------------------------------
+// Ball-by-ball scoring
+// ---------------------------------------------------------------------------
+
+enum WicketType {
+  bowled
+  caught
+  lbw
+  run_out
+  stumped
+  hit_wicket
+  handled_ball
+  obstructing_field
+  timed_out
+  retired_hurt
+}
+
+enum ExtraType {
+  wide
+  no_ball
+  bye
+  leg_bye
+  penalty
+}
+
+// One row per legal delivery (and extras that don't count as a legal ball are
+// still stored but isLegalDelivery=false so over ball counts stay correct).
+model BallEvent {
+  id            String   @id @default(cuid())
+  inningsId     String
+  innings       Innings  @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  matchId       String   // denormalised for easy queries
+  inningsNumber Int
+
+  overNumber    Int      // 0-indexed: over 1 = overNumber 0
+  ballInOver    Int      // 1-indexed within that over (legal deliveries only)
+  isLegalDelivery Boolean @default(true)
+
+  // who is involved
+  batsmanId     String   // Player id (from Player table)
+  nonStrikerId  String?  // for context
+  bowlerId      String   // Player id
+
+  // runs off the bat
+  batRuns       Int      @default(0)
+
+  // extras
+  isExtra       Boolean  @default(false)
+  extraType     ExtraType?
+  extraRuns     Int      @default(0) // runs from extras (not bat)
+
+  // total runs on this delivery = batRuns + extraRuns
+  totalRuns     Int      @default(0)
+
+  // wicket
+  isWicket      Boolean  @default(false)
+  wicketType    WicketType?
+  outBatsmanId  String?  // who got out (may differ from batsmanId on run-out)
+  fielderId     String?  // catcher / fielder on run-out
+
+  // auto-generated ball commentary e.g. "OUT! Bowled Mehta. Sharma b Mehta 18(22)"
+  commentary    String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([inningsId, overNumber, ballInOver])
+  @@index([matchId, inningsNumber])
+  @@map("ball_event")
+}
+
+// Batting scorecard row — one per batsman per innings
+model BatsmanInnings {
+  id            String   @id @default(cuid())
+  inningsId     String
+  innings       Innings  @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  matchId       String
+  inningsNumber Int
+
+  playerId      String   // Player id
+  teamId        String
+  battingOrder  Int      // 1 = opener
+
+  runs          Int      @default(0)
+  ballsFaced    Int      @default(0)
+  fours         Int      @default(0)
+  sixes         Int      @default(0)
+
+  isOut         Boolean  @default(false)
+  howOut        String?  // "c Patel b Mehta" — human-readable
+  wicketType    WicketType?
+  bowlerId      String?  // credited bowler
+  fielderId     String?  // catcher / fielder
+
+  didNotBat     Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([inningsId, playerId])
+  @@index([matchId, inningsNumber])
+  @@map("batsman_innings")
+}
+
+// Bowling scorecard row — one per bowler per innings
+model BowlerInnings {
+  id            String   @id @default(cuid())
+  inningsId     String
+  innings       Innings  @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  matchId       String
+  inningsNumber Int
+
+  playerId      String   // Player id
+  teamId        String
+
+  balls         Int      @default(0)  // legal deliveries
+  runs          Int      @default(0)  // runs conceded
+  wickets       Int      @default(0)
+  maidens       Int      @default(0)
+  wides         Int      @default(0)
+  noBalls       Int      @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([inningsId, playerId])
+  @@index([matchId, inningsNumber])
+  @@map("bowler_innings")
+}
+
+// Partnership between any two batsmen
+model Partnership {
+  id            String   @id @default(cuid())
+  inningsId     String
+  innings       Innings  @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  matchId       String
+
+  wicketNumber  Int      // 1 = opening partnership, 2 = 2nd wicket, etc.
+  batsman1Id    String
+  batsman2Id    String
+
+  runs          Int      @default(0)
+  balls         Int      @default(0)
+
+  createdAt     DateTime @default(now())
+
+  @@unique([inningsId, wicketNumber])
+  @@map("partnership")
+}
+
+// Fall of wickets — one row per wicket that fell
+model FallOfWicket {
+  id            String   @id @default(cuid())
+  inningsId     String
+  innings       Innings  @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  matchId       String
+
+  wicketNumber  Int      // 1..10
+  playerId      String   // batsman who got out
+  runs          Int      // team score at time of wicket
+  balls         Int      // total legal balls bowled at time of wicket
+  overNumber    Int
+  ballInOver    Int
+
+  createdAt     DateTime @default(now())
+
+  @@unique([inningsId, wicketNumber])
+  @@map("fall_of_wicket")
 }
 
 model TournamentBackup {

@@ -3,569 +3,393 @@ const config = require('../config');
 const prisma = require('../db/prisma');
 const whatsappLogService = require('./whatsappLogService');
 
-/**
- * Safe wrapper for logging - never throws
- */
+// ─── Default config (all enabled) ────────────────────────────────────────────
+const DEFAULT_WHATSAPP_CONFIG = {
+  playerSold:        { enabled: true },
+  playerUnsold:      { enabled: true },
+  teamPurchase:      { enabled: true },
+  postAuctionPlayer: { enabled: false },
+  postAuctionOwner:  { enabled: false },
+  auctionReminder:   { enabled: false },
+  categoryStarting:  { enabled: false },
+  budgetWarning:     { enabled: false, thresholdPercent: 80 },
+};
+
+const getWhatsAppConfig = async (tournamentId) => {
+  if (!tournamentId) return DEFAULT_WHATSAPP_CONFIG;
+  const t = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { whatsappConfig: true },
+  });
+  return { ...DEFAULT_WHATSAPP_CONFIG, ...(t?.whatsappConfig || {}) };
+};
+
+const isEnabled = async (tournamentId, templateKey) => {
+  const cfg = await getWhatsAppConfig(tournamentId);
+  return cfg[templateKey]?.enabled !== false;
+};
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+const WA_URL = 'https://graph.facebook.com/v22.0/815105745024217/messages';
+
+const formatMobile = (mobile) => {
+  const s = mobile.toString().trim();
+  return s.startsWith('+') ? s : `+91${s}`;
+};
+
+const formatAmount = (amt) => {
+  if (!amt && amt !== 0) return 'N/A';
+  if (amt >= 10000000) return `${(amt / 10000000).toFixed(2)} Cr`;
+  if (amt >= 100000)   return `${(amt / 100000).toFixed(2)} L`;
+  return amt.toLocaleString('en-IN');
+};
+
 const safeLog = async (logData) => {
-    try {
-        await whatsappLogService.logMessage(logData);
-    } catch (error) {
-        console.error('[WhatsApp] Failed to write log:', error.message);
-    }
+  try { await whatsappLogService.logMessage(logData); } catch {}
 };
 
+const sendTemplate = async ({ to, templateName, bodyParams, buttonParam, logData }) => {
+  const components = [
+    { type: 'body', parameters: bodyParams.map(text => ({ type: 'text', text: String(text) })) },
+  ];
+  if (buttonParam !== undefined) {
+    components.push({
+      type: 'button', sub_type: 'url', index: '0',
+      parameters: [{ type: 'text', text: String(buttonParam) }],
+    });
+  }
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'template',
+    template: { name: templateName, language: { code: 'en' }, components },
+  };
+  const headers = {
+    Authorization: `Bearer ${config.metaApiKey}`,
+    'Content-Type': 'application/json',
+  };
+  const response = await axios.post(WA_URL, payload, { headers });
+  logData.status = 'success';
+  logData.messageId = response.data?.messages?.[0]?.id;
+  await safeLog(logData);
+  return response.data;
+};
 
-/**
- * Send WhatsApp notification when a player is sold
- * @param {Object} playerData - Player information
- * @param {string} playerData.name - Player name
- * @param {string} playerData.mobile - Player mobile number
- * @param {string} playerData.teamName - Team name that bought the player
- * @param {number} playerData.amtSold - Amount for which player was sold
- * @param {string} playerData.tournamentName - Tournament name (optional, will be fetched if not provided)
- * @param {string} playerData.tournamentId - Tournament ID (required if tournamentName not provided)
- */
+// ─── 1. Player sold ───────────────────────────────────────────────────────────
 const sendPlayerSoldNotification = async (playerData) => {
-    let logData = {
-        messageType: 'player_sold',
-        templateName: 'sold_message',
-        recipientMobile: playerData.mobile,
-        playerId: playerData.playerId,
-        playerName: playerData.name,
-        tournamentId: playerData.tournamentId,
-        tournamentName: playerData.tournamentName,
-        teamName: playerData.teamName,
-        amtSold: playerData.amtSold,
-        status: 'failed',
-        timestamp: new Date()
-    };
-
-    try {
-        console.log(playerData);
-    
-        let { name, mobile, teamName, amtSold, tournamentName, tournamentId } = playerData;
-        
-        // Fetch tournament name dynamically if not provided
-        if (!tournamentName && tournamentId) {
-            const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-            tournamentName = tournament?.name || 'Tournament';
-            logData.tournamentName = tournamentName;
-        }
-
-        if (!mobile) {
-            console.log('[WhatsApp] Player mobile number missing, skipping sold notification');
-            logData.errorMessage = 'Mobile number missing';
-            try { await whatsappLogService.logMessage(logData); } catch (e) { /* ignore log errors */ }
-            return null;
-        }
-
-        // Format mobile number - ensure it starts with country code
-        let formattedMobile = mobile.toString();
-        if (!formattedMobile.startsWith('+')) {
-            // Assuming Indian numbers, add +91
-            formattedMobile = `+91${formattedMobile}`;
-        }
-        logData.recipientMobile = formattedMobile;
-
-        const url = 'https://graph.facebook.com/v22.0/815105745024217/messages';
-        
-        const payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: formattedMobile,
-            type: "template",
-            template: {
-                name: "sold_message",
-                language: {
-                    code: "en"
-                },
-                components: [
-                    {
-                        type: "body",
-                        parameters: [
-                            {
-                                type: "text",
-                                text: name || "Player"
-                            },
-                            {
-                                type: "text",
-                                text: teamName || "Unknown Team"
-                            },
-                            {
-                                type: "text",
-                                text: amtSold ? `${amtSold}` : "N/A"
-                            },
-                            {
-                                type: "text",
-                                text: tournamentName || "Tournament"
-                            }
-                        ]
-                    },
-                    {
-                        type: "button",
-                        sub_type: "url",
-                        index: "0",
-                        parameters: [
-                            {
-                                type: "text",
-                                text: "/" + (tournamentId || "a")
-                            }
-                        ]
-                    }
-                ]
-            }
-        };
-
-        const headers = {
-            'Authorization': `Bearer ${config.metaApiKey}`,
-            'Content-Type': 'application/json'
-        };
-
-        const response = await axios.post(url, payload, { headers });
-        
-        console.log('WhatsApp notification sent successfully:', response.data);
-        
-        // Log success
-        logData.status = 'success';
-        logData.messageId = response.data?.messages?.[0]?.id;
-        await whatsappLogService.logMessage(logData);
-        
-        return response.data;
-
-    } catch (error) {
-        console.error('[WhatsApp] Error sending sold notification:', error.response?.data || error.message);
-        
-        // Log failure - wrapped in try-catch so logging errors don't crash server
-        try {
-            logData.errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
-            await whatsappLogService.logMessage(logData);
-        } catch (logError) {
-            console.error('[WhatsApp] Failed to log error:', logError.message);
-        }
-        
-        // Never throw - gracefully return null
-        return null;
+  const { name, mobile, teamName, amtSold, tournamentId, playerId } = playerData;
+  let { tournamentName } = playerData;
+  const logData = {
+    messageType: 'player_sold', templateName: 'sold_message',
+    recipientMobile: mobile, playerId, playerName: name,
+    tournamentId, tournamentName, teamName, amtSold, status: 'failed', timestamp: new Date(),
+  };
+  try {
+    if (!mobile) { logData.errorMessage = 'Mobile missing'; await safeLog(logData); return null; }
+    if (!await isEnabled(tournamentId, 'playerSold')) {
+      console.log('[WhatsApp] playerSold disabled for tournament', tournamentId); return null;
     }
-};
-
-/**
- * Send WhatsApp notification when a player goes unsold
- * @param {Object} playerData - Player information
- * @param {string} playerData.name - Player name
- * @param {string} playerData.mobile - Player mobile number
- * @param {string} playerData.tournamentName - Tournament name (optional, will be fetched if not provided)
- * @param {string} playerData.tournamentId - Tournament ID (required if tournamentName not provided)
- */
-const sendPlayerUnsoldNotification = async (playerData) => {
-    let logData = {
-        messageType: 'player_unsold',
-        templateName: 'unsold_message',
-        recipientMobile: playerData.mobile,
-        playerId: playerData.playerId,
-        playerName: playerData.name,
-        tournamentId: playerData.tournamentId,
-        tournamentName: playerData.tournamentName,
-        status: 'failed',
-        timestamp: new Date()
-    };
-
-    try {
-        let { name, mobile, tournamentName, tournamentId } = playerData;
-        
-        // Fetch tournament name dynamically if not provided
-        if (!tournamentName && tournamentId) {
-            const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-            tournamentName = tournament?.name || 'Tournament';
-            logData.tournamentName = tournamentName;
-        }
-
-        if (!mobile) {
-            console.log('[WhatsApp] Player mobile number missing, skipping unsold notification');
-            logData.errorMessage = 'Mobile number missing';
-            try { await whatsappLogService.logMessage(logData); } catch (e) { /* ignore log errors */ }
-            return null;
-        }
-
-        // Format mobile number - ensure it starts with country code
-        let formattedMobile = mobile.toString();
-        if (!formattedMobile.startsWith('+')) {
-            // Assuming Indian numbers, add +91
-            formattedMobile = `+91${formattedMobile}`;
-        }
-        logData.recipientMobile = formattedMobile;
-
-        const url = 'https://graph.facebook.com/v22.0/815105745024217/messages';
-        
-        const payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: formattedMobile,
-            type: "template",
-            template: {
-                name: "unsold_message",
-                language: {
-                    code: "en"
-                },
-                components: [
-                    {
-                        type: "body",
-                        parameters: [
-                            {
-                                type: "text",
-                                text: name || "Player"
-                            },
-                            {
-                                type: "text",
-                                text: tournamentName || "Tournament"
-                            }
-                        ]
-                    }
-                ]
-            }
-        };
-
-        const headers = {
-            'Authorization': `Bearer ${config.metaApiKey}`,
-            'Content-Type': 'application/json'
-        };
-
-        const response = await axios.post(url, payload, { headers });
-        
-        console.log('WhatsApp unsold notification sent successfully:', response.data);
-        
-        // Log success
-        logData.status = 'success';
-        logData.messageId = response.data?.messages?.[0]?.id;
-        await whatsappLogService.logMessage(logData);
-        
-        return response.data;
-
-    } catch (error) {
-        console.error('[WhatsApp] Error sending unsold notification:', error.response?.data || error.message);
-        
-        // Log failure - wrapped in try-catch so logging errors don't crash server
-        try {
-            logData.errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
-            await whatsappLogService.logMessage(logData);
-        } catch (logError) {
-            console.error('[WhatsApp] Failed to log error:', logError.message);
-        }
-        
-        // Never throw - gracefully return null
-        return null;
-    }
-};
-
-/**
- * Send WhatsApp announcement to all players and team owners for a tournament
- * @param {Object} params - Parameters
- * @param {string} params.tournamentId - Tournament ID
- * @param {string} params.tournamentName - Tournament name (optional, will be fetched if not provided)
- * @returns {Object} Result with success/failure counts
- */
-const sendAuctionAnnouncementBroadcast = async ({ tournamentId, tournamentName }) => {
-    // Fetch tournament name if not provided
     if (!tournamentName && tournamentId) {
-        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-        tournamentName = tournament?.name || 'Tournament';
+      const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+      tournamentName = t?.name || 'Tournament';
+      logData.tournamentName = tournamentName;
     }
-
-    // Collect all recipients
-    const recipients = [];
-
-    // Get all players with mobile numbers
-    const players = await prisma.player.findMany({
-        where: { touranmentId: tournamentId, mobile: { not: null } },
-        select: { name: true, mobile: true },
+    const to = formatMobile(mobile);
+    logData.recipientMobile = to;
+    return await sendTemplate({
+      to, templateName: 'sold_message',
+      bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentName || 'Tournament'],
+      buttonParam: '/' + (tournamentId || 'a'),
+      logData,
     });
-
-    players.forEach(player => {
-        if (player.mobile) {
-            recipients.push({
-                name: player.name || 'Player',
-                mobile: player.mobile.toString(),
-                type: 'player'
-            });
-        }
-    });
-
-    // Get all team owners with mobile numbers
-    const teams = await prisma.team.findMany({
-        where: { touranmentId: tournamentId, ownerMobile: { not: null } },
-        select: { ownerName: true, ownerMobile: true },
-    });
-
-    teams.forEach(team => {
-        if (team.ownerMobile) {
-            recipients.push({
-                name: team.ownerName || 'Team Owner',
-                mobile: team.ownerMobile.toString(),
-                type: 'teamOwner'
-            });
-        }
-    });
-    
-    // Deduplicate by mobile number
-    const uniqueMobiles = new Map();
-    recipients.forEach(r => {
-        const formattedMobile = r.mobile.startsWith('+') ? r.mobile : `+91${r.mobile}`;
-        if (!uniqueMobiles.has(formattedMobile)) {
-            uniqueMobiles.set(formattedMobile, { ...r, mobile: formattedMobile });
-        }
-    });
-    
-    const uniqueRecipients = Array.from(uniqueMobiles.values());
-    
-    console.log(`[WhatsApp] Broadcasting auction announcement to ${uniqueRecipients.length} recipients for tournament ${tournamentId}`);
-    
-    let successCount = 0;
-    let failureCount = 0;
-    const results = [];
-    
-    // Send to each recipient
-    for (const recipient of uniqueRecipients) {
-        try {
-            const logData = {
-                messageType: 'auction_announcement',
-                templateName: 'auction_announcement',
-                recipientMobile: recipient.mobile,
-                tournamentId,
-                tournamentName,
-                status: 'failed',
-                timestamp: new Date()
-            };
-            
-            const url = 'https://graph.facebook.com/v22.0/815105745024217/messages';
-            
-            const payload = {
-                messaging_product: "whatsapp",
-                recipient_type: "individual",
-                to: recipient.mobile,
-                type: "template",
-                template: {
-                    name: "auction_announcement",
-                    language: {
-                        code: "en"
-                    },
-                    components: [
-                        {
-                            type: "body",
-                            parameters: [
-                                {
-                                    type: "text",
-                                    text: recipient.name
-                                },
-                                {
-                                    type: "text",
-                                    text: tournamentName
-                                }
-                            ]
-                        },
-                        {
-                            type: "button",
-                            sub_type: "url",
-                            index: "0",
-                            parameters: [
-                                {
-                                    type: "text",
-                                    text: "/" + tournamentId
-                                }
-                            ]
-                        }
-                    ]
-                }
-            };
-            
-            const headers = {
-                'Authorization': `Bearer ${config.metaApiKey}`,
-                'Content-Type': 'application/json'
-            };
-            
-            const response = await axios.post(url, payload, { headers });
-            
-            logData.status = 'success';
-            logData.messageId = response.data?.messages?.[0]?.id;
-            await safeLog(logData);
-            
-            successCount++;
-            results.push({ mobile: recipient.mobile, status: 'success' });
-            
-        } catch (error) {
-            console.error(`[WhatsApp] Failed to send to ${recipient.mobile}:`, error.response?.data || error.message);
-            failureCount++;
-            results.push({ mobile: recipient.mobile, status: 'failed', error: error.message });
-        }
-        
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    console.log(`[WhatsApp] Broadcast complete: ${successCount} success, ${failureCount} failed`);
-    
-    return {
-        totalRecipients: uniqueRecipients.length,
-        successCount,
-        failureCount,
-        results
-    };
+  } catch (err) {
+    logData.errorMessage = err.response?.data?.error?.message || err.message;
+    await safeLog(logData); return null;
+  }
 };
 
-/**
- * Get count of recipients for auction announcement (preview without sending)
- * @param {Object} params - Parameters
- * @param {string} params.tournamentId - Tournament ID
- * @returns {Object} Recipient counts
- */
-const getAnnouncementRecipientCount = async ({ tournamentId }) => {
-    // Get player count with mobile numbers
-    const playerCount = await prisma.player.count({
-        where: { touranmentId: tournamentId, mobile: { not: null } },
+// ─── 2. Player unsold ─────────────────────────────────────────────────────────
+const sendPlayerUnsoldNotification = async (playerData) => {
+  const { name, mobile, tournamentId, playerId } = playerData;
+  let { tournamentName } = playerData;
+  const logData = {
+    messageType: 'player_unsold', templateName: 'unsold_message',
+    recipientMobile: mobile, playerId, playerName: name,
+    tournamentId, tournamentName, status: 'failed', timestamp: new Date(),
+  };
+  try {
+    if (!mobile) { logData.errorMessage = 'Mobile missing'; await safeLog(logData); return null; }
+    if (!await isEnabled(tournamentId, 'playerUnsold')) return null;
+    if (!tournamentName && tournamentId) {
+      const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+      tournamentName = t?.name || 'Tournament';
+      logData.tournamentName = tournamentName;
+    }
+    const to = formatMobile(mobile);
+    logData.recipientMobile = to;
+    return await sendTemplate({
+      to, templateName: 'unsold_message',
+      bodyParams: [name || 'Player', tournamentName || 'Tournament'],
+      logData,
     });
-
-    // Get team owner count with mobile numbers
-    const teamOwnerCount = await prisma.team.count({
-        where: { touranmentId: tournamentId, ownerMobile: { not: null } },
-    });
-    
-    // Note: actual unique count may be less due to deduplication
-    return {
-        playerCount,
-        teamOwnerCount,
-        estimatedTotal: playerCount + teamOwnerCount,
-        note: "Actual count may be less if some players are also team owners"
-    };
+  } catch (err) {
+    logData.errorMessage = err.response?.data?.error?.message || err.message;
+    await safeLog(logData); return null;
+  }
 };
 
-/**
- * Send team purchase summary to team owner when they buy a player
- * @param {Object} params - Parameters
- * @param {string} params.teamId - Team ID
- * @param {string} params.playerName - Name of player just bought
- * @param {number} params.amountPaid - Amount paid for the player
- * @param {string} params.tournamentId - Tournament ID
- */
+// ─── 3. Team purchase summary (to owner after each buy) ───────────────────────
 const sendTeamPurchaseSummary = async ({ teamId, playerName, amountPaid, tournamentId }) => {
-    let logData = {
-        messageType: 'team_purchase_summary',
-        templateName: 'team_purchase_summary',
-        tournamentId,
-        status: 'failed',
-        timestamp: new Date()
+  const logData = {
+    messageType: 'team_purchase_summary', templateName: 'team_purchase_summary',
+    tournamentId, status: 'failed', timestamp: new Date(),
+  };
+  try {
+    if (!await isEnabled(tournamentId, 'teamPurchase')) return null;
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team?.ownerMobile) { logData.errorMessage = 'Owner mobile missing'; await safeLog(logData); return null; }
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+    const totalBudget = tournament?.totalBudget || 0;
+    const teamPlayers = await prisma.player.findMany({
+      where: { teamId, sold: true }, select: { name: true, amtSold: true },
+    });
+    const budgetUsed = teamPlayers.reduce((s, p) => s + (p.amtSold || 0), 0);
+    const squadList = teamPlayers.map(p => p.name).slice(0, 6).join(', ') +
+      (teamPlayers.length > 6 ? ` +${teamPlayers.length - 6} more` : '');
+    const to = formatMobile(team.ownerMobile);
+    logData.recipientMobile = to;
+    logData.teamName = team.name;
+    return await sendTemplate({
+      to, templateName: 'team_purchase_summary',
+      bodyParams: [
+        team.ownerName || 'Team Owner',
+        playerName,
+        formatAmount(amountPaid),
+        String(teamPlayers.length),
+        formatAmount(budgetUsed),
+        formatAmount(totalBudget - budgetUsed),
+        squadList || 'No players yet',
+      ],
+      buttonParam: teamId,
+      logData,
+    });
+  } catch (err) {
+    logData.errorMessage = err.response?.data?.error?.message || err.message;
+    await safeLog(logData); return null;
+  }
+};
+
+// ─── 4. Post-auction: message to each player with their result ────────────────
+const sendPostAuctionPlayerSummaries = async ({ tournamentId }) => {
+  if (!await isEnabled(tournamentId, 'postAuctionPlayer')) return { skipped: true };
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const tournamentName = tournament?.name || 'Tournament';
+  const players = await prisma.player.findMany({
+    where: { touranmentId: tournamentId, mobile: { not: null } },
+    include: { team: { select: { name: true } } },
+  });
+  let success = 0, failed = 0;
+  for (const player of players) {
+    const logData = {
+      messageType: 'post_auction_player', templateName: 'post_auction_player_summary',
+      recipientMobile: player.mobile, playerId: player.id, playerName: player.name,
+      tournamentId, tournamentName, status: 'failed', timestamp: new Date(),
     };
-
     try {
-        // Get team info
-        const team = await prisma.team.findUnique({ where: { id: teamId } });
-        if (!team || !team.ownerMobile) {
-            console.log('[WhatsApp] Team owner mobile not found, skipping summary');
-            return null;
-        }
-
-        // Get tournament for budget
-        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-        const totalBudget = tournament?.totalBudget || 0;
-
-        // Get all players bought by this team
-        const teamPlayers = await prisma.player.findMany({
-            where: { teamId: teamId, sold: true },
-            select: { name: true, amtSold: true },
-        });
-        
-        // Calculate totals
-        const playerCount = teamPlayers.length;
-        const budgetUsed = teamPlayers.reduce((sum, p) => sum + (p.amtSold || 0), 0);
-        const budgetRemaining = totalBudget - budgetUsed;
-        
-        // Build squad list with commas (no newlines allowed in WhatsApp parameters)
-        const squadList = teamPlayers
-            .slice(0, 5)
-            .map(p => p.name)
-            .join(', ');
-        const squadDisplay = teamPlayers.length > 5 
-            ? squadList + ` (+${teamPlayers.length - 5} more)`
-            : (squadList || "No players yet");
-        
-        // Format currency
-        const formatCurrency = (amt) => {
-            if (amt >= 10000000) return `${(amt / 10000000).toFixed(2)} Cr`;
-            if (amt >= 100000) return `${(amt / 100000).toFixed(2)} L`;
-            return amt.toLocaleString('en-IN');
-        };
-        
-        // Format mobile
-        let formattedMobile = team.ownerMobile.toString();
-        if (!formattedMobile.startsWith('+')) {
-            formattedMobile = `+91${formattedMobile}`;
-        }
-        
-        logData.recipientMobile = formattedMobile;
-        logData.teamName = team.name;
-        
-        const url = 'https://graph.facebook.com/v22.0/815105745024217/messages';
-        
-        const payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: formattedMobile,
-            type: "template",
-            template: {
-                name: "team_purchase_summary",
-                language: {
-                    code: "en"
-                },
-                components: [
-                    {
-                        type: "body",
-                        parameters: [
-                            { type: "text", text: team.ownerName || "Team Owner" },
-                            { type: "text", text: playerName },
-                            { type: "text", text: formatCurrency(amountPaid) },
-                            { type: "text", text: playerCount.toString() },
-                            { type: "text", text: formatCurrency(budgetUsed) },
-                            { type: "text", text: formatCurrency(budgetRemaining) },
-                            { type: "text", text: squadDisplay }
-                        ]
-                    },
-                    {
-                        type: "button",
-                        sub_type: "url",
-                        index: "0",
-                        parameters: [
-                            { type: "text", text: teamId.toString() }
-                        ]
-                    }
-                ]
-            }
-        };
-        
-        const headers = {
-            'Authorization': `Bearer ${config.metaApiKey}`,
-            'Content-Type': 'application/json'
-        };
-        
-        const response = await axios.post(url, payload, { headers });
-        
-        console.log('[WhatsApp] Team purchase summary sent:', response.data);
-        
-        logData.status = 'success';
-        logData.messageId = response.data?.messages?.[0]?.id;
-        await safeLog(logData);
-        
-        return response.data;
-        
-    } catch (error) {
-        console.error('[WhatsApp] Team purchase summary failed:', error.response?.data || error.message);
-        logData.errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
-        await safeLog(logData);
-        return null;
+      const teamName = player.sold && player.team?.name ? player.team.name : 'UNSOLD';
+      const to = formatMobile(player.mobile);
+      logData.recipientMobile = to;
+      await sendTemplate({
+        to, templateName: 'post_auction_player_summary',
+        bodyParams: [player.name || 'Player', tournamentName, teamName],
+        buttonParam: '/' + tournamentId,
+        logData,
+      });
+      success++;
+    } catch (err) {
+      logData.errorMessage = err.response?.data?.error?.message || err.message;
+      await safeLog(logData); failed++;
     }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return { totalSent: players.length, success, failed };
+};
+
+// ─── 5. Post-auction: message to each team owner with full squad ──────────────
+const sendPostAuctionOwnerSummaries = async ({ tournamentId }) => {
+  if (!await isEnabled(tournamentId, 'postAuctionOwner')) return { skipped: true };
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const tournamentName = tournament?.name || 'Tournament';
+  const teams = await prisma.team.findMany({
+    where: { touranmentId: tournamentId, ownerMobile: { not: null } },
+    include: { players: { where: { sold: true }, select: { name: true, amtSold: true } } },
+  });
+  let success = 0, failed = 0;
+  for (const team of teams) {
+    const logData = {
+      messageType: 'post_auction_owner', templateName: 'post_auction_owner_summary',
+      tournamentId, tournamentName, teamName: team.name, status: 'failed', timestamp: new Date(),
+    };
+    try {
+      const budgetUsed = team.players.reduce((s, p) => s + (p.amtSold || 0), 0);
+      const squadList = team.players.map(p => p.name).join(', ') || 'No players';
+      const to = formatMobile(team.ownerMobile);
+      logData.recipientMobile = to;
+      await sendTemplate({
+        to, templateName: 'post_auction_owner_summary',
+        bodyParams: [
+          team.ownerName || 'Team Owner',
+          team.name || 'Your Team',
+          tournamentName,
+          String(team.players.length),
+          formatAmount(budgetUsed),
+          squadList,
+        ],
+        buttonParam: '/' + tournamentId,
+        logData,
+      });
+      success++;
+    } catch (err) {
+      logData.errorMessage = err.response?.data?.error?.message || err.message;
+      await safeLog(logData); failed++;
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return { totalSent: teams.length, success, failed };
+};
+
+// ─── 6. Auction reminder broadcast (manual trigger) ──────────────────────────
+const sendAuctionReminderBroadcast = async ({ tournamentId, customMessage }) => {
+  if (!await isEnabled(tournamentId, 'auctionReminder')) return { skipped: true };
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const tournamentName = tournament?.name || 'Tournament';
+  const note = customMessage || `The ${tournamentName} auction is starting soon. Get ready!`;
+  const recipients = [];
+  const players = await prisma.player.findMany({
+    where: { touranmentId: tournamentId, mobile: { not: null } },
+    select: { id: true, name: true, mobile: true },
+  });
+  players.forEach(p => recipients.push({ id: p.id, name: p.name, mobile: p.mobile, type: 'player' }));
+  const teams = await prisma.team.findMany({
+    where: { touranmentId: tournamentId, ownerMobile: { not: null } },
+    select: { id: true, ownerName: true, ownerMobile: true },
+  });
+  teams.forEach(t => recipients.push({ id: t.id, name: t.ownerName, mobile: t.ownerMobile, type: 'owner' }));
+  // Deduplicate by formatted mobile
+  const seen = new Map();
+  recipients.forEach(r => { const m = formatMobile(r.mobile); if (!seen.has(m)) seen.set(m, { ...r, mobile: m }); });
+  const unique = Array.from(seen.values());
+  let success = 0, failed = 0;
+  for (const r of unique) {
+    const logData = {
+      messageType: 'auction_announcement', templateName: 'auction_announcement',
+      recipientMobile: r.mobile, tournamentId, tournamentName, status: 'failed', timestamp: new Date(),
+    };
+    try {
+      await sendTemplate({
+        to: r.mobile, templateName: 'auction_announcement',
+        bodyParams: [r.name || 'Player', tournamentName, note],
+        buttonParam: '/' + tournamentId,
+        logData,
+      });
+      success++;
+    } catch (err) {
+      logData.errorMessage = err.response?.data?.error?.message || err.message;
+      await safeLog(logData); failed++;
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return { totalSent: unique.length, success, failed };
+};
+
+// ─── 7. Category starting notification (auto-triggered) ──────────────────────
+const sendCategoryStartingNotification = async ({ tournamentId, category }) => {
+  if (!await isEnabled(tournamentId, 'categoryStarting')) return null;
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const tournamentName = tournament?.name || 'Tournament';
+  const players = await prisma.player.findMany({
+    where: { touranmentId: tournamentId, playerCategory: category, mobile: { not: null }, sold: false },
+    select: { id: true, name: true, mobile: true },
+  });
+  for (const player of players) {
+    const logData = {
+      messageType: 'category_starting', templateName: 'category_auction_starting',
+      recipientMobile: formatMobile(player.mobile), playerId: player.id,
+      playerName: player.name, tournamentId, tournamentName, status: 'failed', timestamp: new Date(),
+    };
+    try {
+      await sendTemplate({
+        to: logData.recipientMobile, templateName: 'category_auction_starting',
+        bodyParams: [player.name || 'Player', category, tournamentName],
+        logData,
+      });
+    } catch (err) {
+      logData.errorMessage = err.response?.data?.error?.message || err.message;
+      await safeLog(logData);
+    }
+    await new Promise(r => setTimeout(r, 80));
+  }
+};
+
+// ─── 8. Budget warning to team owner ─────────────────────────────────────────
+const sendBudgetWarning = async ({ teamId, tournamentId }) => {
+  const cfg = await getWhatsAppConfig(tournamentId);
+  if (!cfg.budgetWarning?.enabled) return null;
+  const threshold = cfg.budgetWarning?.thresholdPercent ?? 80;
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team?.ownerMobile) return null;
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const totalBudget = tournament?.totalBudget || 0;
+  if (!totalBudget) return null;
+  const budgetUsed = await prisma.player.aggregate({
+    where: { teamId, sold: true }, _sum: { amtSold: true },
+  });
+  const used = budgetUsed._sum.amtSold || 0;
+  const pct = Math.round((used / totalBudget) * 100);
+  if (pct < threshold) return null; // only send once threshold crossed
+  const logData = {
+    messageType: 'budget_warning', templateName: 'budget_warning',
+    recipientMobile: formatMobile(team.ownerMobile), tournamentId,
+    teamName: team.name, status: 'failed', timestamp: new Date(),
+  };
+  try {
+    return await sendTemplate({
+      to: logData.recipientMobile, templateName: 'budget_warning',
+      bodyParams: [
+        team.ownerName || 'Team Owner',
+        team.name || 'Your Team',
+        String(pct),
+        formatAmount(totalBudget - used),
+      ],
+      logData,
+    });
+  } catch (err) {
+    logData.errorMessage = err.response?.data?.error?.message || err.message;
+    await safeLog(logData); return null;
+  }
+};
+
+// ─── Legacy broadcast (keep for backward compat) ─────────────────────────────
+const sendAuctionAnnouncementBroadcast = sendAuctionReminderBroadcast;
+const getAnnouncementRecipientCount = async ({ tournamentId }) => {
+  const playerCount = await prisma.player.count({ where: { touranmentId: tournamentId, mobile: { not: null } } });
+  const teamOwnerCount = await prisma.team.count({ where: { touranmentId: tournamentId, ownerMobile: { not: null } } });
+  return { playerCount, teamOwnerCount, estimatedTotal: playerCount + teamOwnerCount };
 };
 
 module.exports = {
-    sendPlayerSoldNotification,
-    sendPlayerUnsoldNotification,
-    sendAuctionAnnouncementBroadcast,
-    getAnnouncementRecipientCount,
-    sendTeamPurchaseSummary
+  DEFAULT_WHATSAPP_CONFIG,
+  getWhatsAppConfig,
+  sendPlayerSoldNotification,
+  sendPlayerUnsoldNotification,
+  sendTeamPurchaseSummary,
+  sendPostAuctionPlayerSummaries,
+  sendPostAuctionOwnerSummaries,
+  sendAuctionReminderBroadcast,
+  sendCategoryStartingNotification,
+  sendBudgetWarning,
+  // legacy
+  sendAuctionAnnouncementBroadcast,
+  getAnnouncementRecipientCount,
 };
-
