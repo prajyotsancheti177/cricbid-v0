@@ -42,11 +42,11 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
     <div
       onClick={handleClick}
       className={cn(
-        "relative overflow-hidden rounded-lg sm:rounded-2xl bg-card border border-border sm:border-2 shadow-elevated transition-all w-full",
+        "relative overflow-hidden rounded-lg sm:rounded-2xl bg-card border border-border sm:border-2 shadow-elevated transition-all duration-300 w-full",
         // mobile: column layout for compact cards. md+: stacked column with larger image
         "flex flex-col",
-        // Add cursor pointer and hover effects when clickable
-        onClick && "cursor-pointer hover:shadow-2xl hover:scale-[1.02] hover:border-primary/50",
+        // Satisfying hover + press feel
+        onClick && "cursor-pointer hover:shadow-2xl hover:scale-[1.03] hover:border-primary/60 active:scale-[0.97]",
         isAnimated && "animate-pop-in",
         isSold && "animate-celebrate",
         className

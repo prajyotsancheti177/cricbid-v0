@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Users, Calendar, DollarSign, ArrowRight, Megaphone, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -168,8 +169,36 @@ const Tournaments = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-base sm:text-xl text-muted-foreground">Loading tournaments...</p>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-3 sm:p-4 md:p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header skeleton */}
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-9 w-48" />
+            </div>
+            <Skeleton className="h-5 w-64" />
+          </div>
+          {/* Tournament card skeletons — matches 2/2/3 grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border bg-card overflow-hidden">
+                {/* Card header gradient area */}
+                <div className="p-3 sm:p-4 md:p-6 bg-muted/40 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                {/* Card content */}
+                <div className="p-2 sm:p-4 space-y-2 sm:space-y-3">
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 const prisma = require("../db/prisma");
 const { serializeTeam, serializePlayer } = require("../utils/serialize");
+const eventService = require("./eventService");
 
 const sumSpent = (players) => players.reduce((acc, p) => acc + (p.amtSold || 0), 0);
 
@@ -29,6 +30,15 @@ const addTeam = async (teamInput) => {
             ownerMobile: teamInput.owner?.mobile ?? null,
         },
     });
+
+    eventService.trackEvent({
+        userId: teamInput.userId || null,
+        tournamentId: created.touranmentId || null,
+        eventType: "team_created",
+        page: "/teams",
+        eventData: { teamId: created.id, teamName: created.name, ownerName: created.ownerName, source: teamInput.isPublic ? "public_form" : "manual" },
+    }).catch(() => {});
+
     return serializeTeam(created);
 };
 
@@ -140,6 +150,15 @@ const updateTeam = async (payload) => {
         if (e.code === 'P2025') throw new Error("Team not found");
         throw e;
     }
+
+    eventService.trackEvent({
+        userId: payload.userId || null,
+        tournamentId: updated.touranmentId || null,
+        eventType: "team_updated",
+        page: "/teams",
+        eventData: { teamId: updated.id, teamName: updated.name, fieldsUpdated: Object.keys(updateData) },
+    }).catch(() => {});
+
     return serializeTeam(updated);
 };
 
@@ -185,6 +204,15 @@ const bulkCreateTeams = async (teams, touranmentId) => {
             ownerMobile: t.owner?.mobile ?? null,
         })),
     });
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId || null,
+        eventType: "teams_bulk_created",
+        page: "/teams",
+        eventData: { count: created.length, tournamentId: touranmentId },
+    }).catch(() => {});
+
     return created.map(serializeTeam);
 };
 
@@ -196,6 +224,15 @@ const deleteAllTeamsByTournament = async (tournamentId) => {
         throw new Error("Tournament ID is required");
     }
     const result = await prisma.team.deleteMany({ where: { touranmentId: tournamentId } });
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: tournamentId || null,
+        eventType: "teams_all_deleted",
+        page: "/teams",
+        eventData: { tournamentId, count: result.count },
+    }).catch(() => {});
+
     return {
         deletedCount: result.count,
         message: `Successfully deleted ${result.count} teams`,

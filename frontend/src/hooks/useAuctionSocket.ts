@@ -53,13 +53,27 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
             setAuctionState(prev => prev ? { ...prev, viewerCount: count } : null);
         };
 
-        const onError = (error: string) => {
+        const onError = (error: string | { code?: string; message?: string; hostName?: string }) => {
             console.error("Auction socket error:", error);
-            toast({
-                title: "Auction Error",
-                description: error,
-                variant: "destructive"
-            });
+            if (typeof error === 'object' && error.code === 'HOST_CONFLICT') {
+                toast({
+                    title: "Auction already in progress",
+                    description: `Auction is already being hosted by ${error.hostName || 'another user'}. You are in viewer mode.`,
+                    variant: "destructive"
+                });
+            } else if (typeof error === 'object' && error.code === 'UNAUTHORIZED') {
+                toast({
+                    title: "Unauthorized",
+                    description: error.message || "You are not authorized to host this auction.",
+                    variant: "destructive"
+                });
+            } else {
+                toast({
+                    title: "Auction Error",
+                    description: typeof error === 'object' ? (error.message || JSON.stringify(error)) : error,
+                    variant: "destructive"
+                });
+            }
         };
 
         const onRole = (role: string) => {

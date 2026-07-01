@@ -4,6 +4,7 @@ const playersService = require("../services/playerService");
 const tournamentService = require('../services/tournamentService');
 const googleService = require('../utils/googleService');
 const { sendSuccess, sendError } = require("../utils");
+const eventService = require("../services/eventService");
 
 
 const registerPlayer = async (req, res) => {
@@ -328,6 +329,15 @@ const applySync = async (req, res) => {
 
             await prisma.player.update({ where: { id: diff.playerId }, data });
         }
+
+        eventService.trackEvent({
+            userId: req.body.userId || null,
+            tournamentId: req.body.touranmentId || null,
+            eventType: "sheets_sync_applied",
+            page: "/players",
+            eventData: { tournamentId: req.body.touranmentId || null, changesApplied: diffs.length },
+        }).catch(() => {});
+
         return sendSuccess(res, 200, "Sync applied successfully");
     } catch(err) {
         return sendError(res, 400, "Failed to apply sync", err);
@@ -346,7 +356,15 @@ const syncToSheet = async (req, res) => {
 
         const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
         await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
-        
+
+        eventService.trackEvent({
+            userId: req.body.userId || null,
+            tournamentId: touranmentId || null,
+            eventType: "sheets_sync_exported",
+            page: "/players",
+            eventData: { tournamentId: touranmentId },
+        }).catch(() => {});
+
         return sendSuccess(res, 200, "Successfully exported database to Google Sheet");
     } catch(err) {
         return sendError(res, 400, "Failed to sync to sheet", err);

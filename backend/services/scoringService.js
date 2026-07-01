@@ -1,4 +1,5 @@
 const prisma = require("../db/prisma");
+const eventService = require("./eventService");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,14 @@ const startInnings = async ({ matchId, inningsNumber, battingTeamId, striker1Id,
 
   // Mark match live
   await prisma.match.update({ where: { id: matchId }, data: { status: "live" } });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: null,
+    eventType: "innings_started",
+    page: "/scoring",
+    eventData: { matchId, inningsNumber, battingTeamId },
+  }).catch(() => {});
 
   return innings;
 };
@@ -198,6 +207,14 @@ const recordBall = async ({
     },
   });
 
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: null,
+    eventType: "ball_recorded",
+    page: "/scoring",
+    eventData: { matchId, inningsNumber, overNumber, ballInOver, batRuns: batRuns || 0, isWicket: !!isWicket, extraType: extraType || null },
+  }).catch(() => {});
+
   return { ball, commentary };
 };
 
@@ -271,6 +288,14 @@ const undoLastBall = async ({ matchId, inningsNumber }) => {
   const remaining = await prisma.ballEvent.count({ where: { inningsId: innings.id, isLegalDelivery: true } });
   await prisma.innings.update({ where: { id: innings.id }, data: { oversBowled: toOversFloat(remaining) } });
 
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: null,
+    eventType: "ball_undone",
+    page: "/scoring",
+    eventData: { matchId, inningsNumber },
+  }).catch(() => {});
+
   return { undone: last };
 };
 
@@ -282,11 +307,21 @@ const addBatsman = async ({ matchId, inningsNumber, playerId, teamId, battingOrd
   });
   if (!innings) throw new Error("Innings not found");
 
-  return prisma.batsmanInnings.upsert({
+  const result = await prisma.batsmanInnings.upsert({
     where: { inningsId_playerId: { inningsId: innings.id, playerId } },
     create: { inningsId: innings.id, matchId, inningsNumber, playerId, teamId, battingOrder },
     update: {},
   });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: null,
+    eventType: "batsman_added",
+    page: "/scoring",
+    eventData: { matchId, inningsNumber, playerId, battingOrder },
+  }).catch(() => {});
+
+  return result;
 };
 
 // ─── Add / switch bowler ──────────────────────────────────────────────────────
@@ -297,11 +332,21 @@ const setBowler = async ({ matchId, inningsNumber, playerId, teamId }) => {
   });
   if (!innings) throw new Error("Innings not found");
 
-  return prisma.bowlerInnings.upsert({
+  const result = await prisma.bowlerInnings.upsert({
     where: { inningsId_playerId: { inningsId: innings.id, playerId } },
     create: { inningsId: innings.id, matchId, inningsNumber, playerId, teamId },
     update: {},
   });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: null,
+    eventType: "bowler_set",
+    page: "/scoring",
+    eventData: { matchId, inningsNumber, playerId },
+  }).catch(() => {});
+
+  return result;
 };
 
 // ─── Live state (for scorer panel to resume after refresh) ───────────────────

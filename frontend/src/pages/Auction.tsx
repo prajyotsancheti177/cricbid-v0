@@ -90,7 +90,14 @@ const Auction = () => {
       maxBid: number | null;
       increment: number;
     }>;
+    features?: {
+      countdownEnabled?: boolean;
+      countdownSeconds?: number;
+    };
   } | null>(null);
+
+  // Countdown timer state
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // Reset unsold players states
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -166,8 +173,16 @@ const Auction = () => {
           body: JSON.stringify({ tournamentId }),
         });
         const tournData = await tournRes.json();
-        if (tournData?.data?.bidIncrementSlabs) {
-          setBidIncrementSlabs(tournData.data.bidIncrementSlabs);
+        if (tournData?.data) {
+          setTournamentData(tournData.data);
+          if (tournData.data.bidIncrementSlabs) {
+            setBidIncrementSlabs(tournData.data.bidIncrementSlabs);
+          } else {
+            setBidIncrementSlabs([
+              { minBid: 0, maxBid: 499, increment: 50 },
+              { minBid: 500, maxBid: null, increment: 100 }
+            ]);
+          }
         } else {
           setBidIncrementSlabs([
             { minBid: 0, maxBid: 499, increment: 50 },
@@ -181,6 +196,22 @@ const Auction = () => {
     };
     fetchInitialData();
   }, [tournamentId]);
+
+  // Countdown timer: reset when a new player is selected
+  useEffect(() => {
+    if (tournamentData?.features?.countdownEnabled && tournamentData?.features?.countdownSeconds) {
+      setSecondsLeft(tournamentData.features.countdownSeconds);
+    } else {
+      setSecondsLeft(null);
+    }
+  }, [currentPlayer?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown timer: tick every second
+  useEffect(() => {
+    if (secondsLeft === null || secondsLeft <= 0) return;
+    const t = setInterval(() => setSecondsLeft(s => (s !== null && s > 0 ? s - 1 : s)), 1000);
+    return () => clearInterval(t);
+  }, [secondsLeft]);
 
   // Fetch unsold players only when dialog opens
   useEffect(() => {
@@ -471,6 +502,32 @@ const Auction = () => {
         )}
 
         <div className="space-y-4 md:space-y-8 max-w-full mx-auto">
+          {/* Countdown Timer — shown only when enabled and a player is active */}
+          {tournamentData?.features?.countdownEnabled && currentPlayer && secondsLeft !== null && (
+            <div className="flex justify-center animate-fade-in">
+              <div className={`inline-flex flex-col items-center px-6 py-3 rounded-2xl border-2 shadow-elevated transition-all
+                ${secondsLeft <= 0
+                  ? "border-red-500 bg-red-500/20 animate-pulse"
+                  : secondsLeft <= 10
+                    ? "border-red-400 bg-red-400/10 animate-pulse"
+                    : "border-primary/40 bg-card/80"
+                }`}>
+                {secondsLeft <= 0 ? (
+                  <span className="text-2xl md:text-4xl font-black text-red-500 tracking-widest">TIME'S UP</span>
+                ) : (
+                  <>
+                    <span className={`text-3xl md:text-5xl font-black tabular-nums ${secondsLeft <= 10 ? "text-red-500" : "text-foreground"}`}>
+                      {secondsLeft >= 60
+                        ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
+                        : String(secondsLeft).padStart(2, "0")}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-medium mt-0.5">seconds remaining</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Player Card + Team Budget Panel */}
           <div className="flex flex-col md:flex-row gap-3 md:gap-4 animate-scale-in mx-2 md:mx-0 max-w-7xl md:mx-auto md:h-[55vh]">
             {/* Large Player Card */}
@@ -512,7 +569,7 @@ const Auction = () => {
                 Click on Team to Bid
               </h2>
 
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3 mb-3 md:mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3 mb-3 md:mb-4">
                 {teams.map((team: any) => {
                   const nextBidAmount = leadingTeam === null ? currentBid : currentBid + bidPrice;
                   const noSlots = (team.maxPlayersPerTeam ?? 0) - (team.playersCount ?? 0) <= 0;
@@ -524,9 +581,13 @@ const Auction = () => {
                     <div key={team._id} className="flex flex-col items-center">
                       <button
                         onClick={() => actions.placeBid(team._id)}
-                        className={`w-full p-3 md:p-4 rounded-xl border-2 transition-all ${isWarning ? "border-red-500 bg-red-500/20" :
-                          leadingTeam === team._id ? "border-primary bg-primary/20 shadow-glow scale-105" :
-                            "border-border hover:border-primary/50 hover:scale-105"
+                        className={`w-full p-3 md:p-4 min-h-[56px] rounded-xl border-2 transition-all duration-200
+                          active:scale-[0.93] select-none
+                          ${isWarning
+                            ? "border-red-500 bg-red-500/20 hover:scale-[1.02] active:scale-[0.95]"
+                            : leadingTeam === team._id
+                              ? "border-primary bg-primary/20 shadow-glow scale-105 animate-shimmer-border"
+                              : "border-border hover:border-primary/60 hover:scale-[1.06] hover:shadow-glow hover:bg-primary/5"
                           }`}
                       >
                         <div className="mb-2">
@@ -553,22 +614,22 @@ const Auction = () => {
               </div>
 
               <div className="flex gap-2 md:gap-3 justify-center flex-wrap">
-                <Button onClick={handleChangeMode} variant="ghost" size="sm" className="px-3 md:px-4 text-xs md:text-sm text-muted-foreground hover:text-foreground">
+                <Button onClick={handleChangeMode} variant="ghost" size="sm" className="px-3 md:px-4 text-xs md:text-sm text-muted-foreground hover:text-foreground transition-all hover:scale-[1.04] active:scale-95">
                   ← Change Mode
                 </Button>
-                <Button onClick={handleNextPlayer} size="sm" className="px-3 md:px-6 text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button onClick={handleNextPlayer} size="sm" className="px-3 md:px-6 text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-[1.06] active:scale-95">
                   Next
                 </Button>
-                <Button onClick={() => { setShowSearchDialog(true); }} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm">
+                <Button onClick={() => { setShowSearchDialog(true); }} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   <Search className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> Search
                 </Button>
-                <Button onClick={actions.undoBid} disabled={currentBid === 0 || !currentPlayer} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm">
+                <Button onClick={actions.undoBid} disabled={currentBid === 0 || !currentPlayer} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   Undo
                 </Button>
-                <Button onClick={actions.markUnsold} disabled={!currentPlayer} variant="outline" size="sm" className="px-4 md:px-8 text-xs md:text-sm">
+                <Button onClick={actions.markUnsold} disabled={!currentPlayer} variant="outline" size="sm" className="px-4 md:px-8 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   Unsold
                 </Button>
-                <Button onClick={actions.markSold} disabled={!leadingTeam || !currentPlayer} size="sm" className="px-4 md:px-8 text-xs md:text-sm bg-gradient-accent hover:opacity-90">
+                <Button onClick={actions.markSold} disabled={!leadingTeam || !currentPlayer} size="sm" className="px-4 md:px-8 text-xs md:text-sm bg-gradient-accent hover:opacity-90 transition-all hover:scale-[1.08] active:scale-95 disabled:hover:scale-100">
                   Sold!
                 </Button>
               </div>

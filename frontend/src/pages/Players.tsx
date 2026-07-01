@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { PlayerCard } from "@/components/auction/PlayerCard";
 import { PlayerDetailsModal } from "@/components/player/PlayerDetailsModal";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Users } from "lucide-react";
 import { PlayerStatus, Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
@@ -115,10 +117,49 @@ const Players = () => {
     setPlayers(prev => prev.filter(p => p._id !== playerId));
   };
 
+  const cardVariants = {
+    hidden: { opacity: 0, y: 36 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: { delay: Math.min(i * 0.04, 0.6), duration: 0.4, ease: [0.22, 1, 0.36, 1] }
+    })
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-base sm:text-xl text-muted-foreground">Loading players...</p>
+      <div className="min-h-screen bg-gradient-dark">
+        <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 md:py-12">
+          {/* Header skeleton */}
+          <div className="text-center mb-4 sm:mb-8 md:mb-12">
+            <Skeleton className="h-8 w-48 mx-auto mb-3 rounded-full" />
+            <Skeleton className="h-10 w-64 mx-auto mb-2" />
+            <Skeleton className="h-5 w-32 mx-auto mb-6" />
+            <div className="flex justify-center gap-8 mb-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="text-center space-y-1">
+                  <Skeleton className="h-8 w-12 mx-auto" />
+                  <Skeleton className="h-4 w-10 mx-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Player card skeletons — matches 2/2/3/4/5 grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="rounded-xl border bg-card p-3 sm:p-4 space-y-3">
+                {/* Photo area */}
+                <Skeleton className="h-28 sm:h-36 w-full rounded-lg" />
+                {/* Name */}
+                <Skeleton className="h-4 w-3/4" />
+                {/* Category */}
+                <Skeleton className="h-3 w-1/2" />
+                {/* Amount badge */}
+                <Skeleton className="h-5 w-2/3 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -228,13 +269,16 @@ const Players = () => {
         {/* Players Grid: 2 columns on mobile */}
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6">
           {filteredBySearch.map((player, index) => (
-            <div
+            <motion.div
               key={player._id}
-              className="animate-scale-in"
-              style={{ animationDelay: `${Math.min(index * 0.03, 0.5)}s` }}
+              custom={index}
+              variants={cardVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "0px 0px -40px 0px" }}
             >
               <PlayerCard player={player} onClick={handlePlayerClick} categories={categories as string[]} />
-            </div>
+            </motion.div>
           ))}
         </div>
 

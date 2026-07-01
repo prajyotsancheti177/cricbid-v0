@@ -106,6 +106,54 @@ export default {
           "75%": { transform: "scale(1.2) rotate(5deg)" },
           "100%": { transform: "scale(1) rotate(0deg)" },
         },
+        // Bid amount scale-pulse when a new bid is placed
+        "bid-pulse": {
+          "0%":   { transform: "scale(1)",    color: "hsl(30 100% 55%)" },
+          "30%":  { transform: "scale(1.18)", color: "hsl(45 100% 60%)" },
+          "60%":  { transform: "scale(1.22)", color: "hsl(142 76% 50%)" },
+          "100%": { transform: "scale(1)",    color: "hsl(30 100% 55%)" },
+        },
+        // Card entrance: slide up from 40px + fade in
+        "slide-in-up": {
+          "0%":   { opacity: "0", transform: "translateY(40px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // Slam-in for important badges (SOLD label etc.)
+        "slam-in": {
+          "0%":   { opacity: "0", transform: "scale(2) rotate(-8deg)" },
+          "60%":  { transform: "scale(0.92) rotate(3deg)" },
+          "80%":  { transform: "scale(1.06) rotate(-1deg)" },
+          "100%": { opacity: "1", transform: "scale(1) rotate(0deg)" },
+        },
+        // Timer urgency pulse — rings red as deadline nears
+        "timer-pulse": {
+          "0%, 100%": { transform: "scale(1)",    boxShadow: "0 0 0px rgba(239,68,68,0)" },
+          "50%":      { transform: "scale(1.08)", boxShadow: "0 0 20px rgba(239,68,68,0.7)" },
+        },
+        // Gentle float for the "waiting" idle state
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%":      { transform: "translateY(-8px)" },
+        },
+        // Leading-team shimmer border
+        "shimmer-border": {
+          "0%":   { borderColor: "hsl(263 70% 50% / 0.4)" },
+          "50%":  { borderColor: "hsl(30 100% 55% / 0.9)" },
+          "100%": { borderColor: "hsl(263 70% 50% / 0.4)" },
+        },
+        // Page fade-in for route transitions
+        "page-enter": {
+          "0%":   { opacity: "0", transform: "translateY(12px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // Shake for bid errors
+        "shake": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "20%":      { transform: "translateX(-6px)" },
+          "40%":      { transform: "translateX(6px)" },
+          "60%":      { transform: "translateX(-4px)" },
+          "80%":      { transform: "translateX(4px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -116,6 +164,14 @@ export default {
         "slide-up": "slide-up 0.4s ease-out",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
         "celebrate": "celebrate 0.6s ease-in-out",
+        "bid-pulse": "bid-pulse 0.4s cubic-bezier(0.36,0.07,0.19,0.97)",
+        "slide-in-up": "slide-in-up 0.45s cubic-bezier(0.22,1,0.36,1) both",
+        "slam-in": "slam-in 0.5s cubic-bezier(0.68,-0.55,0.265,1.55)",
+        "timer-pulse": "timer-pulse 0.7s ease-in-out infinite",
+        "float": "float 3s ease-in-out infinite",
+        "shimmer-border": "shimmer-border 1.5s ease-in-out infinite",
+        "page-enter": "page-enter 0.35s ease-out both",
+        "shake": "shake 0.4s ease-in-out",
       },
     },
   },

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -45,6 +46,12 @@ const TournamentSettingsSection = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [savingFeature, setSavingFeature] = useState<string | null>(null);
 
+  // Countdown timer settings (derived from tournament.features)
+  const currentFeatures = (tournament.features as TournamentFeatures) ?? {};
+  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(currentFeatures.countdownEnabled ?? false);
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(currentFeatures.countdownSeconds ?? 60);
+  const [savingCountdown, setSavingCountdown] = useState(false);
+
   const user = getUser();
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${apiConfig.baseUrl}${path}`, {
@@ -52,6 +59,26 @@ const TournamentSettingsSection = () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
+  const saveCountdownSettings = async (enabled: boolean, seconds: number) => {
+    setSavingCountdown(true);
+    const newFeatures: TournamentFeatures = { ...currentFeatures, countdownEnabled: enabled, countdownSeconds: seconds };
+    try {
+      const res = await post("/api/tournament/update", {
+        tournamentId: tournament._id,
+        userId: user?._id,
+        userRole: user?.role,
+        features: newFeatures,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || "Save failed");
+      reload();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Save failed", variant: "destructive" });
+    } finally {
+      setSavingCountdown(false);
+    }
+  };
 
   const toggleFeature = async (key: keyof TournamentFeatures, value: boolean) => {
     setSavingFeature(key);
@@ -142,7 +169,7 @@ const TournamentSettingsSection = () => {
         </CardHeader>
         <CardContent>
           <SummaryRow label="Name" value={tournament.name || "—"} />
-          <SummaryRow label="Total budget" value={`₹${(tournament.totalBudget || 0).toLocaleString()}`} />
+          <SummaryRow label="Total budget" value={`${(tournament.totalBudget || 0).toLocaleString()} Pts`} />
           <SummaryRow label="Teams" value={String(tournament.noOfTeams ?? "—")} />
           <SummaryRow label="Players per team" value={`${tournament.minPlayersPerTeam ?? 0} – ${tournament.maxPlayersPerTeam ?? 0}`} />
           <SummaryRow label="Categories" value={(tournament.playerCategories || []).join(", ") || "—"} />
@@ -176,6 +203,56 @@ const TournamentSettingsSection = () => {
               </div>
             );
           })}
+
+          {/* Countdown timer — special feature with number input */}
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Label htmlFor="feature-countdownEnabled" className="text-sm font-medium cursor-pointer">
+                  Enable player countdown timer
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Show a countdown timer in the auction room for each player. Purely visual — the auctioneer still controls selling.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                {savingCountdown && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                <Switch
+                  id="feature-countdownEnabled"
+                  checked={countdownEnabled}
+                  disabled={savingCountdown}
+                  onCheckedChange={(v) => {
+                    setCountdownEnabled(v);
+                    saveCountdownSettings(v, countdownSeconds);
+                  }}
+                />
+              </div>
+            </div>
+            {countdownEnabled && (
+              <div className="mt-3 flex items-center gap-3">
+                <Label htmlFor="countdownSeconds" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Duration (seconds)
+                </Label>
+                <Input
+                  id="countdownSeconds"
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={countdownSeconds}
+                  onChange={(e) => setCountdownSeconds(Number(e.target.value))}
+                  className="w-24"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={savingCountdown}
+                  onClick={() => saveCountdownSettings(countdownEnabled, countdownSeconds)}
+                >
+                  {savingCountdown ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

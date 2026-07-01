@@ -1,6 +1,7 @@
 import { Team } from "@/types/auction";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 interface TeamBudgetPanelProps {
   teams: Team[];
@@ -51,7 +52,7 @@ export const TeamBudgetPanel = ({
                     isWarning
                       ? "border-red-500/60 bg-red-500/10"
                       : isLeading
-                        ? "border-primary/60 bg-primary/10 shadow-glow"
+                        ? "border-primary/60 bg-primary/10 shadow-glow animate-shimmer-border"
                         : "border-border/50 bg-background/40 hover:bg-muted/30"
                   )}
                 >
@@ -73,7 +74,7 @@ export const TeamBudgetPanel = ({
                         isWarning ? "text-red-400" : "text-secondary"
                       )}
                     >
-                      {team.maxBiddableAmount ?? 0} Pts
+                      <AnimatedNumber value={team.maxBiddableAmount ?? 0} suffix=" Pts" duration={300} />
                     </p>
                   </div>
                   <div

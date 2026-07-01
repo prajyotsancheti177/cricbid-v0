@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole } from "lucide-react";
+import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole, Trophy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
+import { exportAuctionReport } from "@/lib/exportAuctionReport";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
@@ -42,6 +43,7 @@ const TournamentDataSection = () => {
 
   const [csvBusy, setCsvBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [syncingToSheet, setSyncingToSheet] = useState(false);
   const [syncFromSheetOpen, setSyncFromSheetOpen] = useState(false);
 
@@ -94,6 +96,18 @@ const TournamentDataSection = () => {
       toast({ title: "Error", description: "Failed to export PDF", variant: "destructive" });
     } finally {
       setPdfBusy(false);
+    }
+  };
+
+  const handleExportAuctionReport = async () => {
+    setReportBusy(true);
+    try {
+      await exportAuctionReport(tournament.name || "Tournament", tournament._id);
+      toast({ title: "Downloaded", description: "Auction report PDF exported successfully" });
+    } catch {
+      toast({ title: "Error", description: "Failed to export auction report", variant: "destructive" });
+    } finally {
+      setReportBusy(false);
     }
   };
 
@@ -151,6 +165,23 @@ const TournamentDataSection = () => {
             <Button onClick={handleExportPdf} disabled={pdfBusy} variant="outline" className="gap-2">
               {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
               Export teams PDF
+            </Button>
+          ) : <FeatureDisabled label="Data export" navigate={navigate} />}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Auction report PDF</CardTitle>
+          <CardDescription>
+            Generate a full auction results report — cover page with summary stats, per-team player lists with amounts paid, and an unsold players page. Ready to share with team owners.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isFeatureOn(tournament, "dataExport") ? (
+            <Button onClick={handleExportAuctionReport} disabled={reportBusy} className="gap-2">
+              {reportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+              Export auction report
             </Button>
           ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>

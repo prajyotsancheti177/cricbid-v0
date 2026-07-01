@@ -15,6 +15,8 @@ export interface TournamentFeatures {
   publicTeamRegistration?: boolean;
   googleSheetsSync?: boolean;
   dataExport?: boolean;
+  countdownEnabled?: boolean;
+  countdownSeconds?: number;
 }
 
 export interface WorkspaceTournament {
@@ -34,13 +36,14 @@ export const isFeatureOn = (tournament: WorkspaceTournament, key: keyof Tourname
   (tournament.features as TournamentFeatures | undefined)?.[key] !== false;
 
 // Sections in the tournament workspace sidebar.
-// adminOnly sections are only shown when a user is logged in.
-const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
+// adminOnly: shown only when a user is logged in (any authenticated user).
+// ownerOnly: shown only when the logged-in user is the tournament owner or has admin role.
+const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?: boolean; ownerOnly?: boolean }[] = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
   { to: "players", label: "Players", icon: Users },
   { to: "teams", label: "Teams", icon: Shield },
-  { to: "add-player", label: "Add player", icon: UserPlus },
-  { to: "bulk-upload", label: "Bulk upload", icon: Upload },
+  { to: "add-player", label: "Add player", icon: UserPlus, ownerOnly: true },
+  { to: "bulk-upload", label: "Bulk upload", icon: Upload, ownerOnly: true },
   { to: "registration", label: "Registration", icon: LinkIcon },
   { to: "auction", label: "Auction", icon: Gavel },
   { to: "schedule", label: "Schedule & Scores", icon: CalendarDays, adminOnly: true },
@@ -115,6 +118,11 @@ const TournamentWorkspace = () => {
 
   const authUser = getAuthUser();
   const isLoggedIn = Boolean(authUser);
+  const isAdmin = authUser?.role === "admin";
+  const hostId = typeof tournament.tournamentHostId === "object"
+    ? (tournament.tournamentHostId as { _id?: string } | null)?._id
+    : (tournament.tournamentHostId as string | undefined);
+  const isOwner = isAdmin || (Boolean(authUser?._id) && authUser._id === hostId);
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -131,7 +139,7 @@ const TournamentWorkspace = () => {
         {/* Sidebar (desktop) / horizontal tabs (mobile) */}
         <aside className="md:w-56 shrink-0">
           <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
-            {SECTIONS.filter(s => !s.adminOnly || isLoggedIn).map(({ to, label, icon: Icon }) => (
+            {SECTIONS.filter(s => (!s.adminOnly || isLoggedIn) && (!s.ownerOnly || isOwner)).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

@@ -7,6 +7,7 @@ const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
 const whatsappService = require("../services/whatsappService");
 const prisma = require("../db/prisma");
+const eventService = require("../services/eventService");
 
 // Store interval IDs for viewer history sampling per tournament
 const viewerHistoryIntervals = new Map();
@@ -98,6 +99,13 @@ module.exports = (io) => {
 
         // Proceed with deletion
         auctionStateManager.cleanupAuction(tournamentId);
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_ended",
+          eventData: { tournamentId, auctioneerUserId: userId || null },
+        }).catch(() => {});
 
         // End session analytics (only if we have valid user context)
         if (!skipAnalytics) {
@@ -192,9 +200,48 @@ module.exports = (io) => {
         // Here you would optimally verify userId with a user service or token
         // For now, we trust the client (as per user instruction "One person for now to keep it simple")
 
+        // Check tournament ownership before allowing host claim
+        let tournamentOwnerId = null;
+        let existingHostName = null;
+        try {
+          const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { tournamentHostId: true } });
+          if (t) tournamentOwnerId = String(t.tournamentHostId);
+        } catch (_) {}
+
+        // Try to resolve existing auctioneer's display name for conflict messages
+        const preAuction = auctionStateManager.getOrCreateAuction(tournamentId);
+        if (preAuction.auctioneerUserId && preAuction.auctioneerUserId !== userId) {
+          try {
+            const existingHost = await prisma.user.findUnique({ where: { id: preAuction.auctioneerUserId }, select: { name: true } });
+            existingHostName = existingHost?.name || 'Another user';
+          } catch (_) {
+            existingHostName = 'Another user';
+          }
+        }
+
         const result = auctionStateManager.setAuctioneer(tournamentId, socket.id, userId);
         if (!result.success) {
-          return socket.emit("auction:error", result.error);
+          return socket.emit("auction:error", {
+            code: 'HOST_CONFLICT',
+            message: 'Auction is already being hosted',
+            hostName: existingHostName || 'Another user',
+          });
+        }
+
+        // Gate: only tournament owner or admin may claim auctioneer role
+        if (userId && tournamentOwnerId) {
+          let user = null;
+          try { user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }); } catch (_) {}
+          const isAdmin = user && ['boss', 'super_user'].includes(user.role);
+          const isOwner = tournamentOwnerId === userId;
+          if (!isAdmin && !isOwner) {
+            // Revoke the just-set auctioneer
+            auctionStateManager.setAuctioneer(tournamentId, null, null);
+            return socket.emit("auction:error", {
+              code: 'UNAUTHORIZED',
+              message: 'Only the tournament owner or an admin can host the auction',
+            });
+          }
         }
 
         socket.join(tournamentId);
@@ -239,6 +286,13 @@ module.exports = (io) => {
             hostUserId: userId,
             hostUserName
           });
+
+          eventService.trackEvent({
+            userId: userId || null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_started",
+            eventData: { tournamentId, tournamentName, auctioneerUserId: userId || null },
+          }).catch(() => {});
 
           // Start 1-minute interval for viewer history sampling
           if (!viewerHistoryIntervals.has(tournamentId)) {
@@ -338,6 +392,13 @@ module.exports = (io) => {
           auctionNamespace.to(tournamentId).emit("auction:state", selResult.state);
           auctionNamespace.to(tournamentId).emit("auction:playerSelected", player);
 
+          eventService.trackEvent({
+            userId: null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_player_selected",
+            eventData: { tournamentId, playerId: player._id, playerName: player.name, category: player.playerCategory, selectionMode: playerId ? "manual" : "category" },
+          }).catch(() => {});
+
           // WhatsApp — notify players in this category that their turn is starting
           if (category && category !== 'All') {
             whatsappService.sendCategoryStartingNotification({ tournamentId, category })
@@ -370,6 +431,14 @@ module.exports = (io) => {
           // Track bid in session analytics
           auctionRoomSessionService.recordAuctionActivity(tournamentId, 'bid');
 
+          const bidState = auctionStateManager.getAuctionState(tournamentId);
+          eventService.trackEvent({
+            userId: null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_bid_placed",
+            eventData: { tournamentId, playerId: bidState?.currentPlayer?._id || null, playerName: bidState?.currentPlayer?.name || null, teamId, teamName: result.teamName, bidAmount: result.newBid },
+          }).catch(() => {});
+
           auctionNamespace.to(tournamentId).emit("auction:bidPlaced", {
             teamId,
             amount: result.newBid,
@@ -393,6 +462,13 @@ module.exports = (io) => {
       const result = auctionStateManager.undoBid(tournamentId);
 
       if (result.success) {
+        eventService.trackEvent({
+          userId: null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_bid_undone",
+          eventData: { tournamentId, playerId: result.state?.currentPlayer?._id || null, previousAmount: result.previousAmount || null, currentAmount: result.state?.currentBid || null },
+        }).catch(() => {});
+
         auctionNamespace.to(tournamentId).emit("auction:undoBid");
         auctionNamespace.to(tournamentId).emit("auction:state", result.state);
       } else {
@@ -457,6 +533,13 @@ module.exports = (io) => {
       if (result.success) {
         // Track sold in session analytics
         auctionRoomSessionService.recordAuctionActivity(tournamentId, 'sold');
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_player_sold",
+          eventData: { tournamentId, playerId: result.player?._id || null, playerName: result.player?.name || null, winningTeamId: result.teamId || null, winningTeamName: result.team?.name || null, finalPrice: result.amount },
+        }).catch(() => {});
 
         // Broadcast immediately for animation
         auctionNamespace.to(tournamentId).emit("auction:sold", {
@@ -608,6 +691,13 @@ module.exports = (io) => {
       if (result.success) {
         // Track unsold in session analytics
         auctionRoomSessionService.recordAuctionActivity(tournamentId, 'unsold');
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_player_unsold",
+          eventData: { tournamentId, playerId: result.player?._id || null, playerName: result.player?.name || null },
+        }).catch(() => {});
 
         auctionNamespace.to(tournamentId).emit("auction:unsold", {
           player: result.player

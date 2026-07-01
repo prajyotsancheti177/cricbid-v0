@@ -1,6 +1,7 @@
 const prisma = require("../db/prisma");
 const googleService = require("../utils/googleService");
 const { serializeTournament, serializeTeam, serializePlayer } = require("../utils/serialize");
+const eventService = require("./eventService");
 
 // Whitelist of tournament fields writable from request bodies
 const TOURNAMENT_FIELDS = [
@@ -34,6 +35,15 @@ const createTournament = async (tournamentData, creatorId, creatorRole) => {
         }
 
         const created = await prisma.tournament.create({ data: pickTournament(tournamentData) });
+
+        eventService.trackEvent({
+            userId: creatorId || null,
+            tournamentId: created.id || null,
+            eventType: "tournament_created",
+            page: "/tournaments",
+            eventData: { tournamentId: created.id, tournamentName: created.name, hostId: created.tournamentHostId },
+        }).catch(() => {});
+
         return serializeTournament(created);
     } catch (error) {
         console.error("Error in createTournament service:", error);
@@ -124,6 +134,15 @@ const updateTournament = async (tournamentId, updateData, userId, userRole) => {
             where: { id: tournamentId },
             data: pickTournament(updateData),
         });
+
+        eventService.trackEvent({
+            userId: userId || null,
+            tournamentId: updated.id || null,
+            eventType: "tournament_updated",
+            page: "/tournaments",
+            eventData: { tournamentId: updated.id, tournamentName: updated.name, fieldsUpdated: Object.keys(pickTournament(updateData)) },
+        }).catch(() => {});
+
         return serializeTournament(updated);
     } catch (error) {
         console.error("Error in updateTournament service:", error);
@@ -147,6 +166,15 @@ const deleteTournament = async (tournamentId, userId, userRole) => {
         }
 
         await prisma.tournament.delete({ where: { id: tournamentId } });
+
+        eventService.trackEvent({
+            userId: userId || null,
+            tournamentId: tournamentId || null,
+            eventType: "tournament_deleted",
+            page: "/tournaments",
+            eventData: { tournamentId, tournamentName: existingTournament.name },
+        }).catch(() => {});
+
         return serializeTournament(existingTournament);
     } catch (error) {
         console.error("Error in deleteTournament service:", error);

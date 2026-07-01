@@ -17,6 +17,7 @@ import {
     Globe,
     ChevronDown,
     Phone,
+    Gavel,
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -335,7 +336,7 @@ export default function Home() {
                 </motion.div>
             </motion.section>
 
-            {/* Demo Video Section */}
+            {/* App Showcase Section */}
             <section id="demo" className="py-16 md:py-24 relative">
                 <div className="container mx-auto px-4">
                     <motion.div {...fadeInUp} className="text-center mb-8 md:mb-12">
@@ -347,24 +348,57 @@ export default function Home() {
                         </p>
                     </motion.div>
 
-                    <motion.div {...scaleIn} className="max-w-5xl mx-auto">
-                        <Card className="overflow-hidden bg-card/50 backdrop-blur border-primary/20 shadow-2xl">
-                            <CardContent className="p-0">
-                                <div className="relative aspect-video bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center group cursor-pointer">
-                                    <div className="absolute inset-0 bg-[url('/stadium-bg.jpg')] bg-cover bg-center opacity-30" />
-                                    <div className="relative z-10 text-center">
-                                        <motion.div
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-primary/90 flex items-center justify-center shadow-[0_0_50px_hsl(263,70%,50%,0.5)] group-hover:shadow-[0_0_70px_hsl(263,70%,50%,0.7)] transition-all duration-300"
-                                        >
-                                            <Play className="w-6 h-6 sm:w-10 sm:h-10 text-white ml-1" />
-                                        </motion.div>
-                                        <p className="mt-3 sm:mt-4 text-sm sm:text-lg text-muted-foreground">Watch Demo Guide</p>
+                    <motion.div {...staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
+                        <motion.div {...staggerItem}>
+                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-primary/20 shadow-xl hover:border-primary/40 hover:shadow-[0_0_30px_hsl(263,70%,50%,0.2)] transition-all duration-300 h-full">
+                                <CardContent className="p-0">
+                                    <div className="aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center relative">
+                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
+                                        <div className="relative z-10 text-center space-y-3 px-4">
+                                            <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mx-auto">
+                                                <Gavel className="h-8 w-8 text-primary" />
+                                            </div>
+                                            <p className="font-bold text-lg">Live Auction Room</p>
+                                            <p className="text-sm text-muted-foreground">Real-time bidding with all teams. Automatic slab increments and instant purse updates.</p>
+                                        </div>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...staggerItem}>
+                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-secondary/20 shadow-xl hover:border-secondary/40 hover:shadow-[0_0_30px_hsl(30,100%,55%,0.2)] transition-all duration-300 h-full">
+                                <CardContent className="p-0">
+                                    <div className="aspect-video bg-gradient-to-br from-secondary/20 via-secondary/10 to-background flex items-center justify-center relative">
+                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
+                                        <div className="relative z-10 text-center space-y-3 px-4">
+                                            <div className="w-16 h-16 rounded-2xl bg-secondary/20 border border-secondary/30 flex items-center justify-center mx-auto">
+                                                <Users className="h-8 w-8 text-secondary" />
+                                            </div>
+                                            <p className="font-bold text-lg">Player Management</p>
+                                            <p className="text-sm text-muted-foreground">Add, categorize and manage players. Bulk upload hundreds via CSV in seconds.</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...staggerItem}>
+                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-accent/20 shadow-xl hover:border-accent/40 hover:shadow-[0_0_30px_hsl(142,76%,36%,0.2)] transition-all duration-300 h-full">
+                                <CardContent className="p-0">
+                                    <div className="aspect-video bg-gradient-to-br from-accent/20 via-accent/10 to-background flex items-center justify-center relative">
+                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
+                                        <div className="relative z-10 text-center space-y-3 px-4">
+                                            <div className="w-16 h-16 rounded-2xl bg-accent/20 border border-accent/30 flex items-center justify-center mx-auto">
+                                                <Trophy className="h-8 w-8 text-accent" />
+                                            </div>
+                                            <p className="font-bold text-lg">Team Rosters</p>
+                                            <p className="text-sm text-muted-foreground">Track budgets and squad composition. Export rosters as PDF or CSV instantly.</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </motion.div>
                 </div>
             </section>

@@ -193,3 +193,45 @@ All colors MUST be HSL.
     @apply text-xs sm:text-sm md:text-base px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4;
   }
 }
+
+/* ── Scroll-reveal: cards start invisible; JS adds .is-visible ── */
+@layer utilities {
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(36px);
+    transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .scroll-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Button press-down feel */
+  .btn-press {
+    @apply transition-all duration-150 ease-out;
+    @apply hover:scale-[1.05] hover:shadow-glow;
+    @apply active:scale-[0.95];
+  }
+  .btn-press-danger {
+    @apply transition-all duration-150 ease-out;
+    @apply hover:scale-[1.05];
+    @apply active:scale-[0.93];
+  }
+}
+
+/* ── Respect reduced-motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

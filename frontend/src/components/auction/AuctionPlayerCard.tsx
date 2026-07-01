@@ -2,6 +2,7 @@ import { Player } from "@/types/auction";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 interface PlayerCardProps {
   player: Player | null; // Allow null
@@ -39,9 +40,6 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
   };
 
   const logoSrc = getDriveThumbnail(player.photo as unknown as string);
-
-  // Debug: log image URL to help diagnose viewer mode issue
-  console.log('[AuctionPlayerCard] Player photo:', player.photo, '-> Converted to:', logoSrc);
 
   const handleClick = () => {
     if (onClick) {
@@ -163,7 +161,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
               <div className="text-center w-full px-2">
                 <p className="text-xs sm:text-base md:text-xl text-muted-foreground mb-0.5 md:mb-2 font-semibold">Current Bid</p>
                 <div className="text-xl sm:text-3xl md:text-6xl lg:text-7xl font-black text-secondary mb-0.5 md:mb-3 break-words leading-none">
-                  {currentBid} Pts.
+                  <AnimatedNumber value={currentBid} suffix=" Pts." duration={350} />
                 </div>
                 {leadingTeamName && (
                   <div className="flex items-center justify-center gap-1.5 sm:gap-2 md:gap-3">
@@ -177,7 +175,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
                         }}
                       />
                     )}
-                    <div className="text-sm sm:text-lg md:text-2xl lg:text-3xl font-black text-primary truncate">
+                    <div className="text-base sm:text-xl md:text-2xl lg:text-3xl font-medium text-primary truncate">
                       {leadingTeamName}
                     </div>
                   </div>

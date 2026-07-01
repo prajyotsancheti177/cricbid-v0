@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,7 @@ interface Tournament {
 export default function LiveAuctionLobby() {
     const [activeAuctions, setActiveAuctions] = useState<ActiveAuction[]>([]);
     const [isConnected, setIsConnected] = useState(false);
+    const [loadingLobby, setLoadingLobby] = useState(true);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [myTournaments, setMyTournaments] = useState<Tournament[]>([]);
     const [selectedTournamentId, setSelectedTournamentId] = useState("");
@@ -45,6 +47,7 @@ export default function LiveAuctionLobby() {
 
         const onConnect = () => {
             setIsConnected(true);
+            setLoadingLobby(false);
             socket.emit("auction:list"); // Request list on connect
         };
 
@@ -63,6 +66,15 @@ export default function LiveAuctionLobby() {
             onConnect();
         } else {
             socket.connect();
+            // Fall back after 3 s so skeleton doesn't hang if socket is slow
+            const t = setTimeout(() => setLoadingLobby(false), 3000);
+            return () => {
+                clearTimeout(t);
+                socket.off("connect", onConnect);
+                socket.off("disconnect", onDisconnect);
+                socket.off("auction:list", onListUpdate);
+                socket.off("auction:error", onError);
+            };
         }
 
         socket.on("connect", onConnect);
@@ -137,6 +149,43 @@ export default function LiveAuctionLobby() {
         localStorage.setItem("selectedTournamentId", selectedTournamentId);
         navigate(`/auction/room/${selectedTournamentId}`);
     };
+
+    if (loadingLobby) {
+        return (
+            <div className="min-h-screen bg-background p-4 md:p-8">
+                <div className="max-w-7xl mx-auto space-y-8">
+                    {/* Header skeleton */}
+                    <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                        <div className="space-y-2">
+                            <Skeleton className="h-12 w-56" />
+                            <Skeleton className="h-5 w-72" />
+                        </div>
+                        <Skeleton className="h-11 w-44 rounded-full" />
+                    </div>
+                    {/* Auction card skeletons — matches 1/2/3 grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="rounded-xl border-2 bg-card overflow-hidden">
+                                <div className="p-4 bg-muted/30 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <Skeleton className="h-5 w-20 rounded-full" />
+                                        <Skeleton className="h-4 w-10" />
+                                    </div>
+                                    <Skeleton className="h-6 w-3/4" />
+                                </div>
+                                <div className="p-6">
+                                    <Skeleton className="h-4 w-1/2" />
+                                </div>
+                                <div className="p-4 border-t">
+                                    <Skeleton className="h-9 w-full rounded-md" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background p-4 md:p-8">
