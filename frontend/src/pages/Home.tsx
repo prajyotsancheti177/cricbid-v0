@@ -153,7 +153,7 @@ export default function Home() {
     const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
 
     useEffect(() => {
-        document.title = "Vardhaman CricBid | Cricket Auction Software | Live Bidding, OBS Streaming & WhatsApp Notifications";
+        document.title = "Vardhaman CricBid — India's #1 Cricket Auction Software | IPL-Style Live Player Bidding App";
 
         const setMeta = (name: string, content: string, prop = false) => {
             const attr = prop ? `property` : `name`;
@@ -166,8 +166,8 @@ export default function Home() {
             tag.setAttribute('content', content);
         };
 
-        setMeta('description', "India's #1 cricket auction software — live bidding, OBS streaming overlays, WhatsApp notifications, Google Sheets sync, and CSV/PDF export. Best free auction app for IPL-style local, box cricket, gully cricket & corporate tournaments.");
-        setMeta('keywords', "cricket auction software, live cricket auction, OBS cricket streaming overlay, whatsapp cricket auction, automatic auction software, IPL auction app, box cricket auction, gully cricket auction, cricket player bidding, online cricket auction India, smart auction software, free cricket auction app");
+        setMeta('description', "India's #1 cricket auction software — automatic smart bidding, WhatsApp player notifications, OBS live streaming overlays & Google Sheets sync. Best IPL-style online auction app for box cricket, gully cricket, colony & corporate tournaments across Mumbai, Pune, Delhi, Hyderabad & all India.");
+        setMeta('keywords', "cricket auction software, cricket auction app india, online cricket auction, IPL auction software, live cricket auction, automatic cricket auction, smart auction software, whatsapp cricket notification, OBS cricket streaming, box cricket auction, gully cricket auction, corporate cricket auction, cricket player bidding, cricket tournament software india");
     }, []);
 
     return (
@@ -177,7 +177,7 @@ export default function Home() {
                 <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="bg-white rounded-lg shadow-glow overflow-hidden flex items-center justify-center">
-                            <img src={logo} alt="Vardhaman cricBid Logo" className="h-10 w-[160px] object-contain scale-[2.1]" />
+                            <img src={logo} alt="Vardhaman CricBid — India's #1 Cricket Auction Software" className="h-10 w-[160px] object-contain scale-[2.1]" />
                         </div>
                     </div>
                     <div>
@@ -221,7 +221,7 @@ export default function Home() {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
                     >
                         <Zap className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium">India's Leading Cricket Auction Platform</span>
+                        <span className="text-sm font-medium">India's #1 Cricket Auction Software · Trusted by 500+ Organizers</span>
                     </motion.div>
 
                     {/* Main Headline */}
@@ -232,7 +232,7 @@ export default function Home() {
                         className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-4 md:mb-6 leading-tight px-2"
                     >
                         <span className="bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
-                            Professional
+                            India's #1 IPL-Style
                         </span>
                         <br />
                         <span className="bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
@@ -247,7 +247,7 @@ export default function Home() {
                         transition={{ delay: 0.6, duration: 0.8 }}
                         className="text-base sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-8 md:mb-10 px-4"
                     >
-                        Organize IPL-style player auctions for your local tournaments. Live bidding, squad management, and real-time updates—all in one app.
+                        Run IPL-style cricket player auctions with automatic smart bidding, instant WhatsApp notifications &amp; OBS live streaming. For box cricket, gully cricket, colony &amp; corporate tournaments across India.
                     </motion.p>
 
                     {/* CTA Buttons */}
@@ -550,6 +550,42 @@ export default function Home() {
                                 </CardContent>
                             </Card>
                         </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Can I bulk upload cricket players from Excel or CSV?</h3>
+                                    <p className="text-muted-foreground">Yes! CricBid supports bulk player upload via CSV file. Upload hundreds of players at once with their names, base prices, categories, mobile numbers, and photos. This saves hours of manual data entry and gets your cricket auction ready in minutes — perfect for large tournaments with 100+ players.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid work on mobile phones?</h3>
+                                    <p className="text-muted-foreground">Yes! Vardhaman CricBid is fully mobile-responsive and works on all smartphones, tablets, and laptops. The auction host manages from a laptop while team owners can bid from their phones. No app download required — it works directly in any mobile browser. Perfect for WhatsApp-connected cricket groups across India.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid also include cricket scoring and live scorecards?</h3>
+                                    <p className="text-muted-foreground">Yes! CricBid now includes CricScoring at <a href="https://scoring.cricbid.online" className="text-primary hover:underline">scoring.cricbid.online</a> — a free ball-by-ball cricket scoring app. Score matches live, track batsman and bowler stats, show real-time scorecards to spectators, and build match schedules for your tournament. Auction data and player rosters sync automatically from CricBid.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Which cities in India use Vardhaman CricBid?</h3>
+                                    <p className="text-muted-foreground">CricBid is used by cricket tournament organizers across India — Mumbai, Pune, Nagpur, Delhi, Hyderabad, Bangalore, Chennai, Kolkata, Ahmedabad, Surat, Jaipur, Nashik, Aurangabad, and hundreds of smaller towns. Any cricket organizer in India can use our online platform to run an IPL-style player auction.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </div>
                 </div>
             </section>
@@ -622,19 +658,20 @@ export default function Home() {
                 <div className="container mx-auto px-4">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <img src={logo} alt="Vardhaman cricBid" className="w-8 h-8 rounded-md" />
+                            <img src={logo} alt="Vardhaman CricBid Cricket Auction Software" className="w-8 h-8 rounded-md" />
                             <span className="text-xl font-bold">Vardhaman cricBid</span>
                         </div>
                         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-muted-foreground">
-                            <a href="#" className="hover:text-primary transition-colors">How it works</a>
-                            <a href="#" className="hover:text-primary transition-colors">Features</a>
+                            <a href="#demo" className="hover:text-primary transition-colors">How it works</a>
+                            <a href="https://scoring.cricbid.online" className="hover:text-primary transition-colors" rel="noopener">Cricket Scoring</a>
+                            <a href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</a>
                             <div className="flex items-center gap-2">
                                 <Phone className="w-4 h-4" />
-                                <a href="tel:8208216407" className="hover:text-primary transition-colors">8208216407</a>
+                                <a href="tel:+918208216407" className="hover:text-primary transition-colors">+91-8208216407</a>
                             </div>
                         </div>
                         <div className="text-muted-foreground text-sm">
-                            © {new Date().getFullYear()} Vardhaman cricBid. All rights reserved.
+                            © {new Date().getFullYear()} Vardhaman CricBid. India's #1 Cricket Auction Software. All rights reserved.
                         </div>
                     </div>
                 </div>
