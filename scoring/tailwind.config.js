@@ -10,6 +10,16 @@ export default {
         bdr:     "#2a2a3a",
         primary: "#6b26d9",
         muted:   "#64748b",
+        live:    "#22c55e",
+      },
+      keyframes: {
+        "pulse-dot": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.35" },
+        },
+      },
+      animation: {
+        "pulse-dot": "pulse-dot 1.4s ease-in-out infinite",
       },
     },
   },

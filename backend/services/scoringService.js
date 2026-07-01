@@ -415,4 +415,129 @@ const getScorecard = async ({ matchId }) => {
   return { match, nameMap };
 };
 
-module.exports = { startInnings, recordBall, undoLastBall, addBatsman, setBowler, getLiveState, getScorecard };
+// ─── Tournament stats / leaderboards ─────────────────────────────────────────
+
+const getTournamentStats = async ({ tournamentId }) => {
+  const matches = await prisma.match.findMany({
+    where: { tournamentId },
+    select: { id: true },
+  });
+  const matchIds = matches.map(m => m.id);
+  if (matchIds.length === 0) {
+    return { mostRuns: [], mostWickets: [], bestStrikeRate: [], bestEconomy: [], mostSixes: [], mostFours: [] };
+  }
+
+  const [batting, outs, bowling] = await Promise.all([
+    prisma.batsmanInnings.groupBy({
+      by: ["playerId", "teamId"],
+      where: { matchId: { in: matchIds }, didNotBat: false },
+      _sum: { runs: true, ballsFaced: true, fours: true, sixes: true },
+      _count: { _all: true },
+    }),
+    prisma.batsmanInnings.groupBy({
+      by: ["playerId"],
+      where: { matchId: { in: matchIds }, isOut: true },
+      _count: { _all: true },
+    }),
+    prisma.bowlerInnings.groupBy({
+      by: ["playerId", "teamId"],
+      where: { matchId: { in: matchIds } },
+      _sum: { balls: true, runs: true, wickets: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const outsMap = Object.fromEntries(outs.map(o => [o.playerId, o._count._all]));
+
+  // Resolve player + team names
+  const playerIds = new Set([...batting.map(b => b.playerId), ...bowling.map(b => b.playerId)]);
+  const teamIds   = new Set([...batting.map(b => b.teamId),   ...bowling.map(b => b.teamId)]);
+  const [players, teams] = await Promise.all([
+    prisma.player.findMany({ where: { id: { in: [...playerIds] } }, select: { id: true, name: true, photo: true } }),
+    prisma.team.findMany({ where: { id: { in: [...teamIds] } }, select: { id: true, name: true } }),
+  ]);
+  const pMap = Object.fromEntries(players.map(p => [p.id, p]));
+  const tMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
+
+  const batRows = batting.map(b => {
+    const runs = b._sum.runs || 0;
+    const balls = b._sum.ballsFaced || 0;
+    const dismissals = outsMap[b.playerId] || 0;
+    return {
+      playerId: b.playerId,
+      name: pMap[b.playerId]?.name || "Unknown",
+      photo: pMap[b.playerId]?.photo || null,
+      teamId: b.teamId,
+      teamName: tMap[b.teamId] || "",
+      innings: b._count._all,
+      runs,
+      balls,
+      fours: b._sum.fours || 0,
+      sixes: b._sum.sixes || 0,
+      strikeRate: balls > 0 ? +((runs / balls) * 100).toFixed(1) : 0,
+      average: dismissals > 0 ? +(runs / dismissals).toFixed(1) : null, // null = not out enough times
+      notOuts: b._count._all - dismissals,
+    };
+  });
+
+  const bowlRows = bowling.map(b => {
+    const balls = b._sum.balls || 0;
+    const runs = b._sum.runs || 0;
+    const wickets = b._sum.wickets || 0;
+    return {
+      playerId: b.playerId,
+      name: pMap[b.playerId]?.name || "Unknown",
+      photo: pMap[b.playerId]?.photo || null,
+      teamId: b.teamId,
+      teamName: tMap[b.teamId] || "",
+      innings: b._count._all,
+      balls,
+      overs: Math.floor(balls / 6) + (balls % 6) / 10, // display float e.g. 3.4
+      runs,
+      wickets,
+      economy: balls > 0 ? +((runs / balls) * 6).toFixed(2) : 0,
+      bowlingAvg: wickets > 0 ? +(runs / wickets).toFixed(1) : null,
+    };
+  });
+
+  return {
+    mostRuns:       [...batRows].sort((a, b) => b.runs - a.runs || b.strikeRate - a.strikeRate).slice(0, 20),
+    mostWickets:    [...bowlRows].filter(r => r.wickets > 0 || r.balls > 0).sort((a, b) => b.wickets - a.wickets || a.economy - b.economy).slice(0, 20),
+    bestStrikeRate: [...batRows].filter(r => r.balls >= 20).sort((a, b) => b.strikeRate - a.strikeRate).slice(0, 20),
+    bestEconomy:    [...bowlRows].filter(r => r.balls >= 36).sort((a, b) => a.economy - b.economy).slice(0, 20),
+    mostSixes:      [...batRows].filter(r => r.sixes > 0).sort((a, b) => b.sixes - a.sixes).slice(0, 20),
+    mostFours:      [...batRows].filter(r => r.fours > 0).sort((a, b) => b.fours - a.fours).slice(0, 20),
+  };
+};
+
+// ─── Ball-by-ball commentary feed ────────────────────────────────────────────
+
+const getCommentary = async ({ matchId }) => {
+  const innings = await prisma.innings.findMany({
+    where: { matchId },
+    orderBy: { inningsNumber: "asc" },
+    include: { battingTeam: { select: { id: true, name: true } } },
+  });
+
+  const balls = await prisma.ballEvent.findMany({
+    where: { matchId },
+    orderBy: [{ inningsNumber: "desc" }, { createdAt: "desc" }],
+  });
+
+  const playerIds = new Set();
+  balls.forEach(b => {
+    playerIds.add(b.batsmanId);
+    playerIds.add(b.bowlerId);
+    if (b.outBatsmanId) playerIds.add(b.outBatsmanId);
+    if (b.fielderId) playerIds.add(b.fielderId);
+  });
+  const players = await prisma.player.findMany({
+    where: { id: { in: [...playerIds] } },
+    select: { id: true, name: true },
+  });
+  const nameMap = Object.fromEntries(players.map(p => [p.id, p.name]));
+
+  return { innings, balls, nameMap };
+};
+
+module.exports = { startInnings, recordBall, undoLastBall, addBatsman, setBowler, getLiveState, getScorecard, getTournamentStats, getCommentary };

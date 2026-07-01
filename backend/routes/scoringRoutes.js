@@ -9,5 +9,7 @@ scoringRouter.post("/add-batsman",    c.addBatsman);
 scoringRouter.post("/set-bowler",     c.setBowler);
 scoringRouter.post("/live",           c.getLiveState);
 scoringRouter.post("/scorecard",      c.getScorecard);
+scoringRouter.post("/stats",          c.getTournamentStats);
+scoringRouter.post("/commentary",     c.getCommentary);
 
 module.exports = scoringRouter;

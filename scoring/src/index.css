@@ -10,3 +10,24 @@ body {
 }
 
 * { box-sizing: border-box; }
+
+@layer components {
+  .card {
+    @apply bg-panel border border-bdr rounded-2xl;
+  }
+  .section-label {
+    @apply text-[11px] font-bold uppercase tracking-wider text-muted;
+  }
+  .tab-link {
+    @apply relative flex items-center justify-center whitespace-nowrap px-4 py-3 text-sm font-semibold text-muted transition-colors;
+  }
+  .tab-link-active {
+    @apply text-white;
+  }
+  .tab-link-active::after {
+    content: "";
+    @apply absolute bottom-0 left-3 right-3 h-[3px] rounded-t-full bg-primary;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
