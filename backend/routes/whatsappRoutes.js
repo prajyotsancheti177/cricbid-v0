@@ -1,17 +1,25 @@
 const express = require('express');
-const whatsappController = require('../controller/whatsappController');
+const c = require('../controller/whatsappController');
 const whatsappRouter = express.Router();
 
-// Send notification when player is sold
-whatsappRouter.post("/notify-player-sold", whatsappController.notifyPlayerSold);
+// Config
+whatsappRouter.post("/config/get",  c.getConfig);
+whatsappRouter.post("/config/save", c.saveConfig);
 
-// Broadcast auction announcement to all players and team owners
-whatsappRouter.post("/announce-auction", whatsappController.announceAuction);
+// Individual message triggers
+whatsappRouter.post("/notify-player-sold",   c.notifyPlayerSold);
+whatsappRouter.post("/notify-player-unsold", c.notifyPlayerUnsold);
 
-// Get recipient count for announcement preview
-whatsappRouter.post("/preview-recipients", whatsappController.previewRecipients);
+// Bulk actions
+whatsappRouter.post("/send-post-auction", c.sendPostAuction);
+whatsappRouter.post("/send-reminder",     c.sendReminder);
 
-// Test WhatsApp connection
-whatsappRouter.post("/test", whatsappController.testWhatsApp);
+// Logs
+whatsappRouter.post("/logs",              c.getLogs);
+
+// Legacy
+whatsappRouter.post("/announce-auction",  c.announceAuction);
+whatsappRouter.post("/preview-recipients",c.previewRecipients);
+whatsappRouter.post("/test",              c.testWhatsApp);
 
 module.exports = whatsappRouter;

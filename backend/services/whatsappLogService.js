@@ -1,4 +1,9 @@
+const prisma = require("../db/prisma");
+// Deferred analytics aggregations below still use the Mongoose model
+// (getDailyWhatsAppStats, getWhatsAppSummary, getMessageTypeBreakdown).
 const WhatsAppLog = require("../models/whatsappLog");
+
+const serLog = (l) => (l ? { ...l, _id: l.id } : l);
 
 /**
  * Log a WhatsApp message
@@ -6,23 +11,24 @@ const WhatsAppLog = require("../models/whatsappLog");
  * @returns {Object} Created log entry
  */
 const logMessage = async (logData) => {
-    const log = new WhatsAppLog({
-        messageType: logData.messageType,
-        templateName: logData.templateName,
-        recipientMobile: logData.recipientMobile,
-        playerId: logData.playerId,
-        playerName: logData.playerName,
-        tournamentId: logData.tournamentId,
-        tournamentName: logData.tournamentName,
-        teamName: logData.teamName,
-        amtSold: logData.amtSold,
-        status: logData.status,
-        messageId: logData.messageId,
-        errorMessage: logData.errorMessage,
-        timestamp: logData.timestamp || new Date()
+    const created = await prisma.whatsappLog.create({
+        data: {
+            messageType: logData.messageType,
+            templateName: logData.templateName ?? null,
+            recipientMobile: logData.recipientMobile != null ? String(logData.recipientMobile) : '',
+            playerId: logData.playerId || null,
+            playerName: logData.playerName ?? null,
+            tournamentId: logData.tournamentId || null,
+            tournamentName: logData.tournamentName ?? null,
+            teamName: logData.teamName ?? null,
+            amtSold: logData.amtSold != null ? Math.trunc(Number(logData.amtSold)) : null,
+            status: logData.status,
+            messageId: logData.messageId ?? null,
+            errorMessage: logData.errorMessage ?? null,
+            timestamp: logData.timestamp ? new Date(logData.timestamp) : new Date(),
+        },
     });
-
-    return await log.save();
+    return serLog(created);
 };
 
 /**

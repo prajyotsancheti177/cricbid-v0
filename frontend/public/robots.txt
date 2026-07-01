@@ -1,4 +1,20 @@
 User-agent: *
 Allow: /
 
+# Block authenticated app pages — no SEO value, require login
+Disallow: /tournaments
+Disallow: /auction
+Disallow: /players
+Disallow: /teams
+Disallow: /analytics
+Disallow: /add-player
+Disallow: /bulk-upload
+
+# Allow public pages
+Allow: /$
+Allow: /login
+Allow: /privacy-policy
+Allow: /delete-account
+
 Sitemap: https://www.cricbid.online/sitemap.xml
+Sitemap: https://scoring.cricbid.online/sitemap.xml

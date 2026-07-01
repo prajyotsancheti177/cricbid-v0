@@ -10,6 +10,9 @@ const auctionRouter = require('./auctionRoutes');
 const whatsappRouter = require('./whatsappRoutes');
 const eventRouter = require('./eventRoutes');
 const auctionLogRouter = require('./auctionLogRoutes');
+const backupRouter = require('./backupRoutes');
+const matchRouter   = require('./matchRoutes');
+const scoringRouter = require('./scoringRoutes');
 
 // Mount routes with their base paths
 router.use("/user", userRouter);
@@ -20,5 +23,8 @@ router.use("/auction", auctionRouter);
 router.use("/whatsapp", whatsappRouter);
 router.use("/event", eventRouter);
 router.use("/auction-log", auctionLogRouter);
+router.use("/backup", backupRouter);
+router.use("/match", matchRouter);
+router.use("/scoring", scoringRouter);
 
 module.exports = router;

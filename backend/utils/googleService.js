@@ -131,11 +131,14 @@ const updateEntireSheetWithPlayers = async (spreadsheetId, config, players) => {
 
             if (config.customFields) {
                 config.customFields.forEach(cf => {
-                    rowData.push((player.customFields && player.customFields.get(cf.id)) !== undefined ? player.customFields.get(cf.id) : '');
+                    const cv = player.customFields;
+                    // support both Mongoose Map and Prisma plain-object JSON
+                    const val = cv ? (typeof cv.get === 'function' ? cv.get(cf.id) : cv[cf.id]) : undefined;
+                    rowData.push(val !== undefined ? val : '');
                 });
             }
-            
-            rowData.push(player._id ? player._id.toString() : '');
+
+            rowData.push(player._id ? player._id.toString() : (player.id || ''));
             return rowData;
         });
 

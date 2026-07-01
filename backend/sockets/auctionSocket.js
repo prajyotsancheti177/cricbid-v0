@@ -5,6 +5,8 @@ const playerService = require("../services/playerService");
 const auctionLogService = require("../services/auctionLogService");
 const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
+const whatsappService = require("../services/whatsappService");
+const prisma = require("../db/prisma");
 
 // Store interval IDs for viewer history sampling per tournament
 const viewerHistoryIntervals = new Map();
@@ -23,8 +25,7 @@ module.exports = (io) => {
         // Enrich with tournament names and hostId
         const enriched = await Promise.all(active.map(async (a) => {
           try {
-            const Tournament = require("../models/tournament");
-            const t = await Tournament.findById(a.tournamentId).select('name tournamentHostId');
+            const t = await prisma.tournament.findUnique({ where: { id: a.tournamentId }, select: { name: true, tournamentHostId: true } });
             return {
               ...a,
               tournamentName: t ? t.name : 'Unknown Tournament',
@@ -47,8 +48,6 @@ module.exports = (io) => {
       try {
         console.log(`[auction:delete] Request received - tournamentId: ${tournamentId}, userId: ${userId}`);
 
-        const Tournament = require("../models/tournament");
-        const User = require("../models/user");
 
         let canDelete = false;
         let skipAnalytics = false;
@@ -60,7 +59,7 @@ module.exports = (io) => {
           skipAnalytics = true;
         } else {
           // Try to find user
-          const user = await User.findById(userId);
+          const user = await prisma.user.findUnique({ where: { id: userId } });
           console.log(`[auction:delete] User lookup result:`, user ? `Found: ${user.name} (${user.role})` : 'Not found');
 
           if (!user) {
@@ -76,13 +75,13 @@ module.exports = (io) => {
               canDelete = true;
             } else {
               // For non-admin users, verify tournament exists and user is the host
-              const tournament = await Tournament.findById(tournamentId);
+              const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
 
               if (!tournament) {
                 // Tournament deleted, but non-admin can still delete their orphan room
                 canDelete = true;
               } else {
-                const isHost = tournament.tournamentHostId.toString() === userId;
+                const isHost = String(tournament.tournamentHostId) === userId;
                 if (isHost) {
                   canDelete = true;
                 } else {
@@ -119,7 +118,7 @@ module.exports = (io) => {
         const active = auctionStateManager.getAllActiveAuctions();
         const enriched = await Promise.all(active.map(async (a) => {
           try {
-            const t = await Tournament.findById(a.tournamentId).select('name tournamentHostId');
+            const t = await prisma.tournament.findUnique({ where: { id: a.tournamentId }, select: { name: true, tournamentHostId: true } });
             return {
               ...a,
               tournamentName: t ? t.name : 'Unknown Tournament',
@@ -213,10 +212,8 @@ module.exports = (io) => {
         let hostUserName = '';
 
         // Fetch tournament for slabs and name
-        const Tournament = require("../models/tournament");
-        const User = require("../models/user");
         try {
-          const tournament = await Tournament.findById(tournamentId).populate('tournamentHostId', 'name');
+          const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
           if (tournament) {
             bidIncrementSlabs = tournament.bidIncrementSlabs || [];
             tournamentName = tournament.name;
@@ -274,7 +271,7 @@ module.exports = (io) => {
         const active = auctionStateManager.getAllActiveAuctions();
         // We re-fetch names basically... optimization needed later
         const enriched = await Promise.all(active.map(async (a) => {
-          const t = await Tournament.findById(a.tournamentId).select('name tournamentHostId');
+          const t = await prisma.tournament.findUnique({ where: { id: a.tournamentId }, select: { name: true, tournamentHostId: true } });
           return {
             ...a,
             tournamentName: t ? t.name : 'Unknown Tournament',
@@ -313,8 +310,7 @@ module.exports = (io) => {
         // Fetch tournament data for bid increments
         let bidIncrementSlabs = [];
         try {
-          const Tournament = require("../models/tournament");
-          const tournament = await Tournament.findById(tournamentId);
+          const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
           if (tournament) {
             bidIncrementSlabs = tournament.bidIncrementSlabs || [];
           }
@@ -341,6 +337,12 @@ module.exports = (io) => {
         if (selResult.success) {
           auctionNamespace.to(tournamentId).emit("auction:state", selResult.state);
           auctionNamespace.to(tournamentId).emit("auction:playerSelected", player);
+
+          // WhatsApp — notify players in this category that their turn is starting
+          if (category && category !== 'All') {
+            whatsappService.sendCategoryStartingNotification({ tournamentId, category })
+              .catch(e => console.error('[WhatsApp] category notification error:', e.message));
+          }
         } else {
           socket.emit("auction:error", selResult.error || "Failed to select player");
         }
@@ -406,8 +408,7 @@ module.exports = (io) => {
 
       try {
         // Save to DB
-        const Tournament = require("../models/tournament");
-        await Tournament.findByIdAndUpdate(tournamentId, { bidIncrementSlabs });
+        await prisma.tournament.update({ where: { id: tournamentId }, data: { bidIncrementSlabs } });
 
         // Update in-memory state
         const result = auctionStateManager.updateBidIncrementSlabs(tournamentId, bidIncrementSlabs);
@@ -515,13 +516,38 @@ module.exports = (io) => {
             winningTeamName: result.team ? result.team.name : 'Unknown',
             finalPrice: result.amount,
             bids: result.bids,
-            auctionStartedAt: new Date(Date.now() - 60000), // Approximate if not tracked
+            auctionStartedAt: new Date(Date.now() - 60000),
             auctionEndedAt: new Date(),
             conductedBy: userId
           });
         } catch (logError) {
           console.error("Error saving auction log:", logError);
         }
+
+        // WhatsApp — fire-and-forget, never block the auction
+        const _player = result.player;
+        const _team   = result.team;
+        const _amount = result.amount;
+        whatsappService.sendPlayerSoldNotification({
+          playerId: _player._id,
+          name: _player.name,
+          mobile: _player.mobile,
+          teamName: _team?.name,
+          amtSold: _amount,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] sold notification error:', e.message));
+
+        whatsappService.sendTeamPurchaseSummary({
+          teamId: result.teamId,
+          playerName: _player.name,
+          amountPaid: _amount,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] team purchase error:', e.message));
+
+        whatsappService.sendBudgetWarning({
+          teamId: result.teamId,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] budget warning error:', e.message));
 
         // --- POST-SALE FLOW ---
         const auctionRaw = auctionStateManager.getOrCreateAuction(tournamentId);
@@ -539,8 +565,7 @@ module.exports = (io) => {
               const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category);
 
               if (nextPlayer) {
-                const Tournament = require("../models/tournament");
-                const t = await Tournament.findById(tournamentId);
+                const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
                 const slabs = t ? (t.bidIncrementSlabs || []) : [];
 
                 if (t && t.categoryBasePrices && nextPlayer.playerCategory) {
@@ -614,6 +639,14 @@ module.exports = (io) => {
           console.error("Error updating/logging unsold player:", error);
         }
 
+        // WhatsApp — fire-and-forget
+        whatsappService.sendPlayerUnsoldNotification({
+          playerId: result.player._id,
+          name: result.player.name,
+          mobile: result.player.mobile,
+          tournamentId,
+        }).catch(e => console.error('[WhatsApp] unsold notification error:', e.message));
+
         // Broadcast updated state
         const newState = auctionStateManager.getAuctionState(tournamentId);
         auctionNamespace.to(tournamentId).emit("auction:state", newState);
@@ -633,8 +666,7 @@ module.exports = (io) => {
               const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category);
 
               if (nextPlayer) {
-                const Tournament = require("../models/tournament");
-                const t = await Tournament.findById(tournamentId);
+                const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
                 const slabs = t ? (t.bidIncrementSlabs || []) : [];
 
                 if (t && t.categoryBasePrices && nextPlayer.playerCategory) {

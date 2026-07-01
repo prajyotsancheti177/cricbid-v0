@@ -1,28 +1,31 @@
-const tournament = require("../models/tournament");
-const User = require("../models/user");
+const prisma = require("../db/prisma");
 const googleService = require("../utils/googleService");
+const { serializeTournament, serializeTeam, serializePlayer } = require("../utils/serialize");
+
+// Whitelist of tournament fields writable from request bodies
+const TOURNAMENT_FIELDS = [
+    'name', 'tournamentHostId', 'noOfTeams', 'maxPlayersPerTeam', 'minPlayersPerTeam',
+    'totalBudget', 'playerCategories', 'categoryBasePrices', 'bidIncrementSlabs',
+    'registrationFormConfig', 'features',
+];
+const pickTournament = (data) => {
+    const out = {};
+    for (const k of TOURNAMENT_FIELDS) if (data[k] !== undefined) out[k] = data[k];
+    return out;
+};
 
 /**
  * Create a new tournament
- * @param {Object} tournamentData - Tournament data
- * @param {String} creatorId - ID of the user creating the tournament
- * @param {String} creatorRole - Role of the user creating the tournament
- * @returns {Promise<Object>} - Created tournament
  */
 const createTournament = async (tournamentData, creatorId, creatorRole) => {
     try {
-        // If creator is tournament_host, use their own ID
         if (creatorRole === 'tournament_host') {
             tournamentData.tournamentHostId = creatorId;
-        } 
-        // If boss or super_user, they must specify a tournamentHostId
-        else if (creatorRole === 'boss' || creatorRole === 'super_user') {
+        } else if (creatorRole === 'boss' || creatorRole === 'super_user') {
             if (!tournamentData.tournamentHostId) {
                 throw new Error("Tournament host must be specified");
             }
-            
-            // Verify the selected user is a tournament host
-            const selectedHost = await User.findById(tournamentData.tournamentHostId);
+            const selectedHost = await prisma.user.findUnique({ where: { id: tournamentData.tournamentHostId } });
             if (!selectedHost || selectedHost.role !== 'tournament_host') {
                 throw new Error("Selected user is not a tournament host");
             }
@@ -30,10 +33,8 @@ const createTournament = async (tournamentData, creatorId, creatorRole) => {
             throw new Error("Unauthorized to create tournament");
         }
 
-        const newTournament = new tournament(tournamentData);
-        const savedTournament = await newTournament.save();
-        
-        return savedTournament;
+        const created = await prisma.tournament.create({ data: pickTournament(tournamentData) });
+        return serializeTournament(created);
     } catch (error) {
         console.error("Error in createTournament service:", error);
         throw error;
@@ -42,14 +43,11 @@ const createTournament = async (tournamentData, creatorId, creatorRole) => {
 
 /**
  * Get all tournaments (for boss and super_user)
- * @returns {Promise<Array>} - Array of all tournaments
  */
 const getAllTournaments = async () => {
     try {
-        const tournaments = await tournament.find({})
-            .populate('tournamentHostId', 'name email')
-            .sort({ createdAt: -1 });
-        return tournaments;
+        const tournaments = await prisma.tournament.findMany({ orderBy: { createdAt: 'desc' } });
+        return tournaments.map(serializeTournament);
     } catch (error) {
         console.error("Error in getAllTournaments service:", error);
         throw error;
@@ -58,15 +56,14 @@ const getAllTournaments = async () => {
 
 /**
  * Get tournaments by host (for tournament_host users)
- * @param {String} hostId - Tournament host user ID
- * @returns {Promise<Array>} - Array of tournaments for this host
  */
 const getTournamentsByHost = async (hostId) => {
     try {
-        const tournaments = await tournament.find({ tournamentHostId: hostId })
-            .populate('tournamentHostId', 'name email')
-            .sort({ createdAt: -1 });
-        return tournaments;
+        const tournaments = await prisma.tournament.findMany({
+            where: { tournamentHostId: hostId },
+            orderBy: { createdAt: 'desc' },
+        });
+        return tournaments.map(serializeTournament);
     } catch (error) {
         console.error("Error in getTournamentsByHost service:", error);
         throw error;
@@ -75,29 +72,22 @@ const getTournamentsByHost = async (hostId) => {
 
 /**
  * Get single tournament detail
- * @param {String} tournamentId - Tournament ID
- * @param {String} userId - User ID requesting the tournament
- * @param {String} userRole - Role of user requesting
- * @returns {Promise<Object>} - Tournament details
  */
 const getTournamentDetail = async (tournamentId, userId, userRole) => {
     try {
-        const tournamentData = await tournament.findById(tournamentId)
-            .populate('tournamentHostId', 'name email logo');
-        
+        const tournamentData = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!tournamentData) {
             throw new Error("Tournament not found");
         }
 
-        // Tournament hosts can only view their own tournaments (if they're logged in)
-        // Guest users (userRole = 'guest' or empty) can view any tournament
-        if (userRole === 'tournament_host' && userId && 
-            tournamentData.tournamentHostId && 
-            tournamentData.tournamentHostId._id.toString() !== userId) {
+        // Tournament hosts can only view their own tournaments (guests can view any)
+        if (userRole === 'tournament_host' && userId &&
+            tournamentData.tournamentHostId &&
+            String(tournamentData.tournamentHostId) !== userId) {
             throw new Error("Unauthorized to view this tournament");
         }
 
-        return tournamentData;
+        return serializeTournament(tournamentData);
     } catch (error) {
         console.error("Error in getTournamentDetail service:", error);
         throw error;
@@ -106,46 +96,35 @@ const getTournamentDetail = async (tournamentId, userId, userRole) => {
 
 /**
  * Update tournament
- * @param {String} tournamentId - Tournament ID
- * @param {Object} updateData - Data to update
- * @param {String} userId - User ID making the update
- * @param {String} userRole - Role of user making update
- * @returns {Promise<Object>} - Updated tournament
  */
 const updateTournament = async (tournamentId, updateData, userId, userRole) => {
     try {
-        const existingTournament = await tournament.findById(tournamentId);
-        
+        const existingTournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!existingTournament) {
             throw new Error("Tournament not found");
         }
 
-        // Tournament hosts can only update their own tournaments
-        if (userRole === 'tournament_host' && 
-            existingTournament.tournamentHostId.toString() !== userId) {
+        if (userRole === 'tournament_host' &&
+            String(existingTournament.tournamentHostId) !== userId) {
             throw new Error("Unauthorized to update this tournament");
         }
 
-        // Boss and super_user can update any tournament, but if they change tournamentHostId, validate it
         if ((userRole === 'boss' || userRole === 'super_user') && updateData.tournamentHostId) {
-            const newHost = await User.findById(updateData.tournamentHostId);
+            const newHost = await prisma.user.findUnique({ where: { id: updateData.tournamentHostId } });
             if (!newHost || newHost.role !== 'tournament_host') {
                 throw new Error("Invalid tournament host selected");
             }
         }
 
-        // Tournament hosts cannot change the tournamentHostId
         if (userRole === 'tournament_host') {
             delete updateData.tournamentHostId;
         }
 
-        const updatedTournament = await tournament.findByIdAndUpdate(
-            tournamentId,
-            { $set: updateData },
-            { new: true, runValidators: true }
-        ).populate('tournamentHostId', 'name email logo');
-
-        return updatedTournament;
+        const updated = await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: pickTournament(updateData),
+        });
+        return serializeTournament(updated);
     } catch (error) {
         console.error("Error in updateTournament service:", error);
         throw error;
@@ -154,27 +133,21 @@ const updateTournament = async (tournamentId, updateData, userId, userRole) => {
 
 /**
  * Delete tournament
- * @param {String} tournamentId - Tournament ID
- * @param {String} userId - User ID making the deletion
- * @param {String} userRole - Role of user making deletion
- * @returns {Promise<Object>} - Deleted tournament
  */
 const deleteTournament = async (tournamentId, userId, userRole) => {
     try {
-        const existingTournament = await tournament.findById(tournamentId);
-        
+        const existingTournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!existingTournament) {
             throw new Error("Tournament not found");
         }
 
-        // Tournament hosts can only delete their own tournaments
-        if (userRole === 'tournament_host' && 
-            existingTournament.tournamentHostId.toString() !== userId) {
+        if (userRole === 'tournament_host' &&
+            String(existingTournament.tournamentHostId) !== userId) {
             throw new Error("Unauthorized to delete this tournament");
         }
 
-        const deletedTournament = await tournament.findByIdAndDelete(tournamentId);
-        return deletedTournament;
+        await prisma.tournament.delete({ where: { id: tournamentId } });
+        return serializeTournament(existingTournament);
     } catch (error) {
         console.error("Error in deleteTournament service:", error);
         throw error;
@@ -183,14 +156,15 @@ const deleteTournament = async (tournamentId, userId, userRole) => {
 
 /**
  * Get all tournament hosts (for boss and super_user to select from)
- * @returns {Promise<Array>} - Array of tournament host users
  */
 const getAllTournamentHosts = async () => {
     try {
-        const hosts = await User.find({ role: 'tournament_host', isActive: true })
-            .select('name email logo')
-            .sort({ name: 1 });
-        return hosts;
+        const hosts = await prisma.user.findMany({
+            where: { role: 'tournament_host', isActive: true },
+            select: { id: true, name: true, email: true, logo: true },
+            orderBy: { name: 'asc' },
+        });
+        return hosts.map((h) => ({ _id: h.id, name: h.name, email: h.email, logo: h.logo }));
     } catch (error) {
         console.error("Error in getAllTournamentHosts service:", error);
         throw error;
@@ -199,38 +173,35 @@ const getAllTournamentHosts = async () => {
 
 /**
  * Get tournament data for export (teams and players)
- * @param {String} tournamentId - Tournament ID
- * @returns {Promise<Object>} - Tournament with teams and players data
  */
 const getTournamentExportData = async (tournamentId) => {
     try {
-        const Team = require("../models/team");
-        const Player = require("../models/players");
-
-        const tournamentData = await tournament.findById(tournamentId);
+        const tournamentData = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!tournamentData) {
             throw new Error("Tournament not found");
         }
 
-        const teams = await Team.find({ touranmentId: tournamentId });
-        const players = await Player.find({ touranmentId: tournamentId })
-            .populate('teamId', 'name');
+        const teams = await prisma.team.findMany({ where: { touranmentId: tournamentId } });
+        const players = await prisma.player.findMany({
+            where: { touranmentId: tournamentId },
+            include: { team: { select: { id: true, name: true } } },
+        });
 
         return {
             tournament: {
-                _id: tournamentData._id,
+                _id: tournamentData.id,
                 name: tournamentData.name,
-                totalBudget: tournamentData.totalBudget
+                totalBudget: tournamentData.totalBudget,
             },
-            teams: teams.map(t => ({
-                _id: t._id,
+            teams: teams.map((t) => ({
+                _id: t.id,
                 name: t.name,
                 logo: t.logo || '',
-                ownerName: t.owner?.name || '',
-                ownerMobile: t.owner?.mobile || ''
+                ownerName: t.ownerName || '',
+                ownerMobile: t.ownerMobile || '',
             })),
-            players: players.map(p => ({
-                _id: p._id,
+            players: players.map((p) => ({
+                _id: p.id,
                 auctionSerialNumber: p.auctionSerialNumber || '',
                 name: p.name,
                 age: p.age || '',
@@ -238,11 +209,10 @@ const getTournamentExportData = async (tournamentId) => {
                 playerCategory: p.playerCategory || '',
                 skill: p.skill || '',
                 mobile: p.mobile || '',
-                // Additional fields for reference (not in import format)
-                teamName: p.teamId?.name || 'Unsold',
+                teamName: p.team?.name || 'Unsold',
                 sold: p.sold ? 'Yes' : 'No',
-                amtSold: p.amtSold || 0
-            }))
+                amtSold: p.amtSold || 0,
+            })),
         };
     } catch (error) {
         console.error("Error in getTournamentExportData service:", error);
@@ -252,15 +222,22 @@ const getTournamentExportData = async (tournamentId) => {
 
 /**
  * Get tournament public registration config
- * @param {String} tournamentId - Tournament ID
  */
 const getRegistrationConfig = async (tournamentId) => {
     try {
-        const tournamentData = await tournament.findById(tournamentId).select('name registrationFormConfig playerCategories');
+        const tournamentData = await prisma.tournament.findUnique({
+            where: { id: tournamentId },
+            select: { id: true, name: true, registrationFormConfig: true, playerCategories: true },
+        });
         if (!tournamentData) {
             throw new Error("Tournament not found");
         }
-        return tournamentData;
+        return {
+            _id: tournamentData.id,
+            name: tournamentData.name,
+            registrationFormConfig: tournamentData.registrationFormConfig ?? undefined,
+            playerCategories: tournamentData.playerCategories ?? [],
+        };
     } catch (error) {
         console.error("Error in getRegistrationConfig service:", error);
         throw error;
@@ -272,12 +249,12 @@ const getRegistrationConfig = async (tournamentId) => {
  */
 const updateRegistrationConfig = async (tournamentId, configData, userId, userRole) => {
     try {
-        const existingTournament = await tournament.findById(tournamentId);
+        const existingTournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!existingTournament) {
             throw new Error("Tournament not found");
         }
 
-        if (userRole === 'tournament_host' && existingTournament.tournamentHostId.toString() !== userId) {
+        if (userRole === 'tournament_host' && String(existingTournament.tournamentHostId) !== userId) {
             throw new Error("Unauthorized to update this tournament");
         }
 
@@ -285,9 +262,11 @@ const updateRegistrationConfig = async (tournamentId, configData, userId, userRo
             await googleService.initializeSheetHeaders(configData.googleSheetId, configData);
         }
 
-        existingTournament.registrationFormConfig = configData;
-        await existingTournament.save();
-        return existingTournament.registrationFormConfig;
+        const updated = await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: { registrationFormConfig: configData },
+        });
+        return updated.registrationFormConfig;
     } catch (error) {
         console.error("Error in updateRegistrationConfig service:", error);
         throw error;
@@ -304,6 +283,5 @@ module.exports = {
     getAllTournamentHosts,
     getTournamentExportData,
     getRegistrationConfig,
-    updateRegistrationConfig
+    updateRegistrationConfig,
 };
-

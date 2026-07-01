@@ -9,7 +9,7 @@ import {
     BarChart3,
     MessageSquare,
     Wallet,
-    Target,
+    Radio,
     Play,
     ArrowRight,
     Zap,
@@ -70,7 +70,7 @@ const features = [
         icon: Users,
         title: "Player & Team Management",
         description:
-            "Manage your cricket tournament roster with bulk uploads, player categorization, and detailed team profiles.",
+            "Bulk upload players via CSV, let teams self-register via a shareable link, sync with Google Sheets, and export rosters as CSV or PDF.",
         color: "text-secondary",
         glow: "group-hover:shadow-[0_0_30px_hsl(30,100%,55%,0.3)]",
     },
@@ -84,9 +84,9 @@ const features = [
     },
     {
         icon: MessageSquare,
-        title: "WhatsApp Status Updates",
+        title: "WhatsApp Player Notifications",
         description:
-            "Our auction app sends automatic WhatsApp notifications to players as soon as they are sold or remain unsold.",
+            "Instantly notify players on WhatsApp the moment they are sold or unsold — with their team name and sale amount. Zero manual messaging.",
         color: "text-green-400",
         glow: "group-hover:shadow-[0_0_30px_hsl(142,76%,50%,0.3)]",
     },
@@ -99,12 +99,12 @@ const features = [
         glow: "group-hover:shadow-[0_0_30px_hsl(45,100%,50%,0.3)]",
     },
     {
-        icon: Target,
-        title: "Flexible Category Slabs",
+        icon: Radio,
+        title: "OBS Live Streaming Overlays",
         description:
-            "Set custom base prices and bid increments for different player categories (Batsman, Bowler, All-Rounder).",
-        color: "text-pink-400",
-        glow: "group-hover:shadow-[0_0_30px_hsl(330,80%,60%,0.3)]",
+            "Stream your auction on YouTube or Facebook with built-in OBS browser sources — Camera HUD, fullscreen scoreboard, and split-screen layouts.",
+        color: "text-red-400",
+        glow: "group-hover:shadow-[0_0_30px_hsl(0,80%,60%,0.3)]",
     },
 ];
 
@@ -127,8 +127,8 @@ const steps = [
     },
     {
         number: "04",
-        title: "Instant Reports",
-        description: "Get sold/unsold lists and team squad summaries immediately after the auction.",
+        title: "Export & Share Results",
+        description: "Download team rosters as PDF, export data to CSV, sync results back to Google Sheets, and share with everyone instantly.",
     },
 ];
 
@@ -153,126 +153,31 @@ export default function Home() {
     const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
 
     useEffect(() => {
-        // SEO: Set Page Title with target keywords
-        document.title = "Vardhaman CricBid | Cricket Auction Software | Smart Automatic Bidding App";
+        document.title = "Vardhaman CricBid — India's #1 Cricket Auction Software | IPL-Style Live Player Bidding App";
 
-        // SEO: Set Meta Description with keywords
-        let metaDescription = document.querySelector('meta[name="description"]');
-        if (!metaDescription) {
-            metaDescription = document.createElement('meta');
-            metaDescription.setAttribute('name', 'description');
-            document.head.appendChild(metaDescription);
-        }
-        metaDescription.setAttribute('content', 'India\'s #1 cricket auction software with automatic smart bidding, WhatsApp notifications & live streaming. Best cheapest online auction app for IPL-style local tournaments, box cricket, gully cricket & corporate leagues.');
+        const setMeta = (name: string, content: string, prop = false) => {
+            const attr = prop ? `property` : `name`;
+            let tag = document.querySelector(`meta[${attr}="${name}"]`);
+            if (!tag) {
+                tag = document.createElement('meta');
+                tag.setAttribute(attr, name);
+                document.head.appendChild(tag);
+            }
+            tag.setAttribute('content', content);
+        };
 
-        // SEO: Set Keywords
-        let metaKeywords = document.querySelector('meta[name="keywords"]');
-        if (!metaKeywords) {
-            metaKeywords = document.createElement('meta');
-            metaKeywords.setAttribute('name', 'keywords');
-            document.head.appendChild(metaKeywords);
-        }
-        metaKeywords.setAttribute('content', 'cricket auction, auction software, smart auction software, automatic auction, automatic cricket auction, whatsapp cricket auction, cricket auction, cheapest cricket auction, online cricket auction, cricket auction app, IPL auction software, player bidding software, cricket tournament software');
-
+        setMeta('description', "India's #1 cricket auction software — automatic smart bidding, WhatsApp player notifications, OBS live streaming overlays & Google Sheets sync. Best IPL-style online auction app for box cricket, gully cricket, colony & corporate tournaments across Mumbai, Pune, Delhi, Hyderabad & all India.");
+        setMeta('keywords', "cricket auction software, cricket auction app india, online cricket auction, IPL auction software, live cricket auction, automatic cricket auction, smart auction software, whatsapp cricket notification, OBS cricket streaming, box cricket auction, gully cricket auction, corporate cricket auction, cricket player bidding, cricket tournament software india");
     }, []);
-
-    // Comprehensive Schema.org structured data for SEO
-    const schemaData = [
-        {
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            "name": "Vardhaman CricBid",
-            "alternateName": ["CricBid", "Cricket Auction App", "Smart Auction Software"],
-            "applicationCategory": "SportsApplication",
-            "operatingSystem": "Web, Android, iOS",
-            "url": "https://www.cricbid.online",
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "INR",
-                "availability": "https://schema.org/InStock"
-            },
-            "description": " cricket auction software with automatic smart bidding, WhatsApp integration, and real-time live streaming. Best platform for IPL-style local tournaments, box cricket, gully cricket, and corporate leagues.",
-            "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.9",
-                "ratingCount": "500",
-                "bestRating": "5",
-                "worstRating": "1"
-            },
-            "featureList": [
-                "Cricket Auction Software",
-                "Automatic Smart Bidding System",
-                "WhatsApp Player Notifications",
-                "Real-time Live Streaming",
-                "Budget Tracking & Management",
-                "Bulk Player Upload via CSV",
-                "Multiple Category Support",
-                "Team Squad Management"
-            ]
-        },
-        {
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            "mainEntity": [
-                {
-                    "@type": "Question",
-                    "name": "Is Vardhaman CricBid to use?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "Yes! Vardhaman CricBid is completely cricket auction software. You can host unlimited IPL-style auctions with automatic bidding, WhatsApp notifications, and live streaming at no cost."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "What is smart automatic auction software?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "Smart automatic auction software like CricBid automatically calculates bid increments, tracks team budgets, enforces player limits, and sends WhatsApp notifications - eliminating manual work and human errors."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "Can I use this for box cricket or gully cricket auctions?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "Absolutely! CricBid works for all types of cricket auctions - box cricket, gully cricket, corporate cricket, colony cricket, and professional local tournaments."
-                    }
-                }
-            ]
-        },
-        {
-            "@context": "https://schema.org",
-            "@type": "Organization",
-            "name": "Vardhaman CricBid",
-            "url": "https://www.cricbid.online",
-            "logo": "https://www.cricbid.online/src/assets/logo.png",
-            "contactPoint": {
-                "@type": "ContactPoint",
-                "telephone": "+91-8208216407",
-                "contactType": "customer service",
-                "areaServed": "IN",
-                "availableLanguage": ["English", "Hindi"]
-            },
-            "sameAs": [
-                "https://wa.me/918208216407"
-            ]
-        }
-    ];
 
     return (
         <div className="overflow-hidden font-sans">
-            {/* Schema.org Structured Data */}
-            <script type="application/ld+json">
-                {JSON.stringify(schemaData)}
-            </script>
-
             {/* Landing Page Header */}
             <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
                 <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="bg-white rounded-lg shadow-glow overflow-hidden flex items-center justify-center">
-                            <img src={logo} alt="Vardhaman cricBid Logo" className="h-10 w-[160px] object-contain scale-[2.1]" />
+                            <img src={logo} alt="Vardhaman CricBid — India's #1 Cricket Auction Software" className="h-10 w-[160px] object-contain scale-[2.1]" />
                         </div>
                     </div>
                     <div>
@@ -316,7 +221,7 @@ export default function Home() {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
                     >
                         <Zap className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium">India's Leading Cricket Auction Platform</span>
+                        <span className="text-sm font-medium">India's #1 Cricket Auction Software · Trusted by 500+ Organizers</span>
                     </motion.div>
 
                     {/* Main Headline */}
@@ -327,7 +232,7 @@ export default function Home() {
                         className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-4 md:mb-6 leading-tight px-2"
                     >
                         <span className="bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
-                            Professional
+                            India's #1 IPL-Style
                         </span>
                         <br />
                         <span className="bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
@@ -342,7 +247,7 @@ export default function Home() {
                         transition={{ delay: 0.6, duration: 0.8 }}
                         className="text-base sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-8 md:mb-10 px-4"
                     >
-                        Organize IPL-style player auctions for your local tournaments. Live bidding, squad management, and real-time updates—all in one app.
+                        Run IPL-style cricket player auctions with automatic smart bidding, instant WhatsApp notifications &amp; OBS live streaming. For box cricket, gully cricket, colony &amp; corporate tournaments across India.
                     </motion.p>
 
                     {/* CTA Buttons */}
@@ -554,30 +459,6 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Stats Section
-            <section className="py-12 md:py-24 relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-secondary/10" />
-
-                <div className="container mx-auto px-4 relative z-10">
-                    <motion.div
-                        {...staggerContainer}
-                        className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8"
-                    >
-                        {stats.map((stat, index) => (
-                            <motion.div
-                                key={index}
-                                {...staggerItem}
-                                className="text-center"
-                            >
-                                <div className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-1 sm:mb-2">
-                                    {stat.value}
-                                </div>
-                                <div className="text-muted-foreground text-sm sm:text-lg">{stat.label}</div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </div>
-            </section> */}
 
             {/* Trust Badges */}
             <section className="py-16">
@@ -619,8 +500,26 @@ export default function Home() {
                         <motion.div {...fadeInUp}>
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">What is the pricing for Vardhaman CricBid?</h3>
+                                    <p className="text-muted-foreground">Vardhaman CricBid offers very competitive and flexible pricing tailored to your needs. If you just need the essentials — live bidding, player management, and team tracking — the basic plan is extremely affordable. For organizers who want premium features like WhatsApp notifications, OBS live streaming overlays, and Google Sheets sync, those are available at an additional price. You only pay for what you actually use.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
                                     <h3 className="text-xl font-bold mb-2 text-foreground">What makes this a smart automatic auction software?</h3>
-                                    <p className="text-muted-foreground">Our smart auction software automatically calculates bid increments based on slabs, tracks team budgets in real-time, enforces player limits, prevents overspending, and sends automatic WhatsApp notifications to players when they're sold or unsold - eliminating manual calculations and human errors.</p>
+                                    <p className="text-muted-foreground">Our smart auction software automatically calculates bid increments based on custom slabs, tracks team budgets in real-time, enforces player limits, prevents overspending, and sends automatic WhatsApp notifications to players when they're sold or unsold — eliminating all manual calculations and human errors.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid support live streaming overlays for OBS?</h3>
+                                    <p className="text-muted-foreground">Yes! CricBid includes built-in OBS browser source overlays — Camera HUD, fullscreen scoreboard, and split-screen layouts. Add them as Browser Sources in OBS Studio and stream your cricket auction live on YouTube, Facebook, or any platform with zero extra setup.</p>
                                 </CardContent>
                             </Card>
                         </motion.div>
@@ -629,7 +528,7 @@ export default function Home() {
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
                                     <h3 className="text-xl font-bold mb-2 text-foreground">Can I use this for box cricket, gully cricket, or corporate auctions?</h3>
-                                    <p className="text-muted-foreground">Absolutely! Our cricket auction software works for all types - box cricket auctions, gully cricket auctions, corporate cricket leagues, colony cricket tournaments, and professional local tournaments. It's flexible enough to handle any cricket player auction format.</p>
+                                    <p className="text-muted-foreground">Absolutely! Our cricket auction software works for all types — box cricket auctions, gully cricket auctions, corporate cricket leagues, colony cricket tournaments, and professional local tournaments. It's flexible enough to handle any cricket player auction format.</p>
                                 </CardContent>
                             </Card>
                         </motion.div>
@@ -638,19 +537,55 @@ export default function Home() {
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
                                     <h3 className="text-xl font-bold mb-2 text-foreground">How does WhatsApp cricket auction notification work?</h3>
-                                    <p className="text-muted-foreground">Our WhatsApp integration automatically sends personalized messages to players the moment they are sold or remain unsold. Players receive instant notifications with their team name and sold amount - no manual messaging required. This is a unique feature of our cricket auction app.</p>
+                                    <p className="text-muted-foreground">Our WhatsApp integration automatically sends personalized messages to players the moment they are sold or remain unsold. Players receive instant notifications with their team name and sold amount — no manual messaging required. This is a unique feature of our cricket auction app.</p>
                                 </CardContent>
                             </Card>
                         </motion.div>
 
-                        {/* <motion.div {...fadeInUp}>
+                        <motion.div {...fadeInUp}>
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-2 text-foreground">Is this the best online auction software for cricket tournaments?</h3>
-                                    <p className="text-muted-foreground">Vardhaman CricBid is rated 4.9★ by tournament organizers across India. With features like live bidding, automatic budget tracking, bulk player upload, real-time team purse updates, and WhatsApp integration - it's considered the best and cheapest cricket auction platform available online.</p>
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Is Vardhaman CricBid the best online cricket auction software?</h3>
+                                    <p className="text-muted-foreground">Vardhaman CricBid is rated 4.9★ by tournament organizers across India. With live bidding, automatic budget tracking, bulk player upload, OBS streaming overlays, WhatsApp integration, Google Sheets sync, and CSV/PDF export — it's widely considered the best and most feature-rich cricket auction platform available online.</p>
                                 </CardContent>
                             </Card>
-                        </motion.div> */}
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Can I bulk upload cricket players from Excel or CSV?</h3>
+                                    <p className="text-muted-foreground">Yes! CricBid supports bulk player upload via CSV file. Upload hundreds of players at once with their names, base prices, categories, mobile numbers, and photos. This saves hours of manual data entry and gets your cricket auction ready in minutes — perfect for large tournaments with 100+ players.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid work on mobile phones?</h3>
+                                    <p className="text-muted-foreground">Yes! Vardhaman CricBid is fully mobile-responsive and works on all smartphones, tablets, and laptops. The auction host manages from a laptop while team owners can bid from their phones. No app download required — it works directly in any mobile browser. Perfect for WhatsApp-connected cricket groups across India.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid also include cricket scoring and live scorecards?</h3>
+                                    <p className="text-muted-foreground">Yes! CricBid now includes CricScoring at <a href="https://scoring.cricbid.online" className="text-primary hover:underline">scoring.cricbid.online</a> — a free ball-by-ball cricket scoring app. Score matches live, track batsman and bowler stats, show real-time scorecards to spectators, and build match schedules for your tournament. Auction data and player rosters sync automatically from CricBid.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
+                        <motion.div {...fadeInUp}>
+                            <Card className="bg-card/50 backdrop-blur border-border/50">
+                                <CardContent className="p-6">
+                                    <h3 className="text-xl font-bold mb-2 text-foreground">Which cities in India use Vardhaman CricBid?</h3>
+                                    <p className="text-muted-foreground">CricBid is used by cricket tournament organizers across India — Mumbai, Pune, Nagpur, Delhi, Hyderabad, Bangalore, Chennai, Kolkata, Ahmedabad, Surat, Jaipur, Nashik, Aurangabad, and hundreds of smaller towns. Any cricket organizer in India can use our online platform to run an IPL-style player auction.</p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </div>
                 </div>
             </section>
@@ -723,19 +658,20 @@ export default function Home() {
                 <div className="container mx-auto px-4">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <img src={logo} alt="Vardhaman cricBid" className="w-8 h-8 rounded-md" />
+                            <img src={logo} alt="Vardhaman CricBid Cricket Auction Software" className="w-8 h-8 rounded-md" />
                             <span className="text-xl font-bold">Vardhaman cricBid</span>
                         </div>
                         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-muted-foreground">
-                            <a href="#" className="hover:text-primary transition-colors">How it works</a>
-                            <a href="#" className="hover:text-primary transition-colors">Features</a>
+                            <a href="#demo" className="hover:text-primary transition-colors">How it works</a>
+                            <a href="https://scoring.cricbid.online" className="hover:text-primary transition-colors" rel="noopener">Cricket Scoring</a>
+                            <a href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</a>
                             <div className="flex items-center gap-2">
                                 <Phone className="w-4 h-4" />
-                                <a href="tel:8208216407" className="hover:text-primary transition-colors">8208216407</a>
+                                <a href="tel:+918208216407" className="hover:text-primary transition-colors">+91-8208216407</a>
                             </div>
                         </div>
                         <div className="text-muted-foreground text-sm">
-                            © {new Date().getFullYear()} Vardhaman cricBid. All rights reserved.
+                            © {new Date().getFullYear()} Vardhaman CricBid. India's #1 Cricket Auction Software. All rights reserved.
                         </div>
                     </div>
                 </div>

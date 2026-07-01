@@ -1,4 +1,4 @@
-const IpGeoCache = require('../models/ipGeoCache');
+const prisma = require('../db/prisma');
 
 /**
  * Geo Service
@@ -90,7 +90,7 @@ const getLocationFromIP = async (ip) => {
     }
 
     // Check cache first
-    const cached = await IpGeoCache.findOne({ ipAddress: normalizedIP });
+    const cached = await prisma.ipGeoCache.findUnique({ where: { ipAddress: normalizedIP } });
     if (cached) {
         return {
             city: cached.city,
@@ -108,14 +108,12 @@ const getLocationFromIP = async (ip) => {
 
     // Cache the result
     try {
-        await IpGeoCache.create({
-            ipAddress: normalizedIP,
-            ...geoData,
-            cachedAt: new Date()
+        await prisma.ipGeoCache.create({
+            data: { ipAddress: normalizedIP, ...geoData, cachedAt: new Date() },
         });
     } catch (error) {
         // Ignore duplicate key errors (race condition)
-        if (error.code !== 11000) {
+        if (error.code !== 'P2002' && error.code !== 11000) {
             console.error('[GeoService] Cache save error:', error.message);
         }
     }
@@ -139,8 +137,8 @@ const batchGetLocations = async (ips) => {
     );
 
     // Check cache for all IPs
-    const cached = await IpGeoCache.find({ 
-        ipAddress: { $in: normalizedIPs } 
+    const cached = await prisma.ipGeoCache.findMany({
+        where: { ipAddress: { in: normalizedIPs } },
     });
 
     cached.forEach(doc => {
@@ -169,13 +167,11 @@ const batchGetLocations = async (ips) => {
 
         // Cache the result
         try {
-            await IpGeoCache.create({
-                ipAddress: ip,
-                ...geoData,
-                cachedAt: new Date()
+            await prisma.ipGeoCache.create({
+                data: { ipAddress: ip, ...geoData, cachedAt: new Date() },
             });
         } catch (error) {
-            if (error.code !== 11000) {
+            if (error.code !== 'P2002' && error.code !== 11000) {
                 console.error('[GeoService] Cache save error:', error.message);
             }
         }
