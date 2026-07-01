@@ -13,12 +13,14 @@ const auctionLogRouter = require('./auctionLogRoutes');
 const backupRouter = require('./backupRoutes');
 const matchRouter   = require('./matchRoutes');
 const scoringRouter = require('./scoringRoutes');
+const playerProfileRouter = require('./playerProfileRoutes');
 
 // Mount routes with their base paths
 router.use("/user", userRouter);
 router.use("/tournament", tournamentRouter);
 router.use("/team", teamRouter);
 router.use("/player", playerRouter);
+router.use("/player-profile", playerProfileRouter);
 router.use("/auction", auctionRouter);
 router.use("/whatsapp", whatsappRouter);
 router.use("/event", eventRouter);
