@@ -730,7 +730,7 @@ export default function ScheduleBuilder() {
               <button onClick={() => navigate("/")} className="px-5 py-2.5 bg-panel border border-bdr text-sm text-muted hover:text-white rounded-xl transition">
                 Back to matches
               </button>
-              <button onClick={() => { setCreated(false); setStep("format"); setPreview([]); }}
+              <button onClick={() => { setCreated(false); setStep("format"); }}
                 className="px-5 py-2.5 bg-primary text-white font-semibold text-sm rounded-xl hover:bg-primary/90 transition">
                 Build another
               </button>
