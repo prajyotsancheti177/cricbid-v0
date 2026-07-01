@@ -117,13 +117,13 @@ const Players = () => {
     setPlayers(prev => prev.filter(p => p._id !== playerId));
   };
 
+  const containerVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.04, delayChildren: 0 } }
+  };
   const cardVariants = {
-    hidden: { opacity: 0, y: 36 },
-    visible: (i: number) => ({
-      opacity: 1,
-      y: 0,
-      transition: { delay: Math.min(i * 0.04, 0.6), duration: 0.4, ease: [0.22, 1, 0.36, 1] }
-    })
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }
   };
 
   if (loading) {
@@ -267,20 +267,21 @@ const Players = () => {
         </div>
 
         {/* Players Grid: 2 columns on mobile */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6">
-          {filteredBySearch.map((player, index) => (
+        <motion.div
+          className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {filteredBySearch.map((player) => (
             <motion.div
               key={player._id}
-              custom={index}
               variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "0px 0px -40px 0px" }}
             >
               <PlayerCard player={player} onClick={handlePlayerClick} categories={categories as string[]} />
             </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {filteredBySearch.length === 0 && (
           <div className="text-center py-10 sm:py-20">

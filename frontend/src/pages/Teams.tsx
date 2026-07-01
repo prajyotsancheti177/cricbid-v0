@@ -49,13 +49,13 @@ const Teams = () => {
     trackPageView("/teams", tournamentId || undefined);
   }, []);
 
+  const containerVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.05, delayChildren: 0 } }
+  };
   const cardVariants = {
-    hidden: { opacity: 0, y: 40 },
-    visible: (i: number) => ({
-      opacity: 1,
-      y: 0,
-      transition: { delay: Math.min(i * 0.06, 0.5), duration: 0.45, ease: [0.22, 1, 0.36, 1] }
-    })
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }
   };
 
   const filteredTeams = teams.filter((t: any) =>
@@ -138,20 +138,18 @@ const Teams = () => {
         </div>
 
         {/* Teams Grid - 2 columns on mobile */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6 max-w-6xl mx-auto">
-          {filteredTeams.map((team, index) => (
-            <motion.div
-              key={team.name}
-              custom={index}
-              variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "0px 0px -40px 0px" }}
-            >
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6 max-w-6xl mx-auto"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {filteredTeams.map((team) => (
+            <motion.div key={team.name} variants={cardVariants}>
               <TeamCard team={team} />
             </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {filteredTeams.length === 0 && teams.length > 0 && (
           <div className="text-center py-10 sm:py-20">
