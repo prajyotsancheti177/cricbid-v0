@@ -41,8 +41,7 @@ const buildAdminLinks = () => {
     }
     if (user.role === 'boss' || user.role === 'super_user') {
       links.push({ path: "/users", label: "Users" });
-      // Analytics hidden pending SQL migration (aggregation pipelines not yet ported)
-      // links.push({ path: "/analytics", label: "Analytics" });
+      links.push({ path: "/analytics", label: "Analytics" });
     }
   } catch {
     // ignore localStorage errors
