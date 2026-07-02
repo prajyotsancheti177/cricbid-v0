@@ -1,0 +1,40 @@
+# Example strategy config: every layer shown is independently customizable.
+# POST this (as JSON) to /api/strategies or build it in the UI.
+name: Supertrend NIFTY intraday
+strategy_type: supertrend
+mode: paper                      # paper | live (live needs explicit confirmation + master switch)
+config:
+  universe:
+    exchange: NSE
+    symbols: [RELIANCE, HDFCBANK, ICICIBANK, INFY, TCS]
+  data:
+    timeframe: 5minute           # minute / 3minute / 5minute / 15minute / 60minute / day
+    lookback_candles: 300
+  filters:
+    time:
+      trade_start: "09:30"       # skip the opening auction-unwind noise
+      trade_end: "14:45"
+      square_off: "15:15"        # self-exit before Zerodha's 15:20 MIS auto square-off
+    max_trades_per_day: 6
+    min_price: 50
+    extra_entry_rule: "volume > sma(20, 'volume')"   # optional declarative AND-filter
+  sizing:
+    method: risk_based           # fixed_quantity | fixed_value | percent_capital | risk_based
+    value: 0.5                   # risk 0.5% of equity per trade to the stop
+    max_quantity: 500
+  risk:
+    stop_loss_pct: 0.8
+    take_profit_pct: 1.6
+    trailing_stop_pct: 0.6
+    max_positions: 3
+    max_loss_per_day: 5000       # strategy kill switch (INR)
+    max_position_value: 150000
+  execution:
+    product: MIS                 # intraday; CNC for delivery (longs only)
+    order_type: MARKET
+    allow_short: true
+  params:                        # strategy-type specific (schema-driven form in the UI)
+    period: 10
+    multiplier: 3.0
+    allow_short_entries: true
+    ema_filter_period: 200
