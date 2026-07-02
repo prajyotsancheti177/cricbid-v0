@@ -72,6 +72,8 @@ model User {
   auctionLogs        AuctionLog[]         @relation("AuctionLogConductedBy")
   auctionRoomSessions AuctionRoomSession[] @relation("SessionHost")
   userEvents         UserEvent[]
+  venues             Venue[]              @relation("VenueOwner")
+  bookings           Booking[]            @relation("BookingUser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -660,4 +662,104 @@ model IpGeoCache {
   updatedAt DateTime @updatedAt
 
   @@map("ip_geo_cache")
+}
+
+// ---------------------------------------------------------------------------
+// cricbook — court/turf booking (v1: book & pay at venue, no gateway)
+// ---------------------------------------------------------------------------
+
+enum SportType {
+  cricket
+  football
+  badminton
+  tennis
+  pickleball
+  basketball
+  other
+}
+
+enum BookingStatus {
+  confirmed
+  cancelled
+}
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String?
+  city        String?
+  area        String?  // locality, used for search/filter
+  latitude    Float?
+  longitude   Float?
+  photos      String[] // image URLs
+  amenities   String[] // ["Parking","Washroom","Floodlights"]
+  phone       String?
+  isActive    Boolean  @default(true)
+
+  ownerId String
+  owner   User   @relation("VenueOwner", fields: [ownerId], references: [id])
+
+  courts Court[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city, isActive])
+  @@index([ownerId])
+  @@map("venue")
+}
+
+model Court {
+  id      String @id @default(cuid())
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  name  String    // "Court 1", "Turf A"
+  sport SportType @default(cricket)
+
+  pricePerSlot Int          // rupees per slot
+  slotMinutes  Int @default(60)
+
+  // operating hours as minutes-from-midnight (06:00 => 360, 23:00 => 1380)
+  openMinute  Int @default(360)
+  closeMinute Int @default(1380)
+
+  isActive Boolean @default(true)
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([venueId, isActive])
+  @@map("court")
+}
+
+model Booking {
+  id      String @id @default(cuid())
+  courtId String
+  court   Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("BookingUser", fields: [userId], references: [id])
+
+  customerName  String?
+  customerPhone String?
+
+  startTime DateTime
+  endTime   DateTime
+
+  price  Int
+  status BookingStatus @default(confirmed)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Double-booking guard: at most ONE row per court+startTime.
+  // Cancel hard-deletes the row so the slot frees immediately.
+  @@unique([courtId, startTime])
+  @@index([courtId, startTime])
+  @@index([userId])
+  @@map("booking")
 }

@@ -8,7 +8,8 @@
 #   ./scripts/deploy-ec2.sh              # backend only (git pull + pm2 restart)
 #   ./scripts/deploy-ec2.sh frontend     # + build & upload frontend dist
 #   ./scripts/deploy-ec2.sh scoring      # + build & upload scoring dist
-#   ./scripts/deploy-ec2.sh all          # backend + frontend + scoring
+#   ./scripts/deploy-ec2.sh cricbook     # + build & upload cricbook dist
+#   ./scripts/deploy-ec2.sh all          # backend + frontend + scoring + cricbook
 
 set -euo pipefail
 
@@ -52,9 +53,10 @@ build_and_push() { # $1 = app dir (frontend|scoring)
 case "$TARGET" in
   frontend) build_and_push frontend ;;
   scoring)  build_and_push scoring ;;
-  all)      build_and_push frontend; build_and_push scoring ;;
+  cricbook) build_and_push cricbook ;;
+  all)      build_and_push frontend; build_and_push scoring; build_and_push cricbook ;;
   backend)  ;;
-  *) echo "Unknown target '$TARGET' (use: backend|frontend|scoring|all)" >&2; exit 1 ;;
+  *) echo "Unknown target '$TARGET' (use: backend|frontend|scoring|cricbook|all)" >&2; exit 1 ;;
 esac
 
 echo "==> Restarting backend (pm2 server-sql)"
