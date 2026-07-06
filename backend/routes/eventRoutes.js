@@ -1,6 +1,6 @@
 const express = require('express');
 const eventController = require('../controller/eventController');
-const { authMiddleware } = require('../utils/authMiddleware');
+const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
 const eventRouter = express.Router();
 
 // Public routes - for tracking events (including anonymous users)
@@ -14,6 +14,7 @@ eventRouter.get("/stats/:tournamentId", authMiddleware, eventController.getEvent
 eventRouter.get("/analytics", authMiddleware, eventController.getAnalyticsDashboard);
 eventRouter.get("/auction-room-analytics", authMiddleware, eventController.getAuctionRoomAnalytics);
 eventRouter.get("/geo-analytics", authMiddleware, eventController.getGeoAnalytics);
+eventRouter.post("/daily-summary/send", authMiddleware, roleMiddleware(['boss', 'super_user']), eventController.sendDailyActivitySummaryNow);
 
 module.exports = eventRouter;
 

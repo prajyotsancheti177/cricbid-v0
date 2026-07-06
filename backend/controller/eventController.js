@@ -228,6 +228,21 @@ const getGeoAnalytics = async (req, res) => {
     }
 };
 
+/**
+ * Manually trigger the daily activity summary email (for testing/on-demand use).
+ * The scheduled job normally sends this automatically every day at 07:00 AM.
+ */
+const sendDailyActivitySummaryNow = async (req, res) => {
+    try {
+        const { sendDailyActivitySummary } = require("../jobs/dailyActivitySummary");
+        await sendDailyActivitySummary();
+        sendSuccess(res, 200, "Daily activity summary email sent");
+    } catch (error) {
+        console.error("Error sending daily activity summary:", error);
+        sendError(res, 500, "Failed to send daily activity summary", error);
+    }
+};
+
 module.exports = {
     trackEvent,
     trackEvents,
@@ -236,5 +251,6 @@ module.exports = {
     getEventStats,
     getAnalyticsDashboard,
     getAuctionRoomAnalytics,
-    getGeoAnalytics
+    getGeoAnalytics,
+    sendDailyActivitySummaryNow
 };
