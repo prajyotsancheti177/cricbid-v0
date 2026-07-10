@@ -306,6 +306,69 @@ const getUniqueIPsByDateRange = async (startDate, endDate) => {
     return groups.map(g => g.ipAddress).filter(Boolean);
 };
 
+/**
+ * Get a full activity summary for a single calendar day (site-wide, not
+ * scoped to a tournament), used for the daily activity email digest.
+ * @param {Date} date - Any timestamp within the target day
+ * @returns {Object} Daily summary: totals, event type breakdown, top pages
+ */
+const getDailySummary = async (date) => {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const events = await prisma.userEvent.findMany({
+        where: {
+            timestamp: { gte: startOfDay, lt: endOfDay }
+        },
+        select: {
+            eventType: true,
+            sessionId: true,
+            userId: true,
+            ipAddress: true,
+            page: true
+        }
+    });
+
+    const uniqueSessions = new Set();
+    const uniqueUsers = new Set();
+    const uniqueIPs = new Set();
+    const byEventType = new Map();
+    const byPage = new Map();
+
+    for (const ev of events) {
+        if (ev.sessionId) uniqueSessions.add(ev.sessionId);
+        if (ev.userId) uniqueUsers.add(ev.userId);
+        if (ev.ipAddress) uniqueIPs.add(ev.ipAddress);
+
+        byEventType.set(ev.eventType, (byEventType.get(ev.eventType) || 0) + 1);
+
+        if (ev.eventType === 'page_view' && ev.page) {
+            byPage.set(ev.page, (byPage.get(ev.page) || 0) + 1);
+        }
+    }
+
+    const eventBreakdown = Array.from(byEventType.entries())
+        .map(([eventType, count]) => ({ eventType, count }))
+        .sort((a, b) => b.count - a.count);
+
+    const topPages = Array.from(byPage.entries())
+        .map(([page, count]) => ({ page, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+    return {
+        date: startOfDay,
+        totalEvents: events.length,
+        uniqueVisitors: uniqueSessions.size,
+        uniqueUsers: uniqueUsers.size,
+        uniqueIPs: uniqueIPs.size,
+        eventBreakdown,
+        topPages
+    };
+};
+
 module.exports = {
     trackEvent,
     trackEvents,
@@ -316,5 +379,6 @@ module.exports = {
     getMonthlyPageViews,
     getPageTrafficBreakdown,
     getAnalyticsSummary,
-    getUniqueIPsByDateRange
+    getUniqueIPsByDateRange,
+    getDailySummary
 };
