@@ -11,8 +11,14 @@ const { Pool } = require('pg');
 const supabaseCa = fs.readFileSync(path.join(__dirname, '../certs/supabase-ca.pem'), 'utf8');
 
 function createPrismaClient() {
+    // Strip query params (sslmode, connection_limit, ...): they're meaningless to
+    // node-postgres's Pool, and pg-connection-string now treats sslmode=require as
+    // verify-full, which silently overrides the explicit `ssl.ca` option below.
+    const url = new URL(process.env.DATABASE_URL);
+    url.search = '';
+
     const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: url.toString(),
         ssl: { ca: supabaseCa },
     });
     const adapter = new PrismaPg(pool);
