@@ -6,8 +6,10 @@ import {
   getPlayerPhotoUrl,
   getFallbackAvatar,
   getTeamFallbackAvatar,
+  overlayPhotoStyle,
 } from "@/lib/overlayUtils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { useMaskingEligible } from "@/lib/privacyUtils";
 import "./overlays.css";
 
 /**
@@ -22,6 +24,7 @@ import "./overlays.css";
  */
 const FullscreenOverlay = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
   const {
     isConnected,
     auctionState,
@@ -210,6 +213,7 @@ const FullscreenOverlay = () => {
               src={getPlayerPhotoUrl(currentPlayer)}
               alt={currentPlayer.name}
               className="overlay-player-photo-lg"
+              style={overlayPhotoStyle(currentPlayer, maskingEligible)}
               onError={(e) => {
                 e.currentTarget.src = getFallbackAvatar(currentPlayer.name);
               }}

@@ -6,8 +6,10 @@ import {
   getPlayerPhotoUrl,
   getFallbackAvatar,
   getTeamFallbackAvatar,
+  overlayPhotoStyle,
 } from "@/lib/overlayUtils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { useMaskingEligible } from "@/lib/privacyUtils";
 import "./overlays.css";
 
 /**
@@ -29,6 +31,7 @@ interface BidHistoryItem {
 
 const SplitScreenOverlay = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
   const {
     isConnected,
     auctionState,
@@ -234,6 +237,7 @@ const SplitScreenOverlay = () => {
                   border: `3px solid ${teamColor}60`,
                   boxShadow: `0 10px 40px rgba(0,0,0,0.4), 0 0 30px ${teamColor}20`,
                   flexShrink: 0,
+                  ...overlayPhotoStyle(currentPlayer, maskingEligible),
                 }}
               />
               <div style={{ minWidth: 0, flex: 1 }}>

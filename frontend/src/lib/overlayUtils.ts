@@ -1,5 +1,6 @@
 import { Player, Team } from "@/types/auction";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { shouldMaskPlayer, maskedPhotoStyle } from "@/lib/privacyUtils";
 
 /**
  * Predefined team color palette — vibrant, high-contrast colors
@@ -57,6 +58,15 @@ export const getPlayerPhotoUrl = (player: Player | null): string => {
   const url = getDriveThumbnail(player.photo as string);
   return url;
 };
+
+/**
+ * Inline blur style for a player's photo in an overlay, when site-wide
+ * female-player masking is on (overlays use style objects, not classNames).
+ */
+export const overlayPhotoStyle = (
+  player: Player | { gender?: string | null } | null,
+  maskFemalePlayers: boolean
+) => maskedPhotoStyle(shouldMaskPlayer(player as { gender?: string | null }, maskFemalePlayers));
 
 /**
  * Get fallback avatar URL for a player name

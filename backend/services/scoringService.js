@@ -453,7 +453,7 @@ const getTournamentStats = async ({ tournamentId }) => {
   const playerIds = new Set([...batting.map(b => b.playerId), ...bowling.map(b => b.playerId)]);
   const teamIds   = new Set([...batting.map(b => b.teamId),   ...bowling.map(b => b.teamId)]);
   const [players, teams] = await Promise.all([
-    prisma.player.findMany({ where: { id: { in: [...playerIds] } }, select: { id: true, name: true, photo: true } }),
+    prisma.player.findMany({ where: { id: { in: [...playerIds] } }, select: { id: true, name: true, photo: true, gender: true } }),
     prisma.team.findMany({ where: { id: { in: [...teamIds] } }, select: { id: true, name: true } }),
   ]);
   const pMap = Object.fromEntries(players.map(p => [p.id, p]));
@@ -467,6 +467,7 @@ const getTournamentStats = async ({ tournamentId }) => {
       playerId: b.playerId,
       name: pMap[b.playerId]?.name || "Unknown",
       photo: pMap[b.playerId]?.photo || null,
+      gender: pMap[b.playerId]?.gender || null,
       teamId: b.teamId,
       teamName: tMap[b.teamId] || "",
       innings: b._count._all,
@@ -488,6 +489,7 @@ const getTournamentStats = async ({ tournamentId }) => {
       playerId: b.playerId,
       name: pMap[b.playerId]?.name || "Unknown",
       photo: pMap[b.playerId]?.photo || null,
+      gender: pMap[b.playerId]?.gender || null,
       teamId: b.teamId,
       teamName: tMap[b.teamId] || "",
       innings: b._count._all,

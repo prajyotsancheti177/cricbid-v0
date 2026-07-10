@@ -55,6 +55,13 @@ const getTournamentTeamsReport = async (touranmentId) => {
         include: { players: true },
     });
 
+    const topupTotals = await prisma.teamBudgetTopup.groupBy({
+        by: ['teamId'],
+        where: { touranmentId },
+        _sum: { amount: true },
+    });
+    const topupByTeamId = Object.fromEntries(topupTotals.map((t) => [t.teamId, t._sum.amount || 0]));
+
     const categoryBasePrices = tournament.categoryBasePrices || {};
     const basePriceValues = Object.values(categoryBasePrices);
     const minBasePrice = basePriceValues.length > 0 ? Math.min(...basePriceValues) : 0;
@@ -63,7 +70,8 @@ const getTournamentTeamsReport = async (touranmentId) => {
     const teamsOut = teams.map((t) => {
         const players = t.players.map((p) => withBasePrice(p, categoryBasePrices));
         const totalSpent = sumSpent(t.players);
-        const remainingBudget = (tournament.totalBudget || 0) - totalSpent;
+        const totalToppedUp = topupByTeamId[t.id] || 0;
+        const remainingBudget = (tournament.totalBudget || 0) + totalToppedUp - totalSpent;
 
         const playersAlreadyBought = players.length;
         const slotsToFill = Math.max(0, minPlayersPerTeam - playersAlreadyBought - 1);
@@ -77,6 +85,7 @@ const getTournamentTeamsReport = async (touranmentId) => {
             owner: { name: t.ownerName, email: t.ownerEmail, mobile: t.ownerMobile },
             players,
             totalSpent,
+            totalToppedUp,
             remainingBudget,
             maxPlayersPerTeam: tournament.maxPlayersPerTeam,
             minPlayersPerTeam: tournament.minPlayersPerTeam,
@@ -111,9 +120,15 @@ const getTeamReport = async (teamId) => {
         ? await prisma.tournament.findUnique({ where: { id: team.touranmentId } })
         : null;
 
+    const topupAgg = await prisma.teamBudgetTopup.aggregate({
+        where: { teamId },
+        _sum: { amount: true },
+    });
+    const totalToppedUp = topupAgg._sum.amount || 0;
+
     const categoryBasePrices = tournament?.categoryBasePrices || {};
     const totalSpent = sumSpent(team.players);
-    const remainingBudget = (tournament?.totalBudget || 0) - totalSpent;
+    const remainingBudget = (tournament?.totalBudget || 0) + totalToppedUp - totalSpent;
     const players = team.players.map((p) => withBasePrice(p, categoryBasePrices));
 
     return [{
@@ -122,6 +137,7 @@ const getTeamReport = async (teamId) => {
         logo: team.logo,
         owner: { name: team.ownerName, email: team.ownerEmail, mobile: team.ownerMobile },
         totalSpent,
+        totalToppedUp,
         remainingBudget,
         players,
         tournament: tournament
@@ -160,6 +176,79 @@ const updateTeam = async (payload) => {
     }).catch(() => {});
 
     return serializeTeam(updated);
+};
+
+/**
+ * Credit a team extra auction points (host manually tops up a team's balance
+ * after the owner pays cash outside the app). Only the tournament host or a
+ * boss/super_user account may do this.
+ */
+const topUpTeamBudget = async ({ teamId, amount, note, userId }) => {
+    if (!teamId) throw new Error("teamId is required");
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || !Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+        throw new Error("amount must be a positive whole number");
+    }
+    if (!userId) throw new Error("userId is required");
+
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new Error("Team not found");
+    if (!team.touranmentId) throw new Error("Team is not attached to a tournament");
+
+    const tournament = await prisma.tournament.findUnique({ where: { id: team.touranmentId } });
+    if (!tournament) throw new Error("Tournament not found");
+
+    const requester = await prisma.user.findUnique({ where: { id: userId } });
+    const isHost = requester && requester.id === tournament.tournamentHostId;
+    const isAdmin = requester && ["boss", "super_user"].includes(requester.role);
+    if (!requester || (!isHost && !isAdmin)) {
+        throw new Error("Only the tournament host can top up a team's balance");
+    }
+
+    const topup = await prisma.teamBudgetTopup.create({
+        data: {
+            teamId,
+            touranmentId: team.touranmentId,
+            amount: parsedAmount,
+            note: note ? String(note).trim() || null : null,
+            createdById: userId,
+        },
+    });
+
+    eventService.trackEvent({
+        userId,
+        tournamentId: team.touranmentId,
+        eventType: "team_budget_topup",
+        page: "/teams",
+        eventData: { teamId, teamName: team.name, amount: parsedAmount, note: topup.note },
+    }).catch(() => {});
+
+    return { topupId: topup.id, teamId, touranmentId: team.touranmentId, amount: parsedAmount };
+};
+
+/**
+ * Top-up history for a tournament (all teams), newest first — the audit
+ * trail for manual balance credits.
+ */
+const getTeamBudgetTopups = async (touranmentId) => {
+    if (!touranmentId) throw new Error("touranmentId is required");
+    const rows = await prisma.teamBudgetTopup.findMany({
+        where: { touranmentId },
+        include: {
+            team: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => ({
+        _id: r.id,
+        teamId: r.teamId,
+        teamName: r.team?.name || null,
+        amount: r.amount,
+        note: r.note,
+        createdBy: r.createdBy ? { _id: r.createdBy.id, name: r.createdBy.name, email: r.createdBy.email } : null,
+        createdAt: r.createdAt,
+    }));
 };
 
 const getTeamNames = async (touranmentId) => {
@@ -244,6 +333,8 @@ module.exports = {
     getTournamentTeamsReport,
     getTeamReport,
     updateTeam,
+    topUpTeamBudget,
+    getTeamBudgetTopups,
     getTeamNames,
     getTeamNamesAndBudget,
     bulkCreateTeams,

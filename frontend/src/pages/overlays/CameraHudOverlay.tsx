@@ -7,9 +7,11 @@ import {
   getPlayerPhotoUrl,
   getFallbackAvatar,
   getTeamFallbackAvatar,
+  overlayPhotoStyle,
 } from "@/lib/overlayUtils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import apiConfig from "@/config/apiConfig";
+import { useMaskingEligible } from "@/lib/privacyUtils";
 import "./overlays.css";
 
 /**
@@ -25,6 +27,7 @@ import "./overlays.css";
  */
 const CameraHudOverlay = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
   const {
     isConnected,
     auctionState,
@@ -207,7 +210,7 @@ const CameraHudOverlay = () => {
                 </div>
                 {overlayStats.recentPlayers.map((p: any, idx: number) => (
                   <div key={`${loopIdx}-${idx}`} className="overlay-marquee-item">
-                    <img src={getDriveThumbnail(p.photo)} style={{ width: 24, height: 24, borderRadius: "50%", marginRight: 10, objectFit: "cover" }} onError={(e) => e.currentTarget.src = getFallbackAvatar(p.name)} />
+                    <img src={getDriveThumbnail(p.photo)} style={{ width: 24, height: 24, borderRadius: "50%", marginRight: 10, objectFit: "cover", ...overlayPhotoStyle(p, maskingEligible) }} onError={(e) => e.currentTarget.src = getFallbackAvatar(p.name)} />
                     <span>{p.name}</span>
                     <span style={{ color: "#a78bfa", margin: "0 8px" }}>sold to</span>
                     <span style={{ color: getTeamColor(p.teamName || "") }}>{p.teamName}</span>
@@ -294,7 +297,7 @@ const CameraHudOverlay = () => {
           {overlayStats.topPlayers.map((player: any) => (
             <div key={player._id} className="overlay-list-item">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <img src={getDriveThumbnail(player.photo)} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", border: `2px solid ${getTeamColor(player.teamName || "")}` }} onError={(e) => e.currentTarget.src = getFallbackAvatar(player.name)} />
+                <img src={getDriveThumbnail(player.photo)} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", border: `2px solid ${getTeamColor(player.teamName || "")}`, ...overlayPhotoStyle(player, maskingEligible) }} onError={(e) => e.currentTarget.src = getFallbackAvatar(player.name)} />
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <div className="overlay-item-name">{player.name}</div>
                   <div className="overlay-item-sub" style={{ color: getTeamColor(player.teamName || "") }}>{player.teamName}</div>
@@ -311,7 +314,7 @@ const CameraHudOverlay = () => {
         <div className="overlay-intro-container anim-intro-sequence">
           <div className="overlay-intro-bg" />
           <div className="overlay-intro-content">
-            <img src={getPlayerPhotoUrl(currentPlayer)} className="overlay-intro-photo" onError={(e) => e.currentTarget.src = getFallbackAvatar(currentPlayer.name)} />
+            <img src={getPlayerPhotoUrl(currentPlayer)} className="overlay-intro-photo" style={overlayPhotoStyle(currentPlayer, maskingEligible)} onError={(e) => e.currentTarget.src = getFallbackAvatar(currentPlayer.name)} />
             {currentPlayer.auctionSerialNumber && (
               <div className="overlay-intro-serial">#{currentPlayer.auctionSerialNumber}</div>
             )}

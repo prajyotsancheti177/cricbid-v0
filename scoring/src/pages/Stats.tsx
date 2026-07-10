@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { post } from "../lib/api";
+import { shouldMaskPlayer, useMaskingEligible } from "../lib/privacyUtils";
 
 type CategoryKey = "mostRuns" | "mostWickets" | "bestStrikeRate" | "bestEconomy" | "mostSixes" | "mostFours";
 
 interface StatRow {
-  playerId: string; name: string; photo?: string | null;
+  playerId: string; name: string; photo?: string | null; gender?: string | null;
   teamName: string; innings: number;
   runs?: number; balls?: number; fours?: number; sixes?: number; strikeRate?: number;
   wickets?: number; overs?: number; economy?: number;
@@ -20,11 +21,11 @@ const CATEGORIES: { key: CategoryKey; label: string; stat: (r: StatRow) => strin
   { key: "mostFours",      label: "Most 4s",     stat: r => r.fours ?? 0,       statLabel: "4s",   sub: r => `${r.runs} runs · ${r.innings} inns` },
 ];
 
-function Avatar({ r, size }: { r: StatRow; size: string }) {
+function Avatar({ r, size, masked }: { r: StatRow; size: string; masked: boolean }) {
   const [imgOk, setImgOk] = useState(true);
   return r.photo && imgOk
     ? <img src={r.photo} alt="" onError={() => setImgOk(false)}
-        className={`${size} rounded-full object-cover border-2 border-primary/40 shrink-0`} />
+        className={`${size} rounded-full object-cover border-2 border-primary/40 shrink-0 ${masked ? "blur-md scale-110" : ""}`} />
     : <div className={`${size} rounded-full bg-primary/20 flex items-center justify-center font-black text-primary shrink-0`}>{r.name[0]?.toUpperCase()}</div>;
 }
 
@@ -33,6 +34,7 @@ export default function Stats() {
   const { tid } = useParams<{ tid: string }>();
   const [data, setData] = useState<Record<CategoryKey, StatRow[]> | null>(null);
   const [cat, setCat] = useState<CategoryKey>("mostRuns");
+  const maskingEligible = useMaskingEligible(tid);
 
   useEffect(() => {
     if (!tid) return;
@@ -75,7 +77,7 @@ export default function Stats() {
             <div className="card p-5 border-primary/40 bg-gradient-to-br from-primary/10 to-transparent relative overflow-hidden">
               <span className="absolute -bottom-2 left-3 text-6xl font-black text-primary/10 select-none">#1</span>
               <div className="flex items-center gap-4 relative">
-                <Avatar r={first} size="w-16 h-16 text-2xl" />
+                <Avatar r={first} size="w-16 h-16 text-2xl" masked={shouldMaskPlayer(first, maskingEligible)} />
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-white text-lg truncate">{first.name}</p>
                   <p className="text-xs text-muted truncate">{first.teamName}</p>
@@ -95,7 +97,7 @@ export default function Stats() {
               {[second, third].filter(Boolean).map((r, i) => (
                 <div key={r!.playerId} className="card p-4 relative overflow-hidden">
                   <span className="absolute top-2 right-3 text-3xl font-black text-muted/10">#{i + 2}</span>
-                  <Avatar r={r!} size="w-10 h-10 text-base" />
+                  <Avatar r={r!} size="w-10 h-10 text-base" masked={shouldMaskPlayer(r!, maskingEligible)} />
                   <p className="font-bold text-white text-sm truncate mt-2">{r!.name}</p>
                   <p className="text-[10px] text-muted truncate">{r!.teamName}</p>
                   <p className="text-xl font-black text-white mt-1">{category.stat(r!)} <span className="text-[10px] text-muted font-normal uppercase">{category.statLabel}</span></p>

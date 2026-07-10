@@ -75,6 +75,7 @@ model User {
   userEvents         UserEvent[]
   venues             Venue[]              @relation("VenueOwner")
   bookings           Booking[]            @relation("BookingUser")
+  teamBudgetTopups   TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -107,6 +108,7 @@ model Tournament {
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
   matches             Match[]
+  teamBudgetTopups    TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -135,11 +137,39 @@ model Team {
   homeMatches    Match[]          @relation("MatchTeamA")
   awayMatches    Match[]          @relation("MatchTeamB")
   battingInnings Innings[]        @relation("InningsBattingTeam")
+  budgetTopups   TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("team")
+}
+
+// Manual "top up team balance" ledger — the host credits a team extra auction
+// points in exchange for cash paid outside the app. There's no stored budget
+// column on Team; remainingBudget is computed on read (see teamService.js),
+// so topping up just means summing these rows into that formula. Kept as an
+// append-only ledger (rather than mutating a single balance column) so there's
+// an actual audit trail of who topped up which team, how much, and when —
+// something no other manual-edit flow in this codebase currently has.
+model TeamBudgetTopup {
+  id   String @id @default(cuid())
+  amount Int  // positive = credit; entered by the host
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  touranmentId String
+  tournament   Tournament @relation(fields: [touranmentId], references: [id])
+
+  note String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("team_budget_topup")
 }
 
 model PlayerProfile {
@@ -194,6 +224,17 @@ model Player {
   updatedAt DateTime @updatedAt
 
   @@map("player")
+}
+
+// Site-wide settings singleton (row id is always 1). Mirrors the shape of
+// Tournament.features but applies across the whole site rather than one
+// tournament — e.g. { maskFemalePlayers: true }.
+model SiteSettings {
+  id        Int      @id @default(1)
+  settings  Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
 }
 
 // ---------------------------------------------------------------------------

@@ -21,11 +21,14 @@ import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { useToast } from "@/hooks/use-toast";
 import { trackPageView } from "@/lib/eventTracker";
 import { useAuctionSocket } from "@/hooks/useAuctionSocket";
+import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
+import { cn } from "@/lib/utils";
 
 const Auction = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
 
   // Auth & Context
   const userStr = localStorage.getItem("user");
@@ -395,7 +398,7 @@ const Auction = () => {
                 {filteredPlayers.map(player => (
                   <Card key={player._id} className="p-4 cursor-pointer hover:bg-accent" onClick={() => handleManualSelect(player)}>
                     <div className="flex items-center gap-4">
-                      {player.photo && <img src={getDriveThumbnail(player.photo)} className="w-12 h-12 rounded-full object-cover" />}
+                      {player.photo && <img src={getDriveThumbnail(player.photo)} className={cn("w-12 h-12 rounded-full object-cover", shouldMaskPlayer(player, maskingEligible) && "blur-md scale-110")} />}
                       <div>
                         <div className="font-bold">{player.name}</div>
                         <div className="text-sm text-muted-foreground">{player.playerCategory}</div>
@@ -682,7 +685,7 @@ const Auction = () => {
                   <Card key={player._id} className="p-4 hover:bg-accent cursor-pointer" onClick={() => handleManualSelect(player)}>
                     <div className="flex items-center gap-4">
                       {player.photo && (
-                        <img src={getDriveThumbnail(player.photo)} className="w-16 h-16 rounded-full object-cover" />
+                        <img src={getDriveThumbnail(player.photo)} className={cn("w-16 h-16 rounded-full object-cover", shouldMaskPlayer(player, maskingEligible) && "blur-md scale-110")} />
                       )}
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">{player.name}</h3>

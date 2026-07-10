@@ -4,6 +4,7 @@
 
 
 const teamService = require("../services/teamService");
+const auctionStateManager = require("../services/auctionStateManager");
 const { sendSuccess, sendError } = require("../utils");
 
 
@@ -82,6 +83,39 @@ const updateTeam = async (req, res) => {
     }
 };
 
+const topUpTeamBudget = async (req, res) => {
+    try {
+        const { teamId, amount, note, userId } = req.body;
+        const result = await teamService.topUpTeamBudget({ teamId, amount, note, userId });
+
+        // Refresh & broadcast to any live auction room for this tournament so
+        // the new balance shows up immediately, same as after a player sale.
+        try {
+            const teamsReport = await teamService.getTournamentTeamsReport(result.touranmentId);
+            const teams = teamsReport?.[0]?.teams || [];
+            auctionStateManager.updateTeams(result.touranmentId, teams);
+            const io = req.app.get("io");
+            const newState = auctionStateManager.getAuctionState(result.touranmentId);
+            if (io && newState) io.of("/auction").to(result.touranmentId).emit("auction:state", newState);
+        } catch (broadcastError) {
+            console.error("Failed to broadcast team budget top-up:", broadcastError);
+        }
+
+        return sendSuccess(res, 201, "Team balance topped up successfully", result);
+    } catch (error) {
+        return sendError(res, 400, "Failed to top up team balance!", error);
+    }
+};
+
+const getTeamBudgetTopups = async (req, res) => {
+    try {
+        const topups = await teamService.getTeamBudgetTopups(req.body.touranmentId);
+        return sendSuccess(res, 200, "Team budget top-up history fetched successfully", topups);
+    } catch (error) {
+        return sendError(res, 400, "Failed to get team budget top-up history!", error);
+    }
+};
+
 const getTeamNames = async (req, res) => {
     try {
         const teams = await teamService.getTeamNames(req.body.touranmentId);
@@ -124,6 +158,8 @@ module.exports = {
     getTournamentTeamsReport,
     getTeamReport,
     updateTeam,
+    topUpTeamBudget,
+    getTeamBudgetTopups,
     getTeamNames,
     getTeamNamesAndBudget,
     bulkCreateTeams,

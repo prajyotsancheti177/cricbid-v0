@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, useNavigate, useOutletContext } from "react-router-dom";
 import {
   LayoutDashboard, Users, Shield, UserPlus, Upload, Link as LinkIcon,
-  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History, MessageSquare, CalendarDays,
+  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History, MessageSquare, CalendarDays, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
@@ -46,6 +46,7 @@ const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?
   { to: "bulk-upload", label: "Bulk upload", icon: Upload, ownerOnly: true },
   { to: "registration", label: "Registration", icon: LinkIcon },
   { to: "auction", label: "Auction", icon: Gavel },
+  { to: "top-up", label: "Top up balance", icon: Wallet, ownerOnly: true },
   { to: "schedule", label: "Schedule & Scores", icon: CalendarDays, adminOnly: true },
   { to: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { to: "data", label: "Data & export", icon: Database },

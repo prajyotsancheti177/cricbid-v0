@@ -5,6 +5,7 @@ export interface Player {
   id?: string;
   name: string;
   age?: number;
+  gender?: string;
   photo?: string;
   skill?: string;
   mobile?: number | string;

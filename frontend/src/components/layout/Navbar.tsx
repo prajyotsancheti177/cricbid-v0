@@ -42,6 +42,7 @@ const buildAdminLinks = () => {
     if (user.role === 'boss' || user.role === 'super_user') {
       links.push({ path: "/users", label: "Users" });
       links.push({ path: "/analytics", label: "Analytics" });
+      links.push({ path: "/site-settings", label: "Site Settings" });
     }
   } catch {
     // ignore localStorage errors

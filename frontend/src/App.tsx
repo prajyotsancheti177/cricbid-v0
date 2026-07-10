@@ -27,6 +27,7 @@ import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSecti
 import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
 import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection";
+import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 import Analytics from "./pages/Analytics";
@@ -37,6 +38,8 @@ import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import DeleteAccount from "./pages/DeleteAccount";
+import SiteSettingsPage from "./pages/SiteSettings";
+import { SiteSettingsProvider } from "@/lib/siteSettings";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +84,7 @@ const AppLayout = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <SiteSettingsProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -144,6 +148,7 @@ const App = () => (
                 <Route path="whatsapp" element={<TournamentWhatsAppSection />} />
                 <Route path="schedule" element={<TournamentScheduleSection />} />
                 <Route path="auction" element={<TournamentAuctionSection />} />
+                <Route path="top-up" element={<TournamentTopUpSection />} />
                 <Route path="data" element={<TournamentDataSection />} />
                 <Route path="backups" element={<TournamentBackupsSection />} />
                 <Route path="settings" element={<TournamentSettingsSection />} />
@@ -176,6 +181,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/site-settings"
+                element={
+                  <ProtectedRoute>
+                    <SiteSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Redirect for malformed WhatsApp URLs */}
               <Route path="/tournament/:placeholder/:tournamentId" element={<TournamentRedirect />} />
@@ -187,6 +200,7 @@ const App = () => (
         </div>
       </BrowserRouter>
     </TooltipProvider>
+    </SiteSettingsProvider>
   </QueryClientProvider>
 );
 
