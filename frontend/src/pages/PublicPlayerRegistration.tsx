@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UserPlus, Trophy, Loader2 } from "lucide-react";
+import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
+import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
   const { tournamentId } = useParams();
@@ -20,7 +21,11 @@ const PublicPlayerRegistration = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
+
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<any>(null);
+  const [profilePrefilled, setProfilePrefilled] = useState(false);
+
   const [config, setConfig] = useState<any>(null);
   const [tournamentName, setTournamentName] = useState("");
   const [playerCategories, setPlayerCategories] = useState<string[]>([]);
@@ -43,6 +48,14 @@ const PublicPlayerRegistration = () => {
   useEffect(() => {
     if (tournamentId) {
       fetchConfig();
+    }
+    // Restore session if player was already logged in
+    const token = getStoredPlayerToken();
+    if (token) {
+      fetchProfileWithToken(token).then((profile) => {
+        if (profile) setActiveProfile(profile);
+        else clearPlayerToken();
+      });
     }
   }, [tournamentId]);
 
@@ -68,6 +81,31 @@ const PublicPlayerRegistration = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProfileLoaded = (profile: any) => {
+    setActiveProfile(profile);
+  };
+
+  const handlePrefillFromProfile = () => {
+    if (!activeProfile) return;
+    setFormData((prev: any) => ({
+      ...prev,
+      name: activeProfile.name || prev.name,
+      age: activeProfile.age ? String(activeProfile.age) : prev.age,
+      gender: activeProfile.gender || prev.gender,
+      mobile: activeProfile.mobile || prev.mobile,
+      email: activeProfile.email || prev.email,
+      address: activeProfile.address || prev.address,
+      skill: activeProfile.skill || prev.skill,
+    }));
+    setProfilePrefilled(true);
+  };
+
+  const handleLogout = () => {
+    clearPlayerToken();
+    setActiveProfile(null);
+    setProfilePrefilled(false);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -330,7 +368,63 @@ const PublicPlayerRegistration = () => {
                </Alert>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
+              {/* CricBid Profile Section */}
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+                {!activeProfile ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground">
+                      Have a CricBid profile? Login to auto-fill your details.
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowProfileModal(true)}
+                      >
+                        <LogIn className="w-4 h-4 mr-1" />
+                        Login / Create Profile
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        Logged in as <span className="font-semibold">{activeProfile.name || activeProfile.mobile}</span>
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground">
+                        <LogOut className="w-3 h-3 mr-1" />
+                        Logout
+                      </Button>
+                    </div>
+                    {!profilePrefilled ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handlePrefillFromProfile}
+                        className="w-full sm:w-auto"
+                      >
+                        Fill form from my profile
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-green-700">
+                        Details filled from your profile. Review and edit anything before submitting.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <PlayerProfileModal
+                open={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+                onProfileLoaded={handleProfileLoaded}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name *</Label>
