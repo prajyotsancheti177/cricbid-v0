@@ -180,8 +180,8 @@ const updateTeam = async (payload) => {
 
 /**
  * Credit a team extra auction points (host manually tops up a team's balance
- * after the owner pays cash outside the app). Only the tournament host or a
- * boss/super_user account may do this.
+ * after the owner pays cash outside the app). Any authenticated account may
+ * do this, not just the tournament's own host.
  */
 const topUpTeamBudget = async ({ teamId, amount, note, userId }) => {
     if (!teamId) throw new Error("teamId is required");
@@ -198,11 +198,12 @@ const topUpTeamBudget = async ({ teamId, amount, note, userId }) => {
     const tournament = await prisma.tournament.findUnique({ where: { id: team.touranmentId } });
     if (!tournament) throw new Error("Tournament not found");
 
+    // Any authenticated account (tournament_host, super_user, or boss — the
+    // only roles that exist) may top up a team's balance, matching who can
+    // reach the tournament management page in the first place.
     const requester = await prisma.user.findUnique({ where: { id: userId } });
-    const isHost = requester && requester.id === tournament.tournamentHostId;
-    const isAdmin = requester && ["boss", "super_user"].includes(requester.role);
-    if (!requester || (!isHost && !isAdmin)) {
-        throw new Error("Only the tournament host can top up a team's balance");
+    if (!requester) {
+        throw new Error("User not found");
     }
 
     const topup = await prisma.teamBudgetTopup.create({

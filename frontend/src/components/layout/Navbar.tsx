@@ -185,6 +185,7 @@ export const Navbar = () => {
               ))}
             </div>
 
+            {/* Cric Scoring button — commented out for now
             {userName && (
               <a
                 href="https://scoring.cricbid.online"
@@ -196,6 +197,7 @@ export const Navbar = () => {
                 Cric Scoring
               </a>
             )}
+            */}
 
             {userName ? (
               <div className="flex items-center gap-2 border-l pl-4">
@@ -325,6 +327,7 @@ export const Navbar = () => {
                       <User className="h-4 w-4" />
                       <span>Logged in as {userName}</span>
                     </div>
+                    {/* Cric Scoring link — commented out for now
                     <a
                       href="https://scoring.cricbid.online"
                       target="_blank"
@@ -334,6 +337,7 @@ export const Navbar = () => {
                       <Activity className="h-4 w-4" />
                       <span>Cric Scoring</span>
                     </a>
+                    */}
                     <button
                       onClick={handleLogout}
                       className="w-full px-4 py-3 rounded-lg font-medium text-left transition-all text-destructive hover:bg-destructive/10 flex items-center gap-2"
