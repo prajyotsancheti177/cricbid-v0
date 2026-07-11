@@ -53,12 +53,12 @@ export const TeamBudgetPanel = memo(({
                 <div
                   key={team._id}
                   className={cn(
-                    "flex items-center gap-2 px-2.5 py-2.5 rounded-xl border transition-all duration-200",
+                    "flex items-center gap-2 px-2.5 py-2.5 rounded-xl border",
                     isWarning
-                      ? "border-red-500/60 bg-red-500/10"
+                      ? "border-red-500/60 bg-red-500/10 transition-all duration-200"
                       : isLeading
-                        ? "border-primary/60 bg-primary/10 animate-glow-pulse"
-                        : "border-border/50 bg-background/40 hover:bg-muted/30"
+                        ? "border-primary/60 bg-primary/10 animate-glow-pulse transition-all duration-500"
+                        : "border-border/50 bg-background/40 hover:bg-muted/30 transition-all duration-200"
                   )}
                 >
                   <img
