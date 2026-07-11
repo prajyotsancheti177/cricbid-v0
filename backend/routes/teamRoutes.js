@@ -19,11 +19,14 @@ teamRouter.post("/detail", teamController.getTeamReport);
 // Update Individual Team - Protected
 teamRouter.post("/update", authMiddleware, teamController.updateTeam);
 
-// Top up a team's auction balance - Protected (host/admin check in service layer)
+// Top up a team's auction balance - Protected
 teamRouter.post("/topup-budget", authMiddleware, teamController.topUpTeamBudget);
 
 // Team budget top-up history for a tournament - Protected
 teamRouter.post("/topup-history", authMiddleware, teamController.getTeamBudgetTopups);
+
+// Delete a team budget top-up entry - Protected
+teamRouter.post("/topup-delete", authMiddleware, teamController.deleteTeamBudgetTopup);
 
 // Get All Team Names - Public (for viewing)
 teamRouter.post("/names", teamController.getTeamNames);

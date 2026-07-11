@@ -252,6 +252,34 @@ const getTeamBudgetTopups = async (touranmentId) => {
     }));
 };
 
+/**
+ * Remove a top-up entry (e.g. entered by mistake). Any authenticated
+ * account may do this, same as creating one. Returns the affected team's
+ * touranmentId so the caller can refresh/broadcast the live auction state.
+ */
+const deleteTeamBudgetTopup = async ({ topupId, userId }) => {
+    if (!topupId) throw new Error("topupId is required");
+    if (!userId) throw new Error("userId is required");
+
+    const requester = await prisma.user.findUnique({ where: { id: userId } });
+    if (!requester) throw new Error("User not found");
+
+    const topup = await prisma.teamBudgetTopup.findUnique({ where: { id: topupId } });
+    if (!topup) throw new Error("Top-up not found");
+
+    await prisma.teamBudgetTopup.delete({ where: { id: topupId } });
+
+    eventService.trackEvent({
+        userId,
+        tournamentId: topup.touranmentId,
+        eventType: "team_budget_topup_deleted",
+        page: "/teams",
+        eventData: { topupId, teamId: topup.teamId, amount: topup.amount },
+    }).catch(() => {});
+
+    return { teamId: topup.teamId, touranmentId: topup.touranmentId };
+};
+
 const getTeamNames = async (touranmentId) => {
     if (!touranmentId) throw new Error("touranmentId is required");
     const teams = await prisma.team.findMany({
@@ -336,6 +364,7 @@ module.exports = {
     updateTeam,
     topUpTeamBudget,
     getTeamBudgetTopups,
+    deleteTeamBudgetTopup,
     getTeamNames,
     getTeamNamesAndBudget,
     bulkCreateTeams,

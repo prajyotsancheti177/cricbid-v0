@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, Loader2, Coins } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Wallet, Loader2, Coins, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
@@ -48,6 +52,9 @@ const TournamentTopUpSection = () => {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<Topup | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${apiConfig.baseUrl}${path}`, {
@@ -102,6 +109,23 @@ const TournamentTopUpSection = () => {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to top up balance", variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await post("/api/team/topup-delete", { topupId: deleteTarget._id });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.message || "Failed to delete top-up");
+      toast({ title: "Top-up deleted", description: `${deleteTarget.teamName || "Team"} balance adjusted back` });
+      setDeleteTarget(null);
+      fetchData();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to delete top-up", variant: "destructive" });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -197,12 +221,40 @@ const TournamentTopUpSection = () => {
                       {formatDate(t.createdAt)}{t.createdBy?.name ? ` · by ${t.createdBy.name}` : ""}
                     </p>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive shrink-0"
+                    onClick={() => setDeleteTarget(t)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this top-up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the <strong>+{deleteTarget?.amount.toLocaleString("en-IN")} pts</strong> credit to{" "}
+              <strong>{deleteTarget?.teamName || "this team"}</strong> and reduce their remaining balance by that
+              amount. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDelete(); }} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

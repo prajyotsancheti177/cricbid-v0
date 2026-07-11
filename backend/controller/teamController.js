@@ -83,24 +83,26 @@ const updateTeam = async (req, res) => {
     }
 };
 
+// Refresh & broadcast to any live auction room for this tournament so a
+// balance change (top-up or delete) shows up immediately, same as after a sale.
+const broadcastTeamBudgetChange = async (req, touranmentId) => {
+    try {
+        const teamsReport = await teamService.getTournamentTeamsReport(touranmentId);
+        const teams = teamsReport?.[0]?.teams || [];
+        auctionStateManager.updateTeams(touranmentId, teams);
+        const io = req.app.get("io");
+        const newState = auctionStateManager.getAuctionState(touranmentId);
+        if (io && newState) io.of("/auction").to(touranmentId).emit("auction:state", newState);
+    } catch (broadcastError) {
+        console.error("Failed to broadcast team budget change:", broadcastError);
+    }
+};
+
 const topUpTeamBudget = async (req, res) => {
     try {
         const { teamId, amount, note, userId } = req.body;
         const result = await teamService.topUpTeamBudget({ teamId, amount, note, userId });
-
-        // Refresh & broadcast to any live auction room for this tournament so
-        // the new balance shows up immediately, same as after a player sale.
-        try {
-            const teamsReport = await teamService.getTournamentTeamsReport(result.touranmentId);
-            const teams = teamsReport?.[0]?.teams || [];
-            auctionStateManager.updateTeams(result.touranmentId, teams);
-            const io = req.app.get("io");
-            const newState = auctionStateManager.getAuctionState(result.touranmentId);
-            if (io && newState) io.of("/auction").to(result.touranmentId).emit("auction:state", newState);
-        } catch (broadcastError) {
-            console.error("Failed to broadcast team budget top-up:", broadcastError);
-        }
-
+        await broadcastTeamBudgetChange(req, result.touranmentId);
         return sendSuccess(res, 201, "Team balance topped up successfully", result);
     } catch (error) {
         return sendError(res, 400, "Failed to top up team balance!", error);
@@ -113,6 +115,17 @@ const getTeamBudgetTopups = async (req, res) => {
         return sendSuccess(res, 200, "Team budget top-up history fetched successfully", topups);
     } catch (error) {
         return sendError(res, 400, "Failed to get team budget top-up history!", error);
+    }
+};
+
+const deleteTeamBudgetTopup = async (req, res) => {
+    try {
+        const { topupId, userId } = req.body;
+        const result = await teamService.deleteTeamBudgetTopup({ topupId, userId });
+        await broadcastTeamBudgetChange(req, result.touranmentId);
+        return sendSuccess(res, 200, "Top-up deleted successfully", result);
+    } catch (error) {
+        return sendError(res, 400, "Failed to delete top-up!", error);
     }
 };
 
@@ -160,6 +173,7 @@ module.exports = {
     updateTeam,
     topUpTeamBudget,
     getTeamBudgetTopups,
+    deleteTeamBudgetTopup,
     getTeamNames,
     getTeamNamesAndBudget,
     bulkCreateTeams,

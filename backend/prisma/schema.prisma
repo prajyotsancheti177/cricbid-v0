@@ -31,6 +31,7 @@ enum Role {
 enum AuctionMode {
   category
   manual
+  serial
 }
 
 enum AuctionLogStatus {

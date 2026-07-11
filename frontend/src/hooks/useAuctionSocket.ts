@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 export interface AuctionState {
     tournamentId: string;
     isActive: boolean;
-    auctionMode: 'category' | 'manual' | null;
+    auctionMode: 'category' | 'manual' | 'serial' | null;
     selectedCategory: string | null;
     currentPlayer: Player | null;
     currentBid: number;
@@ -140,9 +140,9 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
         socketRef.current.emit("auction:start", { tournamentId, userId });
     }, [tournamentId, userId]);
 
-    const selectPlayer = useCallback((playerId?: string, category?: string) => {
+    const selectPlayer = useCallback((playerId?: string, category?: string, orderMode?: 'random' | 'serial') => {
         if (!tournamentId) return;
-        socketRef.current.emit("auction:selectPlayer", { tournamentId, playerId, category });
+        socketRef.current.emit("auction:selectPlayer", { tournamentId, playerId, category, orderMode });
     }, [tournamentId]);
 
     const placeBid = useCallback((teamId: string) => {

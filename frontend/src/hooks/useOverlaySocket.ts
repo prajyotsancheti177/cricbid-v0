@@ -6,7 +6,7 @@ import { Player, Team } from "@/types/auction";
 export interface OverlayAuctionState {
   tournamentId: string;
   isActive: boolean;
-  auctionMode: "category" | "manual" | null;
+  auctionMode: "category" | "manual" | "serial" | null;
   selectedCategory: string | null;
   currentPlayer: Player | null;
   currentBid: number;

@@ -72,6 +72,7 @@ const Auction = () => {
 
   const [showSearchDialog, setShowSearchDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [pendingOrderMode, setPendingOrderMode] = useState<"random" | "serial">("random");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -253,17 +254,25 @@ const Auction = () => {
 
   const handleNextPlayer = () => {
     // If we're already in an auction with a category selected, use that category
+    // and whatever order mode (random/serial) is already active for this auction.
     if (auctionState?.selectedCategory) {
-      actions.selectPlayer(undefined, auctionState.selectedCategory);
+      const orderMode = auctionState.auctionMode === "serial" ? "serial" : "random";
+      actions.selectPlayer(undefined, auctionState.selectedCategory, orderMode);
     } else {
       // Show category selection dialog for initial selection
+      setPendingOrderMode("random");
       setShowCategoryDialog(true);
     }
   };
 
+  const handleNextPlayerSerial = () => {
+    setPendingOrderMode("serial");
+    setShowCategoryDialog(true);
+  };
+
   const handleCategorySelect = (category: string) => {
     setShowCategoryDialog(false);
-    actions.selectPlayer(undefined, category);
+    actions.selectPlayer(undefined, category, pendingOrderMode);
   };
 
   const handleChangeMode = () => {
@@ -329,7 +338,10 @@ const Auction = () => {
           {isAuctioneer && (
             <div className="space-y-4">
               <Button onClick={handleNextPlayer} size="lg" className="w-full">
-                Start with Next Player (Category Mode)
+                Start with Next Player (Random Order)
+              </Button>
+              <Button onClick={handleNextPlayerSerial} size="lg" variant="secondary" className="w-full">
+                Start with Next Player (Serial Number Order)
               </Button>
               <Button onClick={() => setShowSearchDialog(true)} variant="outline" className="w-full">
                 Select Player Manually
@@ -342,7 +354,10 @@ const Auction = () => {
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Select Category</DialogTitle>
-                <DialogDescription>Choose which category to auction next</DialogDescription>
+                <DialogDescription>
+                  Choose which category to auction next
+                  {pendingOrderMode === "serial" ? " — players will come up in ascending serial number order" : ""}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 py-4">
                 <Button
@@ -461,6 +476,11 @@ const Auction = () => {
             {auctionState?.selectedCategory && auctionState.selectedCategory !== "All" && (
               <span className="text-xs md:text-sm px-2 py-0.5 rounded-full bg-secondary/20 text-secondary border border-secondary/30">
                 {auctionState.selectedCategory}
+              </span>
+            )}
+            {auctionState?.auctionMode === "serial" && (
+              <span className="text-xs md:text-sm px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                Serial Order
               </span>
             )}
           </div>
