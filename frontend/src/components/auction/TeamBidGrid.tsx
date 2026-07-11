@@ -15,7 +15,7 @@ interface TeamBidGridProps {
  * The auctioneer's "Click on Team to Bid" grid.
  * Memoized so it only re-renders when auction state that actually affects it
  * changes — not on every countdown-timer tick or viewer-count update, which
- * otherwise restart the leading team's `animate-shimmer-border` CSS animation
+ * otherwise restart the leading team's `animate-glow-pulse` CSS animation
  * from frame 0 on a ~1s cadence and make a slow, soft glow look like a flicker.
  */
 export const TeamBidGrid = memo(({ teams, currentBid, bidPrice, leadingTeam, teamBids, onBid }: TeamBidGridProps) => {
@@ -37,7 +37,7 @@ export const TeamBidGrid = memo(({ teams, currentBid, bidPrice, leadingTeam, tea
                 ${isWarning
                   ? "border-red-500 bg-red-500/20 hover:scale-[1.02] active:scale-[0.95]"
                   : leadingTeam === team._id
-                    ? "border-primary bg-primary/20 shadow-glow scale-105 animate-shimmer-border"
+                    ? "border-primary bg-primary/20 scale-105 animate-glow-pulse"
                     : "border-border hover:border-primary/60 hover:scale-[1.06] hover:shadow-glow hover:bg-primary/5"
                 }`}
             >

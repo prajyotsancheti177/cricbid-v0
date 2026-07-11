@@ -13,7 +13,7 @@ interface TeamBudgetPanelProps {
 
 // Memoized so it only re-renders when auction state that actually affects it
 // changes — not on every countdown-timer tick or viewer-count update, which
-// otherwise restart the leading team's `animate-shimmer-border` CSS animation
+// otherwise restart the leading team's `animate-glow-pulse` CSS animation
 // from frame 0 on a ~1s cadence and make a slow, soft glow look like a flicker.
 export const TeamBudgetPanel = memo(({
   teams,
@@ -57,7 +57,7 @@ export const TeamBudgetPanel = memo(({
                     isWarning
                       ? "border-red-500/60 bg-red-500/10"
                       : isLeading
-                        ? "border-primary/60 bg-primary/10 shadow-glow animate-shimmer-border"
+                        ? "border-primary/60 bg-primary/10 animate-glow-pulse"
                         : "border-border/50 bg-background/40 hover:bg-muted/30"
                   )}
                 >

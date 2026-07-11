@@ -135,11 +135,6 @@ export default {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%":      { transform: "translateY(-8px)" },
         },
-        // Leading-team shimmer border — slow, barely-there breathing glow
-        "shimmer-border": {
-          "0%, 100%": { borderColor: "hsl(263 70% 50% / 0.45)" },
-          "50%":      { borderColor: "hsl(30 100% 55% / 0.55)" },
-        },
         // Page fade-in for route transitions
         "page-enter": {
           "0%":   { opacity: "0", transform: "translateY(12px)" },
@@ -168,7 +163,6 @@ export default {
         "slam-in": "slam-in 0.5s cubic-bezier(0.68,-0.55,0.265,1.55)",
         "timer-pulse": "timer-pulse 0.7s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
-        "shimmer-border": "shimmer-border 6s ease-in-out infinite",
         "page-enter": "page-enter 0.35s ease-out both",
         "shake": "shake 0.4s ease-in-out",
       },
