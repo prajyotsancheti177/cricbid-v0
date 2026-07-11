@@ -165,7 +165,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
               <div className="text-center w-full px-2">
                 <p className="text-xs sm:text-base md:text-xl text-muted-foreground mb-0.5 md:mb-2 font-semibold">Current Bid</p>
                 <div className="text-xl sm:text-3xl md:text-6xl lg:text-7xl font-black text-secondary mb-0.5 md:mb-3 break-words leading-none">
-                  <AnimatedNumber value={currentBid} suffix=" Pts." duration={350} />
+                  <AnimatedNumber value={currentBid} suffix=" Pts." duration={150} />
                 </div>
                 {leadingTeamName && (
                   <div className="flex items-center justify-center gap-1.5 sm:gap-2 md:gap-3">

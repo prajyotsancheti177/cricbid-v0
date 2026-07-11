@@ -74,7 +74,7 @@ export const TeamBudgetPanel = ({
                         isWarning ? "text-red-400" : "text-secondary"
                       )}
                     >
-                      <AnimatedNumber value={team.maxBiddableAmount ?? 0} suffix=" Pts" duration={300} />
+                      <AnimatedNumber value={team.maxBiddableAmount ?? 0} suffix=" Pts" duration={150} />
                     </p>
                   </div>
                   <div

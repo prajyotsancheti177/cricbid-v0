@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface AnimatedNumberProps {
   value: number;
-  /** Duration of the count-up in ms (default 350) */
+  /** Duration of the count-up in ms (default 150 — fast enough to keep up with rapid bids) */
   duration?: number;
   /** Extra className forwarded to the wrapping span */
   className?: string;
@@ -17,18 +17,21 @@ interface AnimatedNumberProps {
  */
 export function AnimatedNumber({
   value,
-  duration = 350,
+  duration = 150,
   className = "",
   suffix = "",
 }: AnimatedNumberProps) {
   const [display, setDisplay] = useState(value);
-  const [pulsing, setPulsing] = useState(false);
+  const [pulseKey, setPulseKey] = useState(0);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
-  const fromRef = useRef(value);
+  // Mirrors `display` every frame so a bid that arrives mid-animation
+  // continues from the value actually on screen, instead of restarting
+  // from wherever the *previous* animation began.
+  const displayRef = useRef(value);
 
   useEffect(() => {
-    const from = fromRef.current;
+    const from = displayRef.current;
     const to = value;
 
     // Cancel any running animation
@@ -36,15 +39,10 @@ export function AnimatedNumber({
 
     if (from === to) return;
 
-    // Trigger the CSS pulse animation
-    setPulsing(false);
-    // Force a reflow so re-adding the class re-triggers the animation
-    requestAnimationFrame(() => {
-      setPulsing(true);
-      // Remove after one cycle (400 ms matches the keyframe duration)
-      setTimeout(() => setPulsing(false), 420);
-    });
-
+    // Bumping the key remounts the span below, which restarts the CSS
+    // pulse animation cleanly every time — no setTimeout bookkeeping, so
+    // back-to-back bids within one pulse cycle can't leave it stuck.
+    setPulseKey((k) => k + 1);
     startRef.current = null;
 
     const step = (timestamp: number) => {
@@ -53,13 +51,15 @@ export function AnimatedNumber({
       const progress = Math.min(elapsed / duration, 1);
       // Ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(from + (to - from) * eased));
+      const next = Math.round(from + (to - from) * eased);
+      displayRef.current = next;
+      setDisplay(next);
 
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(step);
       } else {
+        displayRef.current = to;
         setDisplay(to);
-        fromRef.current = to;
       }
     };
 
@@ -72,7 +72,8 @@ export function AnimatedNumber({
 
   return (
     <span
-      className={`inline-block tabular-nums ${pulsing ? "animate-bid-pulse" : ""} ${className}`}
+      key={pulseKey}
+      className={`inline-block tabular-nums ${pulseKey > 0 ? "animate-bid-pulse" : ""} ${className}`}
     >
       {display}
       {suffix}
