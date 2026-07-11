@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Team } from "@/types/auction";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
@@ -10,7 +11,11 @@ interface TeamBudgetPanelProps {
   leadingTeam: string | null;
 }
 
-export const TeamBudgetPanel = ({
+// Memoized so it only re-renders when auction state that actually affects it
+// changes — not on every countdown-timer tick or viewer-count update, which
+// otherwise restart the leading team's `animate-shimmer-border` CSS animation
+// from frame 0 on a ~1s cadence and make a slow, soft glow look like a flicker.
+export const TeamBudgetPanel = memo(({
   teams,
   currentBid,
   bidPrice,
@@ -149,4 +154,6 @@ export const TeamBudgetPanel = ({
       </div>
     </>
   );
-};
+});
+
+TeamBudgetPanel.displayName = "TeamBudgetPanel";

@@ -32,16 +32,32 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
 
         const socket = socketRef.current;
 
+        const joinRoom = () => {
+            socket.emit("auction:join", { tournamentId, userId });
+        };
+
         // Connect if not connected
         if (!socket.connected) {
             socket.connect();
+        } else {
+            // Socket was already connected (e.g. reused across page navigation)
+            // — the "connect" event below won't fire again, so join now.
+            joinRoom();
         }
 
-        // Join room
-        socket.emit("auction:join", { tournamentId, userId });
-
         // Event listeners
-        const onConnect = () => setIsConnected(true);
+        const onConnect = () => {
+            setIsConnected(true);
+            // Re-announce on every (re)connect, not just the first one. socket.io
+            // reconnects (network blip, tab backgrounded, laptop sleep, etc.)
+            // hand out a NEW socket.id — without re-joining, the server keeps
+            // treating this browser as a stranger, and a host who was mid-auction
+            // starts getting "Unauthorized: Only auctioneer can bid" on every
+            // action until they reload. The server already re-links a
+            // reconnecting socket.id to this userId's auctioneer status inside
+            // its auction:join handler; it just needs to be told again.
+            joinRoom();
+        };
         const onDisconnect = () => setIsConnected(false);
 
         const onStateUpdate = (state: AuctionState) => {
