@@ -156,7 +156,7 @@ export default {
         "scale-in": "scale-in 0.3s ease-out",
         "pop-in": "pop-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
         "slide-up": "slide-up 0.4s ease-out",
-        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "glow-pulse": "glow-pulse 4s ease-in-out infinite",
         "celebrate": "celebrate 0.6s ease-in-out",
         "bid-pulse": "bid-pulse 0.4s cubic-bezier(0.36,0.07,0.19,0.97)",
         "slide-in-up": "slide-in-up 0.45s cubic-bezier(0.22,1,0.36,1) both",
