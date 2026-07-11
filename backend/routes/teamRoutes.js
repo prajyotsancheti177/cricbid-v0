@@ -16,8 +16,12 @@ teamRouter.post("/all", teamController.getTournamentTeamsReport);
 // Get Individual Team Detail - Public (for viewing)
 teamRouter.post("/detail", teamController.getTeamReport);
 
-// Update Individual Team - Protected
-teamRouter.post("/update", authMiddleware, teamController.updateTeam);
+// Update Individual Team - Protected (multipart: uploadMiddleware must run
+// before authMiddleware, since only multer populates req.body for multipart requests)
+teamRouter.post("/update", uploadMiddleware.any(), authMiddleware, teamController.updateTeam);
+
+// Delete Individual Team - Protected
+teamRouter.post("/delete", authMiddleware, teamController.deleteTeam);
 
 // Top up a team's auction balance - Protected
 teamRouter.post("/topup-budget", authMiddleware, teamController.topUpTeamBudget);

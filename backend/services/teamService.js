@@ -179,6 +179,38 @@ const updateTeam = async (payload) => {
 };
 
 /**
+ * Delete a single team. Players on the team are unassigned automatically
+ * (teamId -> NULL, per the FK's ON DELETE SET NULL), but a team with
+ * existing auction bids or budget top-ups can't be deleted — those FKs are
+ * ON DELETE RESTRICT, since silently destroying that history would corrupt
+ * the audit trail. Callers get a clear error instead of a raw P2003.
+ */
+const deleteTeam = async ({ teamId, userId }) => {
+    if (!teamId) throw new Error("teamId is required");
+
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new Error("Team not found");
+
+    try {
+        await prisma.team.delete({ where: { id: teamId } });
+    } catch (e) {
+        if (e.code === 'P2025') throw new Error("Team not found");
+        if (e.code === 'P2003') throw new Error("Can't delete this team — it already has bid or top-up history for this tournament.");
+        throw e;
+    }
+
+    eventService.trackEvent({
+        userId: userId || null,
+        tournamentId: team.touranmentId || null,
+        eventType: "team_deleted",
+        page: "/teams",
+        eventData: { teamId: team.id, teamName: team.name },
+    }).catch(() => {});
+
+    return { teamId: team.id, touranmentId: team.touranmentId };
+};
+
+/**
  * Credit a team extra auction points (host manually tops up a team's balance
  * after the owner pays cash outside the app). Any authenticated account may
  * do this, not just the tournament's own host.
@@ -362,6 +394,7 @@ module.exports = {
     getTournamentTeamsReport,
     getTeamReport,
     updateTeam,
+    deleteTeam,
     topUpTeamBudget,
     getTeamBudgetTopups,
     deleteTeamBudgetTopup,

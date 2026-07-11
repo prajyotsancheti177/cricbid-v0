@@ -74,18 +74,10 @@ const getTeamReport = async (req, res) => {
     }
 }
 
-const updateTeam = async (req, res) => {
-    try {
-        const updatedTeam = await teamService.updateTeam(req.body);
-        return sendSuccess(res, 200, "Team updated successfully", updatedTeam);
-    } catch (error) {
-        return sendError(res, 400, "Failed to update team!", error);
-    }
-};
-
 // Refresh & broadcast to any live auction room for this tournament so a
-// balance change (top-up or delete) shows up immediately, same as after a sale.
-const broadcastTeamBudgetChange = async (req, touranmentId) => {
+// team change (edit, delete, top-up) shows up immediately, same as after a sale.
+const broadcastTeamsChanged = async (req, touranmentId) => {
+    if (!touranmentId) return;
     try {
         const teamsReport = await teamService.getTournamentTeamsReport(touranmentId);
         const teams = teamsReport?.[0]?.teams || [];
@@ -94,7 +86,46 @@ const broadcastTeamBudgetChange = async (req, touranmentId) => {
         const newState = auctionStateManager.getAuctionState(touranmentId);
         if (io && newState) io.of("/auction").to(touranmentId).emit("auction:state", newState);
     } catch (broadcastError) {
-        console.error("Failed to broadcast team budget change:", broadcastError);
+        console.error("Failed to broadcast teams change:", broadcastError);
+    }
+};
+
+const updateTeam = async (req, res) => {
+    try {
+        const { teamId, name, ownerName, ownerEmail, ownerMobile, userId } = req.body;
+
+        // logo: undefined (client didn't send it) leaves it untouched; a new
+        // uploaded file overrides it. Never fall back to "" here — that would
+        // wipe an existing logo just because no replacement was chosen.
+        let logo = req.body.logo;
+        if (req.files && Array.isArray(req.files)) {
+            const logoFile = req.files.find(f => f.fieldname === 'logo');
+            if (logoFile) logo = logoFile.location || logoFile.path;
+        }
+
+        const hasOwnerFields = ownerName || ownerEmail || ownerMobile;
+        const updatedTeam = await teamService.updateTeam({
+            teamId,
+            userId,
+            name,
+            logo,
+            owner: hasOwnerFields ? { name: ownerName, email: ownerEmail, mobile: ownerMobile } : undefined,
+        });
+        await broadcastTeamsChanged(req, updatedTeam.touranmentId);
+        return sendSuccess(res, 200, "Team updated successfully", updatedTeam);
+    } catch (error) {
+        return sendError(res, 400, "Failed to update team!", error);
+    }
+};
+
+const deleteTeam = async (req, res) => {
+    try {
+        const { teamId, userId } = req.body;
+        const result = await teamService.deleteTeam({ teamId, userId });
+        await broadcastTeamsChanged(req, result.touranmentId);
+        return sendSuccess(res, 200, "Team deleted successfully", result);
+    } catch (error) {
+        return sendError(res, 400, "Failed to delete team!", error);
     }
 };
 
@@ -102,7 +133,7 @@ const topUpTeamBudget = async (req, res) => {
     try {
         const { teamId, amount, note, userId } = req.body;
         const result = await teamService.topUpTeamBudget({ teamId, amount, note, userId });
-        await broadcastTeamBudgetChange(req, result.touranmentId);
+        await broadcastTeamsChanged(req, result.touranmentId);
         return sendSuccess(res, 201, "Team balance topped up successfully", result);
     } catch (error) {
         return sendError(res, 400, "Failed to top up team balance!", error);
@@ -122,7 +153,7 @@ const deleteTeamBudgetTopup = async (req, res) => {
     try {
         const { topupId, userId } = req.body;
         const result = await teamService.deleteTeamBudgetTopup({ topupId, userId });
-        await broadcastTeamBudgetChange(req, result.touranmentId);
+        await broadcastTeamsChanged(req, result.touranmentId);
         return sendSuccess(res, 200, "Top-up deleted successfully", result);
     } catch (error) {
         return sendError(res, 400, "Failed to delete top-up!", error);
@@ -171,6 +202,7 @@ module.exports = {
     getTournamentTeamsReport,
     getTeamReport,
     updateTeam,
+    deleteTeam,
     topUpTeamBudget,
     getTeamBudgetTopups,
     deleteTeamBudgetTopup,
