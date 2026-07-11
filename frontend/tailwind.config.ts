@@ -168,7 +168,7 @@ export default {
         "slam-in": "slam-in 0.5s cubic-bezier(0.68,-0.55,0.265,1.55)",
         "timer-pulse": "timer-pulse 0.7s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
-        "shimmer-border": "shimmer-border 3s ease-in-out infinite",
+        "shimmer-border": "shimmer-border 1s ease-in-out infinite",
         "page-enter": "page-enter 0.35s ease-out both",
         "shake": "shake 0.4s ease-in-out",
       },
