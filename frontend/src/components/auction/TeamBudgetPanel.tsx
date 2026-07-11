@@ -57,7 +57,12 @@ export const TeamBudgetPanel = memo(({
                     isWarning
                       ? "border-red-500/60 bg-red-500/10 transition-all duration-200"
                       : isLeading
-                        ? "border-primary/60 bg-primary/10 animate-glow-pulse transition-all duration-500"
+                        // No duration-* class here: tailwindcss-animate defines its own
+                        // .duration-N { animation-duration: Ns } utility sharing the same
+                        // class name as the core transition-duration utility, which was
+                        // silently overriding animate-glow-pulse's real (8s) duration down
+                        // to whatever duration-N was on the element the whole time.
+                        ? "border-primary/60 bg-primary/10 animate-glow-pulse"
                         : "border-border/50 bg-background/40 hover:bg-muted/30 transition-all duration-200"
                   )}
                 >

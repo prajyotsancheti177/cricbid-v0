@@ -17,6 +17,13 @@ interface TeamBidGridProps {
  * changes — not on every countdown-timer tick or viewer-count update, which
  * otherwise restart the leading team's `animate-glow-pulse` CSS animation
  * from frame 0 on a ~1s cadence and make a slow, soft glow look like a flicker.
+ *
+ * Note: no `duration-*` class on the button. `tailwindcss-animate` defines
+ * its own `.duration-N { animation-duration: Ns }` utility sharing the same
+ * class name as the core transition-duration utility, which silently
+ * overrides animate-glow-pulse's real duration to whatever duration-N is on
+ * the element. `transition-all` alone already carries a 150ms default and
+ * doesn't touch animation-duration, so it's safe here.
  */
 export const TeamBidGrid = memo(({ teams, currentBid, bidPrice, leadingTeam, teamBids, onBid }: TeamBidGridProps) => {
   return (
@@ -32,7 +39,7 @@ export const TeamBidGrid = memo(({ teams, currentBid, bidPrice, leadingTeam, tea
           <div key={team._id} className="flex flex-col items-center">
             <button
               onClick={() => onBid(team._id)}
-              className={`w-full p-3 md:p-4 min-h-[56px] rounded-xl border-2 transition-all duration-200
+              className={`w-full p-3 md:p-4 min-h-[56px] rounded-xl border-2 transition-all
                 active:scale-[0.93] select-none
                 ${isWarning
                   ? "border-red-500 bg-red-500/20 hover:scale-[1.02] active:scale-[0.95]"
