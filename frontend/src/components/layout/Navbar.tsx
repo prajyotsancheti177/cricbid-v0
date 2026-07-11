@@ -362,15 +362,6 @@ export const Navbar = () => {
                 <p className="px-4 py-2 text-sm text-muted-foreground">Contact Us</p>
                 <div className="flex flex-col gap-2">
                   <a
-                    href="https://wa.me/918208216407"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm font-medium">Pushkar Sancheti: 8208216407</span>
-                  </a>
-                  <a
                     href="https://wa.me/919423931031"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -378,15 +369,6 @@ export const Navbar = () => {
                   >
                     <Phone className="h-4 w-4" />
                     <span className="text-sm font-medium">Dr. Kartik Bakliwal: 9423931031</span>
-                  </a>
-                  <a
-                    href="https://wa.me/919309848331"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm font-medium">Prajyot Sancheti: 9309848331</span>
                   </a>
                 </div>
               </div>

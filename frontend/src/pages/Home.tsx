@@ -289,15 +289,6 @@ export default function Home() {
                         <p className="text-sm text-muted-foreground mb-3">Contact Us</p>
                         <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
                             <a
-                                href="https://wa.me/918208216407"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span className="font-medium text-sm">Pushkar Sancheti: 8208216407</span>
-                            </a>
-                            <a
                                 href="https://wa.me/919423931031"
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -305,15 +296,6 @@ export default function Home() {
                             >
                                 <Phone className="w-4 h-4" />
                                 <span className="font-medium text-sm">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                            <a
-                                href="https://wa.me/919309848331"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span className="font-medium text-sm">Prajyot Sancheti: 9309848331</span>
                             </a>
                         </div>
                     </motion.div>
@@ -647,15 +629,6 @@ export default function Home() {
                         <h3 className="text-xl font-semibold text-muted-foreground mb-2">Contact Us</h3>
                         <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 sm:gap-4">
                             <a
-                                href="https://wa.me/918208216407"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="font-semibold text-sm sm:text-base">Pushkar Sancheti: 8208216407</span>
-                            </a>
-                            <a
                                 href="https://wa.me/919423931031"
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -663,15 +636,6 @@ export default function Home() {
                             >
                                 <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                                 <span className="font-semibold text-sm sm:text-base">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                            <a
-                                href="https://wa.me/919309848331"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="font-semibold text-sm sm:text-base">Prajyot Sancheti: 9309848331</span>
                             </a>
                         </div>
                     </div>
