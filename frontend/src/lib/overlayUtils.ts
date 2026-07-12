@@ -44,7 +44,7 @@ export const formatOverlayPrice = (amount: number): string => {
   if (amount >= 100000) {
     return `${(amount / 100000).toFixed(2)} L`;
   }
-  return `${amount.toLocaleString("en-IN")} Pts.`;
+  return `${amount.toLocaleString("en-IN")} Pts`;
 };
 
 /**

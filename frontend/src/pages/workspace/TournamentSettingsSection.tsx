@@ -142,7 +142,7 @@ const TournamentSettingsSection = () => {
         </CardHeader>
         <CardContent>
           <SummaryRow label="Name" value={tournament.name || "—"} />
-          <SummaryRow label="Total budget" value={`₹${(tournament.totalBudget || 0).toLocaleString()}`} />
+          <SummaryRow label="Total budget" value={`${(tournament.totalBudget || 0).toLocaleString()} Pts`} />
           <SummaryRow label="Teams" value={String(tournament.noOfTeams ?? "—")} />
           <SummaryRow label="Players per team" value={`${tournament.minPlayersPerTeam ?? 0} – ${tournament.maxPlayersPerTeam ?? 0}`} />
           <SummaryRow label="Categories" value={(tournament.playerCategories || []).join(", ") || "—"} />

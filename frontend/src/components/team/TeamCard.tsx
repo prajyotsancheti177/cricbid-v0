@@ -48,13 +48,13 @@ export const TeamCard = ({ team }: TeamCardProps) => {
                 <span className="text-sm font-medium">Budget</span>
               </div>
               <span className="text-sm font-bold text-foreground">
-                {team.remainingBudget.toLocaleString()} <span className="text-muted-foreground font-normal">/ {totalBudget.toLocaleString()}</span>
+                {team.remainingBudget.toLocaleString()} <span className="text-muted-foreground font-normal">/ {totalBudget.toLocaleString()} Pts</span>
               </span>
             </div>
             <Progress value={budgetUsedPercentage} className="h-2" />
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Spent: <span className="text-secondary font-medium">{team.totalSpent.toLocaleString()}</span></span>
-              <span className="text-accent font-medium">{team.remainingBudget.toLocaleString()} remaining</span>
+              <span className="text-muted-foreground">Spent: <span className="text-secondary font-medium">{team.totalSpent.toLocaleString()} Pts</span></span>
+              <span className="text-accent font-medium">{team.remainingBudget.toLocaleString()} Pts remaining</span>
             </div>
           </div>
 

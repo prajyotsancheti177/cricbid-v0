@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, Users, Calendar, DollarSign, ArrowRight, Megaphone, Loader2 } from "lucide-react";
+import { Trophy, Users, Calendar, Wallet, ArrowRight, Megaphone, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
@@ -257,11 +257,11 @@ const Tournaments = () => {
                   {/* Budget */}
                   <div className="flex items-center justify-between p-1.5 sm:p-3 bg-muted rounded-md sm:rounded-lg">
                     <div className="flex items-center gap-1 sm:gap-2">
-                      <DollarSign className="h-3 w-3 sm:h-5 sm:w-5 text-primary" />
+                      <Wallet className="h-3 w-3 sm:h-5 sm:w-5 text-primary" />
                       <span className="font-medium text-xs sm:text-base">Budget</span>
                     </div>
                     <Badge variant="default" className="text-xs sm:text-base font-bold px-1.5 sm:px-3">
-                      ₹{formatCurrency(tournament.totalBudget)}
+                      {formatCurrency(tournament.totalBudget)} Pts
                     </Badge>
                   </div>
 

@@ -300,7 +300,7 @@ const CameraHudOverlay = () => {
                   <div className="overlay-item-sub" style={{ color: getTeamColor(player.teamName || "") }}>{player.teamName}</div>
                 </div>
               </div>
-              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold}</div>
+              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold} <span className="overlay-item-sub">Pts</span></div>
             </div>
           ))}
         </div>

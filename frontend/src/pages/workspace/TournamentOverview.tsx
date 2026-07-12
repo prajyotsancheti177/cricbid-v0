@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, Share2, Users, Shield, DollarSign, Loader2 } from "lucide-react";
+import { Play, Plus, Share2, Users, Shield, Wallet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace } from "./TournamentWorkspace";
@@ -65,7 +65,7 @@ const TournamentOverview = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Budget" value={`₹${(tournament.totalBudget || 0).toLocaleString()}`} icon={DollarSign} />
+        <Stat label="Budget" value={`${(tournament.totalBudget || 0).toLocaleString()} Pts`} icon={Wallet} />
         <Stat label="Teams" value={loading ? "…" : String(stats?.teams ?? 0)} icon={Shield} />
         <Stat label="Players" value={loading ? "…" : String(stats?.players ?? 0)} icon={Users} />
         <Stat label="Sold" value={loading ? "…" : `${stats?.sold ?? 0} / ${stats?.players ?? 0}`} icon={Users} />

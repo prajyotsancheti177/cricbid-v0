@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Trophy, Users, DollarSign, UserMinus, UsersRound, RotateCcw, Plus, Link, Loader2, MoreHorizontal, Pencil } from "lucide-react";
+import { Trash2, Trophy, Users, Wallet, UserMinus, UsersRound, RotateCcw, Plus, Link, Loader2, MoreHorizontal, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -376,8 +376,8 @@ export default function TournamentManagement() {
                       {tournament.minPlayersPerTeam || 0} - {tournament.maxPlayersPerTeam || 0}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      <DollarSign className="inline h-4 w-4" />
-                      {tournament.totalBudget?.toLocaleString() || "0"}
+                      <Wallet className="inline h-4 w-4" />
+                      {tournament.totalBudget?.toLocaleString() || "0"} Pts
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">

@@ -35,7 +35,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
 
   // console.log("Rendering PlayerCard for:", player);
   const formatPrice = (price: number) => {
-    return `${price} Pts.`;
+    return `${price} Pts`;
   };
 
   const logoSrc = getDriveThumbnail(player.photo as unknown as string);
@@ -152,7 +152,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
                 </span>
               )}
               <p className="text-[10px] sm:text-xs md:text-lg text-muted-foreground font-semibold mt-0.5 md:mt-2">
-                Base: {player.basePrice} Pts. | Increment: {bidPrice} Pts.
+                Base: {player.basePrice} Pts | Increment: {bidPrice} Pts
               </p>
             </div>
           )}
@@ -163,7 +163,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
               <div className="text-center w-full px-2">
                 <p className="text-xs sm:text-base md:text-xl text-muted-foreground mb-0.5 md:mb-2 font-semibold">Current Bid</p>
                 <div className="text-xl sm:text-3xl md:text-6xl lg:text-7xl font-black text-secondary mb-0.5 md:mb-3 break-words leading-none">
-                  {currentBid} Pts.
+                  {currentBid} Pts
                 </div>
                 {leadingTeamName && (
                   <div className="flex items-center justify-center gap-1.5 sm:gap-2 md:gap-3">
