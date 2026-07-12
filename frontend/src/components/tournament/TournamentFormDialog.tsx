@@ -150,7 +150,7 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       maxPlayersPerTeam: Number(formData.maxPlayersPerTeam),
       minPlayersPerTeam: Number(formData.minPlayersPerTeam),
       totalBudget: Number(formData.totalBudget),
-      auctionDate: formData.auctionDate || null,
+      auctionDate: formData.auctionDate ? new Date(formData.auctionDate).toISOString() : null,
       playerCategories: categories,
       categoryBasePrices,
       bidIncrementSlabs: formData.bidIncrementSlabs,

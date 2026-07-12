@@ -12,6 +12,10 @@ const TOURNAMENT_FIELDS = [
 const pickTournament = (data) => {
     const out = {};
     for (const k of TOURNAMENT_FIELDS) if (data[k] !== undefined) out[k] = data[k];
+    // Prisma requires a full ISO-8601 DateTime, but callers (e.g. an
+    // <input type="date">) commonly send a bare "YYYY-MM-DD" string — coerce
+    // it here so a date-only value doesn't crash the update/create.
+    if (out.auctionDate != null) out.auctionDate = new Date(out.auctionDate);
     return out;
 };
 

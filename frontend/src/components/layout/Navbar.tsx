@@ -203,7 +203,11 @@ export const Navbar = () => {
               <div className="flex items-center gap-2 border-l pl-4">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 rounded-full border-border bg-muted/40 hover:bg-muted hover:border-primary/40 transition-colors"
+                    >
                       <User className="h-4 w-4" />
                       <span className="max-w-[140px] truncate">{userName}</span>
                       <ChevronDown className="h-4 w-4 opacity-60" />
