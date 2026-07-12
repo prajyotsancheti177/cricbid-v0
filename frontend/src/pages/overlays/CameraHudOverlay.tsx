@@ -48,7 +48,6 @@ const CameraHudOverlay = () => {
   const [showTopPlayersPanel, setShowTopPlayersPanel] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [showPromoBanner, setShowPromoBanner] = useState(false);
   const [overlayStats, setOverlayStats] = useState<any>(null);
 
   const prevPlayerRef = useRef<string | null>(null);
@@ -117,26 +116,11 @@ const CameraHudOverlay = () => {
       }, 60000);
     }, 30000);
 
-    // Promo banner: 60s off, 30s on
-    let promoInterval: NodeJS.Timeout;
-    let promoTimeout: NodeJS.Timeout;
-    const initialPromoTimeout = setTimeout(() => {
-      setShowPromoBanner(true);
-      promoTimeout = setTimeout(() => setShowPromoBanner(false), 30000);
-      promoInterval = setInterval(() => {
-        setShowPromoBanner(true);
-        promoTimeout = setTimeout(() => setShowPromoBanner(false), 30000);
-      }, 90000);
-    }, 60000);
-
     return () => {
       clearInterval(teamsInterval);
       clearInterval(topPlayersInterval);
       clearTimeout(qrTimeout);
       if (qrInterval) clearInterval(qrInterval);
-      clearTimeout(initialPromoTimeout);
-      if (promoTimeout) clearTimeout(promoTimeout);
-      if (promoInterval) clearInterval(promoInterval);
     };
   }, [tournamentId]);
 
@@ -222,37 +206,6 @@ const CameraHudOverlay = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Promotional Banner */}
-      {showPromoBanner && (
-        <div
-          className="overlay-glass anim-fade-in"
-          style={{
-            position: "absolute",
-            top: overlayStats?.recentPlayers?.length > 0 ? 40 : 0,
-            left: 0,
-            width: "100%",
-            padding: "10px 24px",
-            borderRadius: "0",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 12,
-            fontSize: 20,
-            fontWeight: 700,
-            color: "rgba(255, 255, 255, 0.95)",
-            zIndex: 80,
-            whiteSpace: "nowrap",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-            borderTop: "none",
-            borderLeft: "none",
-            borderRight: "none"
-          }}
-        >
-          <span style={{ color: "#a78bfa" }}>⚡</span>
-          To conduct hassle free auctions with advanced features contact <span style={{ color: "#fbbf24", fontWeight: 900 }}>8208216407</span>
         </div>
       )}
 
