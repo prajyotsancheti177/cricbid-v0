@@ -20,3 +20,4 @@ npm-debug.log*
 
 # Local DB backups (do not commit data)
 backups/
+.claude/worktrees/
