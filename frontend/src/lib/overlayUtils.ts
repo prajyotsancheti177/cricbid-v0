@@ -36,7 +36,7 @@ export const getTeamColor = (teamNameOrId: string): string => {
 
 /**
  * Format a bid amount for large overlay display.
- * Uses the "Pts." suffix consistent with the rest of the app.
+ * Uses the "Pts" suffix consistent with the rest of the app.
  */
 export const formatOverlayPrice = (amount: number): string => {
   if (amount >= 10000000) {
@@ -45,7 +45,7 @@ export const formatOverlayPrice = (amount: number): string => {
   if (amount >= 100000) {
     return `${(amount / 100000).toFixed(2)} L`;
   }
-  return `${amount.toLocaleString("en-IN")} Pts.`;
+  return `${amount.toLocaleString("en-IN")} Pts`;
 };
 
 /**

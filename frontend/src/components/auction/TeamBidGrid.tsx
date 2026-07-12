@@ -63,7 +63,7 @@ export const TeamBidGrid = memo(({ teams, currentBid, bidPrice, leadingTeam, tea
                 {team.remainingBudget} Pts • {(team.maxPlayersPerTeam || 0) - (team.playersCount || 0)} slots
               </div>
               {teamBids[team._id] && (
-                <p className="text-[11px] md:text-xs text-primary font-bold mt-1 text-center">{teamBids[team._id]} Pts.</p>
+                <p className="text-[11px] md:text-xs text-primary font-bold mt-1 text-center">{teamBids[team._id]} Pts</p>
               )}
             </button>
           </div>

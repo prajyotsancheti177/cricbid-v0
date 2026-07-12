@@ -293,7 +293,7 @@ const SplitScreenOverlay = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
                 <span className="overlay-label" style={{ fontSize: 16 }}>Base Price</span>
                 <span style={{ fontSize: 24, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>
-                  {currentPlayer.basePrice ?? 0} Pts.
+                  {currentPlayer.basePrice ?? 0} Pts
                 </span>
               </div>
             </div>
@@ -309,11 +309,11 @@ const SplitScreenOverlay = () => {
                 className={`overlay-bid-amount-sm ${bidPulse ? "anim-bid-pulse" : ""}`}
                 style={{ fontSize: 52 }}
               >
-                {currentBid} Pts.
+                {currentBid} Pts
               </div>
               {bidPrice > 0 && (
                 <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", marginTop: 4, display: "block" }}>
-                  Next increment: +{bidPrice} Pts.
+                  Next increment: +{bidPrice} Pts
                 </span>
               )}
             </div>
@@ -405,7 +405,7 @@ const SplitScreenOverlay = () => {
                         {bid.teamName}
                       </span>
                       <span style={{ fontWeight: 800, color: i === 0 ? "#fbbf24" : "rgba(255,255,255,0.5)" }}>
-                        {bid.amount} Pts.
+                        {bid.amount} Pts
                       </span>
                     </div>
                   ))}

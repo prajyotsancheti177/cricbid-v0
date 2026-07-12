@@ -303,7 +303,7 @@ const CameraHudOverlay = () => {
                   <div className="overlay-item-sub" style={{ color: getTeamColor(player.teamName || "") }}>{player.teamName}</div>
                 </div>
               </div>
-              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold}</div>
+              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold} <span className="overlay-item-sub">Pts</span></div>
             </div>
           ))}
         </div>
@@ -412,7 +412,7 @@ const CameraHudOverlay = () => {
                   className={`overlay-bid-amount ${bidPulse ? "anim-bid-pulse" : ""}`}
                   style={{ fontSize: 68, marginBottom: 8 }}
                 >
-                  {currentBid} <span style={{ fontSize: 40 }}>Pts.</span>
+                  {currentBid} <span style={{ fontSize: 40 }}>Pts</span>
                 </div>
 
                 {leadingTeamData ? (

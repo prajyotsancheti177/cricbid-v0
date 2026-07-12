@@ -143,7 +143,7 @@ export async function exportAuctionReport(tournamentName: string, tournamentId: 
 
   const stats = [
     { label: "Players Sold", value: soldPlayers.length.toString(), color: GREEN },
-    { label: "Total Spent", value: `₹${totalRevenue.toLocaleString("en-IN")}`, color: PURPLE },
+    { label: "Total Spent", value: `${totalRevenue.toLocaleString("en-IN")} Pts`, color: PURPLE },
     { label: "Unsold Players", value: unsoldPlayers.length.toString(), color: AMBER },
   ];
 
@@ -185,7 +185,7 @@ export async function exportAuctionReport(tournamentName: string, tournamentId: 
       team.name,
       team.ownerName || "—",
       tp.length.toString(),
-      `₹${spent.toLocaleString("en-IN")}`,
+      `${spent.toLocaleString("en-IN")} Pts`,
     ];
   });
 
@@ -251,7 +251,7 @@ export async function exportAuctionReport(tournamentName: string, tournamentId: 
     doc.text(ownerLabel + mobileLabel, 21, bannerY + 17);
 
     // Spent badge on right
-    const spentText = `₹${teamSpent.toLocaleString("en-IN")} spent`;
+    const spentText = `${teamSpent.toLocaleString("en-IN")} Pts spent`;
     const badgeW = doc.getTextWidth(spentText) + 10;
     const badgeX = pw - 14 - badgeW;
     doc.setFillColor(255, 255, 255, 0.15);
@@ -278,7 +278,7 @@ export async function exportAuctionReport(tournamentName: string, tournamentId: 
         p.name || "—",
         p.playerCategory || "—",
         p.skill || "—",
-        p.amtSold > 0 ? `₹${p.amtSold.toLocaleString("en-IN")}` : "—",
+        p.amtSold > 0 ? `${p.amtSold.toLocaleString("en-IN")} Pts` : "—",
       ]);
 
       autoTable(doc, {

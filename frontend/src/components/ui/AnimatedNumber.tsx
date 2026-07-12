@@ -6,7 +6,7 @@ interface AnimatedNumberProps {
   duration?: number;
   /** Extra className forwarded to the wrapping span */
   className?: string;
-  /** Suffix appended after the number, e.g. " Pts." */
+  /** Suffix appended after the number, e.g. " Pts" */
   suffix?: string;
 }
 

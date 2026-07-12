@@ -284,7 +284,7 @@ const FullscreenOverlay = () => {
                   marginTop: 4,
                 }}
               >
-                {currentPlayer.basePrice ?? 0} Pts.
+                {currentPlayer.basePrice ?? 0} Pts
               </div>
             </div>
 
@@ -297,7 +297,7 @@ const FullscreenOverlay = () => {
                 className={`overlay-bid-amount ${bidPulse ? "anim-bid-pulse" : ""}`}
                 style={{ marginTop: 8 }}
               >
-                {currentBid} Pts.
+                {currentBid} Pts
               </div>
             </div>
 
@@ -405,7 +405,7 @@ const FullscreenOverlay = () => {
                 >
                   to {soldInfo.teamName} for{" "}
                   <span style={{ color: "#fbbf24", fontWeight: 900 }}>
-                    {soldInfo.amount} Pts.
+                    {soldInfo.amount} Pts
                   </span>
                 </div>
               </div>

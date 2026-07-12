@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, Users, Calendar, DollarSign, ArrowLeft, UserCircle, Shield } from "lucide-react";
+import { Trophy, Users, Calendar, Wallet, ArrowLeft, UserCircle, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
@@ -188,9 +188,9 @@ const TournamentDetail = () => {
 
               {/* Budget */}
               <div className="flex-1 p-2 sm:p-4 bg-muted rounded-lg text-center">
-                <DollarSign className="h-4 w-4 sm:h-6 md:h-8 text-primary mx-auto mb-0.5 sm:mb-1" />
+                <Wallet className="h-4 w-4 sm:h-6 md:h-8 text-primary mx-auto mb-0.5 sm:mb-1" />
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Budget</p>
-                <p className="text-lg sm:text-2xl md:text-3xl font-bold">₹{formatCurrency(tournament.totalBudget)}</p>
+                <p className="text-lg sm:text-2xl md:text-3xl font-bold">{formatCurrency(tournament.totalBudget)} Pts</p>
               </div>
             </div>
 

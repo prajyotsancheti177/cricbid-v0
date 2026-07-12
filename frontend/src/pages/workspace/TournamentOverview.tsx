@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Plus, Share2, Users, Shield, DollarSign } from "lucide-react";
+import { Play, Plus, Share2, Users, Shield, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace } from "./TournamentWorkspace";
@@ -79,7 +79,7 @@ const TournamentOverview = () => {
           </>
         ) : (
           <>
-            <Stat label="Budget" value={`₹${(tournament.totalBudget || 0).toLocaleString()}`} icon={DollarSign} />
+            <Stat label="Budget" value={`${(tournament.totalBudget || 0).toLocaleString()} Pts`} icon={Wallet} />
             <Stat label="Teams" value={String(stats?.teams ?? 0)} icon={Shield} />
             <Stat label="Players" value={String(stats?.players ?? 0)} icon={Users} />
             <Stat label="Sold" value={`${stats?.sold ?? 0} / ${stats?.players ?? 0}`} icon={Users} />
