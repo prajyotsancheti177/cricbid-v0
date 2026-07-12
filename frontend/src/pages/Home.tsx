@@ -15,6 +15,7 @@ import {
     Shield,
     Globe,
     ChevronDown,
+    Phone,
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -265,6 +266,27 @@ export default function Home() {
                         </Button>
                     </motion.div>
 
+                    {/* Contact Info */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1 }}
+                        className="mt-8 md:mt-10"
+                    >
+                        <p className="text-sm text-muted-foreground mb-3">Contact Us</p>
+                        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
+                            <a
+                                href="https://wa.me/919423931031"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
+                            >
+                                <Phone className="w-4 h-4" />
+                                <span className="font-medium text-sm">Dr. Kartik Bakliwal: 9423931031</span>
+                            </a>
+                        </div>
+                    </motion.div>
+
                     {/* Scroll Indicator */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -512,6 +534,22 @@ export default function Home() {
                     <p className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 md:mb-10 px-4">
                         Join hundreds of tournament organizers who trust Vardhaman cricBid for their player auctions.
                     </p>
+
+                    {/* Contact Info */}
+                    <div className="flex flex-col items-center justify-center gap-4 mb-8">
+                        <h3 className="text-xl font-semibold text-muted-foreground mb-2">Contact Us</h3>
+                        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 sm:gap-4">
+                            <a
+                                href="https://wa.me/919423931031"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
+                            >
+                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-semibold text-sm sm:text-base">Dr. Kartik Bakliwal: 9423931031</span>
+                            </a>
+                        </div>
+                    </div>
 
                     <Button
                         size="lg"
