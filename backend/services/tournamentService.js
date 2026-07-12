@@ -5,7 +5,7 @@ const { serializeTournament, serializeTeam, serializePlayer } = require("../util
 // Whitelist of tournament fields writable from request bodies
 const TOURNAMENT_FIELDS = [
     'name', 'tournamentHostId', 'noOfTeams', 'maxPlayersPerTeam', 'minPlayersPerTeam',
-    'totalBudget', 'playerCategories', 'categoryBasePrices', 'bidIncrementSlabs',
+    'totalBudget', 'auctionDate', 'playerCategories', 'categoryBasePrices', 'bidIncrementSlabs',
     'registrationFormConfig', 'features',
 ];
 const pickTournament = (data) => {

@@ -88,6 +88,7 @@ model Tournament {
   maxPlayersPerTeam Int?
   minPlayersPerTeam Int?
   totalBudget       Int?
+  auctionDate       DateTime? // when the auction itself is scheduled/held (distinct from createdAt)
 
   playerCategories     String[] // Postgres text[]
   categoryBasePrices   Json?    // Map<string, number>

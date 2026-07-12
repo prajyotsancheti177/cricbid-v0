@@ -116,6 +116,13 @@ const TournamentSettingsSection = () => {
     }
   };
 
+  const formatSummaryDate = (dateString: string | null | undefined, fallback: string) => {
+    if (!dateString) return fallback;
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return fallback;
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  };
+
   const SummaryRow = ({ label, value }: { label: string; value: string }) => (
     <div className="flex justify-between py-2 border-b border-border last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -146,6 +153,8 @@ const TournamentSettingsSection = () => {
           <SummaryRow label="Teams" value={String(tournament.noOfTeams ?? "—")} />
           <SummaryRow label="Players per team" value={`${tournament.minPlayersPerTeam ?? 0} – ${tournament.maxPlayersPerTeam ?? 0}`} />
           <SummaryRow label="Categories" value={(tournament.playerCategories || []).join(", ") || "—"} />
+          <SummaryRow label="Created" value={formatSummaryDate(tournament.createdAt, "—")} />
+          <SummaryRow label="Auction Date" value={formatSummaryDate(tournament.auctionDate, "Not scheduled yet")} />
         </CardContent>
       </Card>
 

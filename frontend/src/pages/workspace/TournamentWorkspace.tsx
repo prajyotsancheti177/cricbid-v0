@@ -26,6 +26,8 @@ export interface WorkspaceTournament {
   maxPlayersPerTeam?: number;
   playerCategories?: string[];
   features?: TournamentFeatures;
+  createdAt?: string;
+  auctionDate?: string | null;
   [key: string]: unknown;
 }
 
