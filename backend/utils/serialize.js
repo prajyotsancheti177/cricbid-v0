@@ -61,6 +61,7 @@ const serializeTournament = (t) => {
         maxPlayersPerTeam: t.maxPlayersPerTeam,
         minPlayersPerTeam: t.minPlayersPerTeam,
         totalBudget: t.totalBudget,
+        auctionDate: t.auctionDate ?? null,
         playerCategories: t.playerCategories ?? [],
         categoryBasePrices: t.categoryBasePrices ?? undefined,
         bidIncrementSlabs: t.bidIncrementSlabs ?? undefined,
