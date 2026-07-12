@@ -21,6 +21,7 @@ interface Tournament {
   playerCategories: string[];
   createdAt: string;
   updatedAt: string;
+  auctionDate?: string | null;
 }
 
 const Tournaments = () => {
@@ -251,9 +252,17 @@ const Tournaments = () => {
                       <CardTitle className="text-sm sm:text-lg md:text-2xl mb-0.5 sm:mb-2 group-hover:text-primary transition-colors truncate">
                         {tournament.name}
                       </CardTitle>
-                      <CardDescription className="flex items-center gap-1 text-xs sm:text-sm">
-                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">{formatDate(tournament.createdAt)}</span>
+                      <CardDescription className="flex flex-col gap-0.5 text-xs sm:text-sm">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">Created {formatDate(tournament.createdAt)}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">
+                            Auction Date: {tournament.auctionDate ? formatDate(tournament.auctionDate) : "Not scheduled yet"}
+                          </span>
+                        </span>
                       </CardDescription>
                     </div>
                     <Trophy className="h-5 w-5 sm:h-8 sm:w-8 text-primary opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0 hidden sm:block" />

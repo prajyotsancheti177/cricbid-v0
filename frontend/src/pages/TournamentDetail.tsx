@@ -23,6 +23,7 @@ interface Tournament {
   playerCategories?: string[];
   createdAt?: string;
   updatedAt?: string;
+  auctionDate?: string | null;
 }
 
 const TournamentDetail = () => {
@@ -151,7 +152,13 @@ const TournamentDetail = () => {
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
               <div className="flex items-center gap-1">
                 <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{formatDate(tournament.createdAt)}</span>
+                <span>Created {formatDate(tournament.createdAt)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>
+                  Auction Date: {tournament.auctionDate ? formatDate(tournament.auctionDate) : "Not scheduled yet"}
+                </span>
               </div>
               {tournament.tournamentHostId && (
                 <div className="flex items-center gap-1">
