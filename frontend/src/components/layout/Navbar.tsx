@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Trophy, LogOut, User, Menu, X, Phone, ChevronDown, Activity } from "lucide-react";
+import { Trophy, LogOut, User, Menu, X, ChevronDown, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -357,21 +357,6 @@ export const Navbar = () => {
                 )}
               </div>
 
-              {/* Contact Us in hamburger menu */}
-              <div className="mt-2 pt-2 border-t border-border">
-                <p className="px-4 py-2 text-sm text-muted-foreground">Contact Us</p>
-                <div className="flex flex-col gap-2">
-                  <a
-                    href="https://wa.me/919423931031"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm font-medium">Dr. Kartik Bakliwal: 9423931031</span>
-                  </a>
-                </div>
-              </div>
             </div>
           </div>
         </div>

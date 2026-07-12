@@ -10,14 +10,11 @@ import {
     MessageSquare,
     Wallet,
     Radio,
-    Play,
     ArrowRight,
     Zap,
     Shield,
     Globe,
     ChevronDown,
-    Phone,
-    Gavel,
 } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -266,38 +263,6 @@ export default function Home() {
                             Take me to CricBid
                             <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                        <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 border-primary/30 hover:bg-primary/10"
-                            onClick={() => {
-                                document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" });
-                            }}
-                        >
-                            <Play className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                            See Demo
-                        </Button>
-                    </motion.div>
-
-                    {/* Contact Info */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1 }}
-                        className="mt-8 md:mt-10"
-                    >
-                        <p className="text-sm text-muted-foreground mb-3">Contact Us</p>
-                        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
-                            <a
-                                href="https://wa.me/919423931031"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span className="font-medium text-sm">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                        </div>
                     </motion.div>
 
                     {/* Scroll Indicator */}
@@ -317,73 +282,6 @@ export default function Home() {
                     </motion.div>
                 </motion.div>
             </motion.section>
-
-            {/* App Showcase Section */}
-            <section id="demo" className="py-16 md:py-24 relative">
-                <div className="container mx-auto px-4">
-                    <motion.div {...fadeInUp} className="text-center mb-8 md:mb-12">
-                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 md:mb-4">
-                            See the <span className="text-primary">Auction App</span> in Action
-                        </h2>
-                        <p className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
-                            Experience the thrill of a digital cricket player auction.
-                        </p>
-                    </motion.div>
-
-                    <motion.div {...staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
-                        <motion.div {...staggerItem}>
-                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-primary/20 shadow-xl hover:border-primary/40 hover:shadow-[0_0_30px_hsl(263,70%,50%,0.2)] transition-all duration-300 h-full">
-                                <CardContent className="p-0">
-                                    <div className="aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center relative">
-                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
-                                        <div className="relative z-10 text-center space-y-3 px-4">
-                                            <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mx-auto">
-                                                <Gavel className="h-8 w-8 text-primary" />
-                                            </div>
-                                            <p className="font-bold text-lg">Live Auction Room</p>
-                                            <p className="text-sm text-muted-foreground">Real-time bidding with all teams. Automatic slab increments and instant purse updates.</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-
-                        <motion.div {...staggerItem}>
-                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-secondary/20 shadow-xl hover:border-secondary/40 hover:shadow-[0_0_30px_hsl(30,100%,55%,0.2)] transition-all duration-300 h-full">
-                                <CardContent className="p-0">
-                                    <div className="aspect-video bg-gradient-to-br from-secondary/20 via-secondary/10 to-background flex items-center justify-center relative">
-                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
-                                        <div className="relative z-10 text-center space-y-3 px-4">
-                                            <div className="w-16 h-16 rounded-2xl bg-secondary/20 border border-secondary/30 flex items-center justify-center mx-auto">
-                                                <Users className="h-8 w-8 text-secondary" />
-                                            </div>
-                                            <p className="font-bold text-lg">Player Management</p>
-                                            <p className="text-sm text-muted-foreground">Add, categorize and manage players. Bulk upload hundreds via CSV in seconds.</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-
-                        <motion.div {...staggerItem}>
-                            <Card className="overflow-hidden bg-card/50 backdrop-blur border-accent/20 shadow-xl hover:border-accent/40 hover:shadow-[0_0_30px_hsl(142,76%,36%,0.2)] transition-all duration-300 h-full">
-                                <CardContent className="p-0">
-                                    <div className="aspect-video bg-gradient-to-br from-accent/20 via-accent/10 to-background flex items-center justify-center relative">
-                                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: "20px 20px" }} />
-                                        <div className="relative z-10 text-center space-y-3 px-4">
-                                            <div className="w-16 h-16 rounded-2xl bg-accent/20 border border-accent/30 flex items-center justify-center mx-auto">
-                                                <Trophy className="h-8 w-8 text-accent" />
-                                            </div>
-                                            <p className="font-bold text-lg">Team Rosters</p>
-                                            <p className="text-sm text-muted-foreground">Track budgets and squad composition. Export rosters as PDF or CSV instantly.</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </motion.div>
-                </div>
-            </section>
 
             {/* Features Section */}
             <section className="py-16 md:py-24 relative">
@@ -588,15 +486,6 @@ export default function Home() {
                         <motion.div {...fadeInUp}>
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid also include cricket scoring and live scorecards?</h3>
-                                    <p className="text-muted-foreground">Yes! CricBid now includes CricScoring at <a href="https://scoring.cricbid.online" className="text-primary hover:underline">scoring.cricbid.online</a> — a free ball-by-ball cricket scoring app. Score matches live, track batsman and bowler stats, show real-time scorecards to spectators, and build match schedules for your tournament. Auction data and player rosters sync automatically from CricBid.</p>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-
-                        <motion.div {...fadeInUp}>
-                            <Card className="bg-card/50 backdrop-blur border-border/50">
-                                <CardContent className="p-6">
                                     <h3 className="text-xl font-bold mb-2 text-foreground">Which cities in India use Vardhaman CricBid?</h3>
                                     <p className="text-muted-foreground">CricBid is used by cricket tournament organizers across India — Mumbai, Pune, Nagpur, Delhi, Hyderabad, Bangalore, Chennai, Kolkata, Ahmedabad, Surat, Jaipur, Nashik, Aurangabad, and hundreds of smaller towns. Any cricket organizer in India can use our online platform to run an IPL-style player auction.</p>
                                 </CardContent>
@@ -624,22 +513,6 @@ export default function Home() {
                         Join hundreds of tournament organizers who trust Vardhaman cricBid for their player auctions.
                     </p>
 
-                    {/* Contact Info */}
-                    <div className="flex flex-col items-center justify-center gap-4 mb-8">
-                        <h3 className="text-xl font-semibold text-muted-foreground mb-2">Contact Us</h3>
-                        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 sm:gap-4">
-                            <a
-                                href="https://wa.me/919423931031"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="font-semibold text-sm sm:text-base">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                        </div>
-                    </div>
-
                     <Button
                         size="lg"
                         className="text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-[0_0_40px_hsl(263,70%,50%,0.4)] hover:shadow-[0_0_60px_hsl(263,70%,50%,0.6)] transition-all duration-300"
@@ -660,13 +533,7 @@ export default function Home() {
                             <span className="text-xl font-bold">Vardhaman cricBid</span>
                         </div>
                         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-muted-foreground">
-                            <a href="#demo" className="hover:text-primary transition-colors">How it works</a>
-                            <a href="https://scoring.cricbid.online" className="hover:text-primary transition-colors" rel="noopener">Cricket Scoring</a>
                             <a href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</a>
-                            <div className="flex items-center gap-2">
-                                <Phone className="w-4 h-4" />
-                                <a href="tel:+918208216407" className="hover:text-primary transition-colors">+91-8208216407</a>
-                            </div>
                         </div>
                         <div className="text-muted-foreground text-sm">
                             © {new Date().getFullYear()} Vardhaman CricBid. India's #1 Cricket Auction Software. All rights reserved.
