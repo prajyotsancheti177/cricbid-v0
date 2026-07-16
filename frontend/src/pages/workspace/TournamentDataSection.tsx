@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole, Trophy } from "lucide-react";
+import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole, Trophy, IdCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { exportAuctionReport } from "@/lib/exportAuctionReport";
+import { exportPlayerCardsPdf } from "@/lib/exportPlayerCardsPdf";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
@@ -43,6 +44,7 @@ const TournamentDataSection = () => {
 
   const [csvBusy, setCsvBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [cardsBusy, setCardsBusy] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   const [syncingToSheet, setSyncingToSheet] = useState(false);
   const [syncFromSheetOpen, setSyncFromSheetOpen] = useState(false);
@@ -96,6 +98,18 @@ const TournamentDataSection = () => {
       toast({ title: "Error", description: "Failed to export PDF", variant: "destructive" });
     } finally {
       setPdfBusy(false);
+    }
+  };
+
+  const handleExportPlayerCards = async () => {
+    setCardsBusy(true);
+    try {
+      await exportPlayerCardsPdf(tournament.name || "Tournament", tournament._id);
+      toast({ title: "Downloaded", description: "Player cards PDF exported successfully" });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to export player cards", variant: "destructive" });
+    } finally {
+      setCardsBusy(false);
     }
   };
 
@@ -165,6 +179,21 @@ const TournamentDataSection = () => {
             <Button onClick={handleExportPdf} disabled={pdfBusy} variant="outline" className="gap-2">
               {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
               Export teams PDF
+            </Button>
+          ) : <FeatureDisabled label="Data export" navigate={navigate} />}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Player cards PDF</CardTitle>
+          <CardDescription>Export sold players as photo cards, grouped and paginated by team — ready to print and hand out.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isFeatureOn(tournament, "dataExport") ? (
+            <Button onClick={handleExportPlayerCards} disabled={cardsBusy} variant="outline" className="gap-2">
+              {cardsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <IdCard className="h-4 w-4" />}
+              Export player cards
             </Button>
           ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>
