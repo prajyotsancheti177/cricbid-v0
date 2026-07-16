@@ -11,15 +11,7 @@ import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Imag
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 
-// Read a File into a base64 data URL (used to embed the payment QR directly in
-// the config JSON — no separate upload endpoint needed).
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+
 
 interface PaymentPanelConfig {
   enabled: boolean;
@@ -63,7 +55,7 @@ interface RegistrationConfig {
   googleSheetId?: string;
   showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
   paymentPanel?: PaymentPanelConfig;
-  posterImage?: string;            // tournament logo/poster shown at the top of the public form (base64 data URL)
+  posterImage?: string;            // tournament logo/poster shown at the top of the public form (S3 URL)
 }
 
 const defaultFields = {
@@ -222,10 +214,21 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     if (!file) return;
     try {
       const compressed = await compressImage(file, 800, 800, 0.8);
-      const dataUrl = await fileToDataUrl(compressed);
-      updatePaymentPanel({ qrImage: dataUrl });
+      const formData = new FormData();
+      formData.append('image', compressed, file.name);
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
+        method: 'POST',
+        headers: { 'x-user-id': user._id },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok && data.data?.imageUrl) {
+        updatePaymentPanel({ qrImage: data.data.imageUrl });
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to upload QR image", variant: "destructive" });
+      }
     } catch {
-      toast({ title: "Error", description: "Could not process that image", variant: "destructive" });
+      toast({ title: "Error", description: "Could not upload that image", variant: "destructive" });
     }
   };
 
@@ -233,10 +236,21 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     if (!file) return;
     try {
       const compressed = await compressImage(file, 1400, 1400, 0.8);
-      const dataUrl = await fileToDataUrl(compressed);
-      setConfig(prev => ({ ...prev, posterImage: dataUrl }));
+      const formData = new FormData();
+      formData.append('image', compressed, file.name);
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
+        method: 'POST',
+        headers: { 'x-user-id': user._id },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok && data.data?.imageUrl) {
+        setConfig(prev => ({ ...prev, posterImage: data.data.imageUrl }));
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to upload image", variant: "destructive" });
+      }
     } catch {
-      toast({ title: "Error", description: "Could not process that image", variant: "destructive" });
+      toast({ title: "Error", description: "Could not upload that image", variant: "destructive" });
     }
   };
 

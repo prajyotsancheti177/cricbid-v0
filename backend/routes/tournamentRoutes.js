@@ -1,6 +1,7 @@
 const express = require('express');
 const touranmentController = require('../controller/touranmentController');
 const { authMiddleware } = require('../utils/authMiddleware');
+const uploadMiddleware = require('../utils/uploadMiddleware');
 const tournamentRouter = express.Router();
 
 // Register New Tournament - Protected
@@ -29,5 +30,8 @@ tournamentRouter.get("/:id/registration-config", touranmentController.getRegistr
 
 // Update Registration Config - Protected
 tournamentRouter.post("/update-registration-config", authMiddleware, touranmentController.updateRegistrationConfig);
+
+// Upload tournament image (poster / QR) to S3 - Protected
+tournamentRouter.post("/upload-image", authMiddleware, uploadMiddleware.single('image'), touranmentController.uploadImage);
 
 module.exports = tournamentRouter;
