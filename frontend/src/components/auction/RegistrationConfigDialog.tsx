@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 
@@ -63,6 +63,7 @@ interface RegistrationConfig {
   googleSheetId?: string;
   showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
   paymentPanel?: PaymentPanelConfig;
+  posterImage?: string;            // tournament logo/poster shown at the top of the public form (base64 data URL)
 }
 
 const defaultFields = {
@@ -119,6 +120,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           googleSheetId: data.data.registrationFormConfig.googleSheetId || '',
           showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
           paymentPanel: data.data.registrationFormConfig.paymentPanel || { enabled: false, qrImage: '', text: '' },
+          posterImage: data.data.registrationFormConfig.posterImage || '',
         });
       } else {
         setConfig({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
@@ -227,6 +229,17 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     }
   };
 
+  const handlePosterUpload = async (file?: File) => {
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 1400, 1400, 0.8);
+      const dataUrl = await fileToDataUrl(compressed);
+      setConfig(prev => ({ ...prev, posterImage: dataUrl }));
+    } catch {
+      toast({ title: "Error", description: "Could not process that image", variant: "destructive" });
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -302,6 +315,48 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                 </div>
               </div>
             )}
+
+            {/* Tournament logo / poster */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Tournament Logo / Poster (optional)
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Shown at the top of the public registration page. Use your tournament logo or a promotional poster.
+                </p>
+                {config.posterImage ? (
+                  <div className="space-y-2">
+                    <img
+                      src={config.posterImage}
+                      alt="Tournament poster"
+                      className="max-h-48 w-auto rounded-lg border bg-white object-contain"
+                    />
+                    <div className="flex gap-2">
+                      <label className="inline-flex">
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePosterUpload(e.target.files?.[0])} />
+                        <span className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border cursor-pointer hover:bg-muted">
+                          <UploadCloud className="h-4 w-4" /> Replace
+                        </span>
+                      </label>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        className="text-destructive hover:text-destructive px-2"
+                        onClick={() => setConfig(prev => ({ ...prev, posterImage: '' }))}
+                      >
+                        <X className="h-4 w-4 mr-1" /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border border-dashed cursor-pointer hover:bg-muted/40 text-muted-foreground">
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePosterUpload(e.target.files?.[0])} />
+                    <UploadCloud className="h-6 w-6" />
+                    <span className="text-sm">Upload a logo or poster image</span>
+                  </label>
+                )}
+              </div>
+            </div>
 
             <div>
               <h4 className="font-semibold text-md border-b pb-2 mb-4">Standard Field Configuration</h4>
