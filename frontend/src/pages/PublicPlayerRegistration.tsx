@@ -354,7 +354,7 @@ const PublicPlayerRegistration = () => {
           <div className="inline-flex items-center gap-3 mb-4">
             <Trophy className="h-10 w-10 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Registration</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Player Registration</h1>
           <p className="text-xl font-medium text-primary/80">{tournamentName}</p>
           <p className="text-md text-muted-foreground mt-2">
              Complete the form to submit your profile.
@@ -517,6 +517,31 @@ const PublicPlayerRegistration = () => {
                 </div>
               )}
 
+              {/* Payment QR panel (optional, admin-configured) — shown above the
+                  custom fields so players can scan & pay, then upload proof below */}
+              {config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text) && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-primary font-semibold">
+                    <QrCode className="w-5 h-5" />
+                    Registration Payment
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    {config.paymentPanel.qrImage && (
+                      <img
+                        src={config.paymentPanel.qrImage}
+                        alt="Payment QR code"
+                        className="w-44 h-44 object-contain rounded-lg border bg-white p-2 shrink-0 mx-auto sm:mx-0"
+                      />
+                    )}
+                    {config.paymentPanel.text && (
+                      <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                        {config.paymentPanel.text}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Dynamic Custom Fields Rendering */}
               {config?.customFields && config.customFields.length > 0 && (
                 <div className="pt-4 mt-6 border-t">
@@ -574,30 +599,6 @@ const PublicPlayerRegistration = () => {
                         )}
                       </div>
                     )})}
-                  </div>
-                </div>
-              )}
-
-              {/* Payment QR panel (optional, admin-configured) — shown just before submitting */}
-              {config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text) && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-primary font-semibold">
-                    <QrCode className="w-5 h-5" />
-                    Registration Payment
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-4 items-start">
-                    {config.paymentPanel.qrImage && (
-                      <img
-                        src={config.paymentPanel.qrImage}
-                        alt="Payment QR code"
-                        className="w-44 h-44 object-contain rounded-lg border bg-white p-2 shrink-0 mx-auto sm:mx-0"
-                      />
-                    )}
-                    {config.paymentPanel.text && (
-                      <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
-                        {config.paymentPanel.text}
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
