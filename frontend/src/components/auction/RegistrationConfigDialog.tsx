@@ -5,9 +5,27 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { compressImage } from "@/lib/imageCompressor";
+
+// Read a File into a base64 data URL (used to embed the payment QR directly in
+// the config JSON — no separate upload endpoint needed).
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+interface PaymentPanelConfig {
+  enabled: boolean;
+  qrImage?: string; // base64 data URL
+  text?: string;
+}
 
 interface fieldConfig {
   required: boolean;
@@ -43,6 +61,8 @@ interface RegistrationConfig {
   customFields?: CustomFieldConfig[];
   googleSheetUrl?: string;
   googleSheetId?: string;
+  showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
+  paymentPanel?: PaymentPanelConfig;
 }
 
 const defaultFields = {
@@ -67,7 +87,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [config, setConfig] = useState<RegistrationConfig>({ isActive: false, fields: defaultFields, customFields: [] });
+  const [config, setConfig] = useState<RegistrationConfig>({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
 
   const customFieldTypes = ["text", "number", "textarea", "dropdown", "checkbox", "file"];
 
@@ -97,9 +117,11 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           customFields: data.data.registrationFormConfig.customFields || [],
           googleSheetUrl: data.data.registrationFormConfig.googleSheetUrl || '',
           googleSheetId: data.data.registrationFormConfig.googleSheetId || '',
+          showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
+          paymentPanel: data.data.registrationFormConfig.paymentPanel || { enabled: false, qrImage: '', text: '' },
         });
       } else {
-        setConfig({ isActive: false, fields: defaultFields, customFields: [] });
+        setConfig({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
       }
     } catch (error) {
        console.error(error);
@@ -185,6 +207,24 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
   const copyLink = () => {
     navigator.clipboard.writeText(publicLink);
     toast({ title: "Copied!", description: "Link copied to clipboard" });
+  };
+
+  const updatePaymentPanel = (patch: Partial<PaymentPanelConfig>) => {
+    setConfig(prev => ({
+      ...prev,
+      paymentPanel: { ...(prev.paymentPanel || { enabled: false }), ...patch },
+    }));
+  };
+
+  const handleQrUpload = async (file?: File) => {
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 800, 800, 0.8);
+      const dataUrl = await fileToDataUrl(compressed);
+      updatePaymentPanel({ qrImage: dataUrl });
+    } catch {
+      toast({ title: "Error", description: "Could not process that image", variant: "destructive" });
+    }
   };
 
   return (
@@ -579,7 +619,94 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                 )}
               </div>
             </div>
-            
+
+            {/* Sign-in / Profile access */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4">Player Sign-in</h4>
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                <div className="pr-4">
+                  <h4 className="font-medium">Show CricBid profile login</h4>
+                  <p className="text-sm text-muted-foreground">
+                    When on, players can log in / create a CricBid profile to auto-fill their details.
+                    Turn off to make the form fully anonymous — no sign-in shown.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.showProfileLogin !== false}
+                  onCheckedChange={(c) => setConfig(prev => ({ ...prev, showProfileLogin: c }))}
+                />
+              </div>
+            </div>
+
+            {/* Payment QR panel */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <QrCode className="h-4 w-4" /> Payment QR (optional)
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="pr-4">
+                    <h4 className="font-medium">Show a payment panel on the form</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Display a QR code and instructions so players can pay the registration fee while filling the form.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!config.paymentPanel?.enabled}
+                    onCheckedChange={(c) => updatePaymentPanel({ enabled: c })}
+                  />
+                </div>
+
+                {config.paymentPanel?.enabled && (
+                  <div className="space-y-4 pt-2 border-t">
+                    <div className="space-y-2">
+                      <Label>QR code image</Label>
+                      {config.paymentPanel?.qrImage ? (
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={config.paymentPanel.qrImage}
+                            alt="Payment QR"
+                            className="w-32 h-32 object-contain rounded-lg border bg-white p-1"
+                          />
+                          <div className="flex flex-col gap-2">
+                            <label className="inline-flex">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(e.target.files?.[0])} />
+                              <span className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border cursor-pointer hover:bg-muted">
+                                <UploadCloud className="h-4 w-4" /> Replace
+                              </span>
+                            </label>
+                            <Button
+                              type="button" variant="ghost" size="sm"
+                              className="text-destructive hover:text-destructive justify-start px-2"
+                              onClick={() => updatePaymentPanel({ qrImage: '' })}
+                            >
+                              <X className="h-4 w-4 mr-1" /> Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border border-dashed cursor-pointer hover:bg-muted/40 text-muted-foreground">
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(e.target.files?.[0])} />
+                          <UploadCloud className="h-6 w-6" />
+                          <span className="text-sm">Upload a QR screenshot (PhonePe / GPay / UPI)</span>
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Payment instructions (optional)</Label>
+                      <Textarea
+                        placeholder="e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."
+                        value={config.paymentPanel?.text || ''}
+                        onChange={(e) => updatePaymentPanel({ text: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 

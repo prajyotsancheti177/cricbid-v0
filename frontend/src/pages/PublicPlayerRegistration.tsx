@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut } from "lucide-react";
+import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
@@ -370,6 +370,7 @@ const PublicPlayerRegistration = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
 
               {/* CricBid Profile Section */}
+              {config?.showProfileLogin !== false && (
               <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
                 {!activeProfile ? (
                   <>
@@ -418,12 +419,37 @@ const PublicPlayerRegistration = () => {
                   </>
                 )}
               </div>
+              )}
 
               <PlayerProfileModal
                 open={showProfileModal}
                 onClose={() => setShowProfileModal(false)}
                 onProfileLoaded={handleProfileLoaded}
               />
+
+              {/* Payment QR panel (optional, admin-configured) */}
+              {config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text) && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-primary font-semibold">
+                    <QrCode className="w-5 h-5" />
+                    Registration Payment
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    {config.paymentPanel.qrImage && (
+                      <img
+                        src={config.paymentPanel.qrImage}
+                        alt="Payment QR code"
+                        className="w-44 h-44 object-contain rounded-lg border bg-white p-2 shrink-0 mx-auto sm:mx-0"
+                      />
+                    )}
+                    {config.paymentPanel.text && (
+                      <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                        {config.paymentPanel.text}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
