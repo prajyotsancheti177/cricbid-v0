@@ -145,6 +145,62 @@ const PublicPlayerRegistration = () => {
     setError("");
   };
 
+  // Renders a single custom field. Reused for both the "Additional Information"
+  // group and the payment-proof group (file fields shown under the QR).
+  const renderCustomField = (cf: any) => {
+    if (cf.showToPublic === false) return null;
+    return (
+      <div key={cf.id} className={cf.type === 'textarea' ? "col-span-1 md:col-span-2 space-y-2" : "space-y-2"}>
+        <Label htmlFor={cf.id}>{cf.label} {cf.required && '*'}</Label>
+
+        {cf.type === 'text' && (
+          <Input id={cf.id} value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} />
+        )}
+
+        {cf.type === 'number' && (
+          <Input id={cf.id} type="number" value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} />
+        )}
+
+        {cf.type === 'textarea' && (
+          <Textarea id={cf.id} value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} rows={3} />
+        )}
+
+        {cf.type === 'dropdown' && (
+          <Select value={formData.customFields[cf.id] || ""} onValueChange={(v) => handleCustomInputChange(cf.id, v)} required={cf.required}>
+            <SelectTrigger><SelectValue placeholder="Select an option" /></SelectTrigger>
+            <SelectContent>
+              {cf.options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+
+        {cf.type === 'checkbox' && (
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox id={cf.id} checked={!!formData.customFields[cf.id]} onCheckedChange={(checked) => handleCustomInputChange(cf.id, checked)} />
+            <label htmlFor={cf.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Yes</label>
+          </div>
+        )}
+
+        {cf.type === 'file' && (
+          <Input id={cf.id} type="file" accept="image/*" onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            if (f.type.startsWith("image/")) {
+              try {
+                const compressed = await compressImage(f);
+                handleCustomInputChange(cf.id, compressed);
+              } catch {
+                handleCustomInputChange(cf.id, f);
+              }
+            } else {
+              handleCustomInputChange(cf.id, f);
+            }
+          }} required={cf.required} />
+        )}
+      </div>
+    );
+  };
+
   const isFieldRequired = (field: string) => {
      if (field === 'name') return true;
      return config?.fields?.[field]?.required;
@@ -517,8 +573,17 @@ const PublicPlayerRegistration = () => {
                 </div>
               )}
 
-              {/* Payment QR panel (optional, admin-configured) — shown above the
-                  custom fields so players can scan & pay, then upload proof below */}
+              {/* Additional Information — non-file custom fields, shown above the payment section */}
+              {(config?.customFields || []).some((cf: any) => cf.type !== 'file' && cf.showToPublic !== false) && (
+                <div className="pt-4 mt-6 border-t">
+                  <h3 className="font-medium text-lg mb-4 text-foreground/80">Additional Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(config.customFields as any[]).filter((cf) => cf.type !== 'file').map(renderCustomField)}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment QR panel (optional, admin-configured) */}
               {config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text) && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-primary font-semibold">
@@ -539,67 +604,21 @@ const PublicPlayerRegistration = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* Payment-proof upload(s) — file custom fields, grouped under the QR */}
+                  {(config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-primary/20">
+                      {(config.customFields as any[]).filter((cf) => cf.type === 'file').map(renderCustomField)}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Dynamic Custom Fields Rendering */}
-              {config?.customFields && config.customFields.length > 0 && (
-                <div className="pt-4 mt-6 border-t">
-                  <h3 className="font-medium text-lg mb-4 text-foreground/80">Additional Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {config.customFields.map((cf: any) => {
-                      if (cf.showToPublic === false) return null;
-                      return (
-                      <div key={cf.id} className={cf.type === 'textarea' ? "col-span-1 md:col-span-2 space-y-2" : "space-y-2"}>
-                        <Label htmlFor={cf.id}>{cf.label} {cf.required && '*'}</Label>
-                        
-                        {cf.type === 'text' && (
-                          <Input id={cf.id} value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} />
-                        )}
-
-                        {cf.type === 'number' && (
-                          <Input id={cf.id} type="number" value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} />
-                        )}
-
-                        {cf.type === 'textarea' && (
-                          <Textarea id={cf.id} value={formData.customFields[cf.id] || ""} onChange={(e) => handleCustomInputChange(cf.id, e.target.value)} required={cf.required} rows={3} />
-                        )}
-
-                        {cf.type === 'dropdown' && (
-                          <Select value={formData.customFields[cf.id] || ""} onValueChange={(v) => handleCustomInputChange(cf.id, v)} required={cf.required}>
-                            <SelectTrigger><SelectValue placeholder="Select an option" /></SelectTrigger>
-                            <SelectContent>
-                              {cf.options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        )}
-
-                        {cf.type === 'checkbox' && (
-                          <div className="flex items-center space-x-2 pt-2">
-                             <Checkbox id={cf.id} checked={!!formData.customFields[cf.id]} onCheckedChange={(checked) => handleCustomInputChange(cf.id, checked)} />
-                             <label htmlFor={cf.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Yes</label>
-                          </div>
-                        )}
-
-                        {cf.type === 'file' && (
-                          <Input id={cf.id} type="file" accept="image/*" onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            if (f.type.startsWith("image/")) {
-                              try {
-                                const compressed = await compressImage(f);
-                                handleCustomInputChange(cf.id, compressed);
-                              } catch {
-                                handleCustomInputChange(cf.id, f);
-                              }
-                            } else {
-                              handleCustomInputChange(cf.id, f);
-                            }
-                          }} required={cf.required} />
-                        )}
-                      </div>
-                    )})}
-                  </div>
+              {/* Payment-proof upload(s) when there's no QR panel configured */}
+              {!(config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text)) &&
+                (config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(config.customFields as any[]).filter((cf) => cf.type === 'file').map(renderCustomField)}
                 </div>
               )}
 
