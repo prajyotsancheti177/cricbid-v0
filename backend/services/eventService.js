@@ -306,6 +306,63 @@ const getUniqueIPsByDateRange = async (startDate, endDate) => {
     return groups.map(g => g.ipAddress).filter(Boolean);
 };
 
+/**
+ * Get a full activity summary for a single day, aggregated from user_event.
+ * @param {Date} startDate - Start of the day (inclusive)
+ * @param {Date} endDate - End of the day (inclusive)
+ * @returns {Object} Daily activity summary
+ */
+const getDailySummary = async (startDate, endDate) => {
+    const where = {
+        timestamp: {
+            gte: new Date(startDate),
+            lte: new Date(endDate)
+        }
+    };
+
+    const [totalEvents, eventTypeGroups, userGroups, sessionGroups, pageTraffic] = await Promise.all([
+        prisma.userEvent.count({ where }),
+        prisma.userEvent.groupBy({
+            by: ['eventType'],
+            where,
+            _count: { _all: true }
+        }),
+        prisma.userEvent.groupBy({
+            by: ['userId'],
+            where: { ...where, userId: { not: null } }
+        }),
+        prisma.userEvent.groupBy({
+            by: ['sessionId'],
+            where: { ...where, sessionId: { not: null } }
+        }),
+        getPageTrafficBreakdown(startDate, endDate)
+    ]);
+
+    const eventTypeBreakdown = eventTypeGroups
+        .map(g => ({ eventType: g.eventType, count: g._count._all }))
+        .sort((a, b) => b.count - a.count);
+
+    const eventCount = (eventType) =>
+        eventTypeBreakdown.find(e => e.eventType === eventType)?.count || 0;
+
+    return {
+        totalEvents,
+        uniqueUsers: userGroups.length,
+        uniqueSessions: sessionGroups.length,
+        pageViews: eventCount('page_view'),
+        logins: eventCount('login'),
+        newRegistrations: eventCount('player_registered'),
+        auctionsStarted: eventCount('auction_start'),
+        auctionsCompleted: eventCount('auction_completed'),
+        playersSold: eventCount('player_sold'),
+        playersUnsold: eventCount('player_unsold'),
+        tournamentsCreated: eventCount('tournament_created'),
+        teamsCreated: eventCount('team_created'),
+        eventTypeBreakdown,
+        topPages: pageTraffic.slice(0, 5)
+    };
+};
+
 module.exports = {
     trackEvent,
     trackEvents,
@@ -316,5 +373,6 @@ module.exports = {
     getMonthlyPageViews,
     getPageTrafficBreakdown,
     getAnalyticsSummary,
-    getUniqueIPsByDateRange
+    getUniqueIPsByDateRange,
+    getDailySummary
 };
