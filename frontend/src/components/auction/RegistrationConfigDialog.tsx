@@ -254,9 +254,23 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     }
   };
 
+  // Radix Select/Popover render their dropdown in a portal OUTSIDE the dialog's
+  // DOM subtree. On touch devices especially, tapping a dropdown option registers
+  // as an "interact outside" and dismisses the whole dialog. Ignore any outside
+  // interaction that actually originated from a popper (dropdown) so changing a
+  // field's visibility/type no longer closes the dialog.
+  const isInsidePopper = (e: any): boolean => {
+    const t = (e?.detail?.originalEvent?.target ?? e?.target) as HTMLElement | undefined;
+    return !!t?.closest?.('[data-radix-popper-content-wrapper]');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle>Customize Registration Form - {tournamentName}</DialogTitle>
           <DialogDescription>

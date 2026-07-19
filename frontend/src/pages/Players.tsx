@@ -1,17 +1,27 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useOutletContext } from "react-router-dom";
 import { motion } from "framer-motion";
 import { PlayerCard } from "@/components/auction/PlayerCard";
 import { PlayerDetailsModal } from "@/components/player/PlayerDetailsModal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users } from "lucide-react";
+import { EyeOff, Users } from "lucide-react";
 import { PlayerStatus, Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { trackPageView } from "@/lib/eventTracker";
+import { isFeatureOn, WorkspaceTournament } from "@/pages/workspace/TournamentWorkspace";
+
+const getAuthUser = () => {
+  try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
+};
 
 const Players = () => {
+  // When rendered inside the tournament workspace (admin view), the tournament
+  // is already available via outlet context — the visibility toggle doesn't apply there.
+  const workspaceCtx = useOutletContext<{ tournament: WorkspaceTournament } | undefined>();
+  const isWorkspaceView = Boolean(workspaceCtx?.tournament);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [players, setPlayers] = useState([]);
   const [filter, setFilter] = useState<PlayerStatus | "All" | "Remaining">(
@@ -25,6 +35,7 @@ const Players = () => {
   const [error, setError] = useState(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [playersVisible, setPlayersVisible] = useState(true);
 
   // Sync filter state to URL search params
   useEffect(() => {
@@ -39,6 +50,29 @@ const Players = () => {
     const fetchPlayers = async () => {
       try {
         const tournamentId = getSelectedTournamentId();
+
+        // In the admin workspace, always show players. On the public page,
+        // respect the tournament's "show registered players" setting.
+        if (isWorkspaceView) {
+          setPlayersVisible(true);
+        } else if (tournamentId) {
+          const user = getAuthUser();
+          const tRes = await fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tournamentId, userId: user?._id, userRole: user?.role || "guest" }),
+          });
+          const tData = await tRes.json().catch(() => ({}));
+          const visible = tRes.ok && tData.success !== false
+            ? isFeatureOn(tData.data as WorkspaceTournament, "showRegisteredPlayers")
+            : true;
+          setPlayersVisible(visible);
+          if (!visible) {
+            setLoading(false);
+            return;
+          }
+        }
+
         const response = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
           method: "POST",
           headers: {
@@ -68,7 +102,7 @@ const Players = () => {
     fetchPlayers();
     const tournamentId = getSelectedTournamentId();
     trackPageView("/players", tournamentId || undefined);
-  }, []);
+  }, [isWorkspaceView]);
 
   const categories = Array.from(
     new Set(players.map((p: any) => (p.playerCategory ? p.playerCategory : null)).filter(Boolean))
@@ -168,6 +202,20 @@ const Players = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-base sm:text-xl text-destructive">Error: {error}</p>
+      </div>
+    );
+  }
+
+  if (!playersVisible) {
+    return (
+      <div className="min-h-screen bg-gradient-dark flex items-center justify-center">
+        <div className="text-center px-4">
+          <EyeOff className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Player list hidden</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            The tournament organizer has hidden the registered players list for now.
+          </p>
+        </div>
       </div>
     );
   }

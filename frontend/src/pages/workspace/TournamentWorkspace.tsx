@@ -15,6 +15,7 @@ export interface TournamentFeatures {
   publicTeamRegistration?: boolean;
   googleSheetsSync?: boolean;
   dataExport?: boolean;
+  showRegisteredPlayers?: boolean;
   countdownEnabled?: boolean;
   countdownSeconds?: number;
 }

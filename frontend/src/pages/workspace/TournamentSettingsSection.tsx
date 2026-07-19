@@ -35,6 +35,7 @@ const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description:
   { key: "publicTeamRegistration", label: "Public team registration", description: "Allow team owners to register via a shareable public link." },
   { key: "googleSheetsSync", label: "Google Sheets sync", description: "Enable bi-directional sync between the database and a connected Google Sheet." },
   { key: "dataExport", label: "Data export (CSV & PDF)", description: "Allow downloading player and team data as CSV or PDF files." },
+  { key: "showRegisteredPlayers", label: "Show registered players publicly", description: "Let visitors on the public players page see who has registered so far. Turning this off hides the player list from everyone except tournament admins." },
 ];
 
 const TournamentSettingsSection = () => {
