@@ -140,4 +140,38 @@ npm run frontend
 cd scoring && npm run dev
 ```
 
-Production runs the backend under PM2 (`backend/ecosystem.config.js`, app name `auction-app`).
+## Production — verified on the box 2026-08-02
+
+**There are multiple checkouts on the EC2 server. Only one is live.** Getting this
+wrong means deploying to a directory nobody is serving, or restarting the wrong app.
+
+Host: `ubuntu@ec2-13-234-118-199.ap-south-1.compute.amazonaws.com`
+
+| | **LIVE — the website** | Legacy — do not touch |
+|---|---|---|
+| Directory | `/home/ubuntu/cricBid/cricbid-v0-sql` | `/home/ubuntu/cricBid/cricbid-v0` |
+| PM2 app | `server-sql` | `server` |
+| Port | **3002** | 3000 |
+| Branch | **`sql-migration`** (not `main`) | — |
+| Stack | Postgres/Prisma | legacy Mongo |
+| nginx | serves it | **no config references it** |
+
+nginx serves the built assets directly out of the live repo — there is no separate
+web root, so a rebuild is all that's needed:
+
+- `cricbid.online` → `cricbid-v0-sql/frontend/dist`
+- `scoring.cricbid.online` → `cricbid-v0-sql/scoring/dist` — **the scoring app is
+  deployed too.** It is not in the npm workspace, so it needs its own
+  `npm install && npm run build`; easy to forget.
+- `/api` and `/socket.io/` → `localhost:3002`
+
+Server-only state, never overwrite: `backend/.env`, `frontend/.env`,
+`backend/uploads/`. Never run `git clean` on the server — it would delete uploads.
+
+**Production tracks `sql-migration`, and `main` is far behind it.** Check
+`git rev-list --left-right --count origin/sql-migration...HEAD` before deploying;
+if the left number is non-zero you would roll the live site backwards.
+
+**To deploy, use the `cricbid-deploy` skill** (`.claude/skills/cricbid-deploy/`),
+which encodes all of the above plus verification and rollback. Config and the SSH
+key live in `.claude/deploy.env` and `.claude/cricBid.pem` (both gitignored).

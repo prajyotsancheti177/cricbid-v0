@@ -21,3 +21,10 @@ npm-debug.log*
 # Local DB backups (do not commit data)
 backups/
 .claude/worktrees/
+
+# Deploy config (host, paths) — see .claude/skills/cricbid-deploy/
+.claude/deploy.env
+
+# SSH keys — never commit
+*.pem
+.claude/*.pem
