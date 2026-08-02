@@ -39,11 +39,27 @@ Every ssh call: `ssh -i "$SSH_KEY" "$SSH_HOST"`.
 - `backend/.env`, `frontend/.env`, and `backend/uploads/` live only on the server.
   Never overwrite or clean them.
 
+## Autonomy
+
+**Run start to finish without asking for approval.** No "shall I proceed?", no
+confirmation before pushing, no PR. Invoking this skill IS the authorization —
+commit, merge, push, deploy, verify, then report what changed.
+
+This applies to the happy path only. Two situations still stop and hand the
+decision back, because both destroy work rather than ship it (steps 2 and 3):
+
+- the branch is **behind** production — deploying would roll the live site back
+- the merge **conflicts**
+
+These are not approval gates; they are "the automation cannot know what you
+intended here" gates. Everything else proceeds unattended.
+
 ## Steps
 
 1. **Local state.** `git status --porcelain`, `git branch --show-current`.
-   Uncommitted changes → show them, ask whether to commit (conventional message)
-   or abort. Never commit silently. Never deploy from detached HEAD.
+   Uncommitted changes → commit them with a conventional-commit message that
+   describes what actually changed; include them in the deploy and say so in the
+   report. Never deploy from detached HEAD.
 
 2. **Branch check — this is the step that prevents a regression.**
    Compare what you're about to deploy against what's live:
@@ -85,11 +101,22 @@ Every ssh call: `ssh -i "$SSH_KEY" "$SSH_HOST"`.
    production has since evolved. Replaying it can silently drop live features even
    when git reports no textual conflict. Flag it rather than assuming.
 
-4. **Confirm.** Show branch, `git log origin/sql-migration..HEAD --oneline`, and
-   the target host. Wait for an explicit yes — this is public and hard to reverse.
+4. **Capture the rollback point** before changing anything on the server:
 
-5. **Push** to `sql-migration` (merge the work in first if you're on another
-   branch; the server only ever pulls `sql-migration`).
+   ```bash
+   ssh -i "$SSH_KEY" "$SSH_HOST" "cd $REMOTE_DIR && git rev-parse HEAD"
+   ```
+
+   Keep this SHA for the report and for the Rollback section below.
+
+5. **Merge and push** — no confirmation step. If on a feature branch, check out
+   `sql-migration`, `git pull --ff-only`, merge the feature branch in, and push.
+   The server only ever pulls `sql-migration`.
+
+   If a live auction is in progress the restart in step 6 will drop its in-memory
+   state (see `auctionStateManager`). Don't block on this, but check
+   `pm2 logs server-sql --lines 20 --nostream` for active socket traffic and
+   **say so in the report** if the deploy likely interrupted a running auction.
 
 6. **Sync on the server**, one ssh call, `set -euo pipefail`:
 
@@ -114,12 +141,27 @@ Every ssh call: `ssh -i "$SSH_KEY" "$SSH_HOST"`.
 
 7. **Verify** — never claim success from an exit code alone:
    - `pm2 list` → `server-sql` is `online` with a fresh (seconds-old) uptime.
-   - `pm2 logs server-sql --lines 30 --nostream` → no boot errors.
+   - `pm2 logs server-sql --lines 30 --nostream` → no boot errors; expect
+     "Server listening on port 3002" and "DB connected successfully."
    - `curl -s -o /dev/null -w '%{http_code}' https://cricbid.online/` → 200.
    - If `scoring/` was rebuilt, also curl `https://scoring.cricbid.online/`.
+   - **Prove the change is actually in the served bundle** — a 200 only means
+     nginx is serving *something*. Pick a string the change added or removed,
+     then grep the live JS for it:
 
-8. **Report** the deployed SHA, what was rebuilt, what was skipped, and the
-   verification output. If anything failed, say so plainly with the output.
+     ```bash
+     BUNDLE=$(curl -s https://cricbid.online/ | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -1)
+     curl -s "https://cricbid.online$BUNDLE" | grep -c "<string you expect gone/present>"
+     ```
+
+     Also grep a string that should still be there, so a failed build that served
+     a truncated bundle can't read as success.
+
+8. **Report** — this is the deliverable, since nothing else was surfaced along
+   the way. Include: the deployed SHA and the rollback SHA from step 4, a plain
+   summary of what changed and what users will notice, what was rebuilt, what was
+   skipped and why, and the verification results. If anything failed, say so
+   plainly with the output rather than reporting partial success.
 
 ## Rollback
 
@@ -128,7 +170,8 @@ cd /home/ubuntu/cricBid/cricbid-v0-sql && git reset --hard <previous-sha> \
   && npm run build --workspace frontend && pm2 restart server-sql
 ```
 
-Capture the pre-deploy SHA in step 6 so this is always available. Ask before running.
+The pre-deploy SHA comes from step 4, so this is always available. Rolling back
+is itself a deploy — run it unattended and report, same as everything else.
 
 ## Never
 
