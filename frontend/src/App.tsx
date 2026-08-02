@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import Home from "./pages/Home";
 import Auction from "./pages/Auction";
@@ -26,6 +27,7 @@ import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSecti
 import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
 import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection";
+import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 import Analytics from "./pages/Analytics";
@@ -36,6 +38,8 @@ import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import DeleteAccount from "./pages/DeleteAccount";
+import SiteSettingsPage from "./pages/SiteSettings";
+import { SiteSettingsProvider } from "@/lib/siteSettings";
 
 const queryClient = new QueryClient();
 
@@ -51,16 +55,36 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-// Layout with Navbar
-const AppLayout = () => (
-  <>
-    <Navbar />
-    <Outlet />
-  </>
+// Page transition wrapper — fades + slides each route in
+const PageTransition = ({ children }: { children: React.ReactNode }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -6 }}
+    transition={{ duration: 0.25, ease: "easeOut" }}
+  >
+    {children}
+  </motion.div>
 );
+
+// Layout with Navbar
+const AppLayout = () => {
+  const location = useLocation();
+  return (
+    <>
+      <Navbar />
+      <AnimatePresence mode="wait">
+        <PageTransition key={location.pathname}>
+          <Outlet />
+        </PageTransition>
+      </AnimatePresence>
+    </>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <SiteSettingsProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -124,6 +148,7 @@ const App = () => (
                 <Route path="whatsapp" element={<TournamentWhatsAppSection />} />
                 <Route path="schedule" element={<TournamentScheduleSection />} />
                 <Route path="auction" element={<TournamentAuctionSection />} />
+                <Route path="top-up" element={<TournamentTopUpSection />} />
                 <Route path="data" element={<TournamentDataSection />} />
                 <Route path="backups" element={<TournamentBackupsSection />} />
                 <Route path="settings" element={<TournamentSettingsSection />} />
@@ -156,6 +181,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/site-settings"
+                element={
+                  <ProtectedRoute>
+                    <SiteSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Redirect for malformed WhatsApp URLs */}
               <Route path="/tournament/:placeholder/:tournamentId" element={<TournamentRedirect />} />
@@ -167,6 +200,7 @@ const App = () => (
         </div>
       </BrowserRouter>
     </TooltipProvider>
+    </SiteSettingsProvider>
   </QueryClientProvider>
 );
 

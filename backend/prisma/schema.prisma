@@ -31,6 +31,7 @@ enum Role {
 enum AuctionMode {
   category
   manual
+  serial
 }
 
 enum AuctionLogStatus {
@@ -73,6 +74,9 @@ model User {
   auctionLogs        AuctionLog[]         @relation("AuctionLogConductedBy")
   auctionRoomSessions AuctionRoomSession[] @relation("SessionHost")
   userEvents         UserEvent[]
+  venues             Venue[]              @relation("VenueOwner")
+  bookings           Booking[]            @relation("BookingUser")
+  teamBudgetTopups   TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,6 +92,7 @@ model Tournament {
   maxPlayersPerTeam Int?
   minPlayersPerTeam Int?
   totalBudget       Int?
+  auctionDate       DateTime? // when the auction itself is scheduled/held (distinct from createdAt)
 
   playerCategories     String[] // Postgres text[]
   categoryBasePrices   Json?    // Map<string, number>
@@ -105,6 +110,7 @@ model Tournament {
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
   matches             Match[]
+  teamBudgetTopups    TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,11 +139,39 @@ model Team {
   homeMatches    Match[]          @relation("MatchTeamA")
   awayMatches    Match[]          @relation("MatchTeamB")
   battingInnings Innings[]        @relation("InningsBattingTeam")
+  budgetTopups   TeamBudgetTopup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("team")
+}
+
+// Manual "top up team balance" ledger — the host credits a team extra auction
+// points in exchange for cash paid outside the app. There's no stored budget
+// column on Team; remainingBudget is computed on read (see teamService.js),
+// so topping up just means summing these rows into that formula. Kept as an
+// append-only ledger (rather than mutating a single balance column) so there's
+// an actual audit trail of who topped up which team, how much, and when —
+// something no other manual-edit flow in this codebase currently has.
+model TeamBudgetTopup {
+  id   String @id @default(cuid())
+  amount Int  // positive = credit; entered by the host
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  touranmentId String
+  tournament   Tournament @relation(fields: [touranmentId], references: [id])
+
+  note String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("team_budget_topup")
 }
 
 model PlayerProfile {
@@ -192,6 +226,17 @@ model Player {
   updatedAt DateTime @updatedAt
 
   @@map("player")
+}
+
+// Site-wide settings singleton (row id is always 1). Mirrors the shape of
+// Tournament.features but applies across the whole site rather than one
+// tournament — e.g. { maskFemalePlayers: true }.
+model SiteSettings {
+  id        Int      @id @default(1)
+  settings  Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
 }
 
 // ---------------------------------------------------------------------------
@@ -637,6 +682,30 @@ model TournamentBackup {
   @@map("tournament_backup")
 }
 
+model WhatsappIncoming {
+  id          String   @id @default(cuid())
+
+  from        String
+  senderName  String?
+  messageId   String   @unique
+  messageType String   @default("text")
+  body        String?
+  mediaUrl    String?
+
+  tournamentId String?
+
+  isRead     Boolean  @default(false)
+  receivedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([from, receivedAt])
+  @@index([receivedAt(sort: Desc)])
+  @@index([isRead])
+  @@map("whatsapp_incoming")
+}
+
 model IpGeoCache {
   id        String  @id @default(cuid())
   ipAddress String  @unique
@@ -656,4 +725,104 @@ model IpGeoCache {
   updatedAt DateTime @updatedAt
 
   @@map("ip_geo_cache")
+}
+
+// ---------------------------------------------------------------------------
+// cricbook — court/turf booking (v1: book & pay at venue, no gateway)
+// ---------------------------------------------------------------------------
+
+enum SportType {
+  cricket
+  football
+  badminton
+  tennis
+  pickleball
+  basketball
+  other
+}
+
+enum BookingStatus {
+  confirmed
+  cancelled
+}
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String?
+  city        String?
+  area        String?  // locality, used for search/filter
+  latitude    Float?
+  longitude   Float?
+  photos      String[] // image URLs
+  amenities   String[] // ["Parking","Washroom","Floodlights"]
+  phone       String?
+  isActive    Boolean  @default(true)
+
+  ownerId String
+  owner   User   @relation("VenueOwner", fields: [ownerId], references: [id])
+
+  courts Court[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city, isActive])
+  @@index([ownerId])
+  @@map("venue")
+}
+
+model Court {
+  id      String @id @default(cuid())
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  name  String    // "Court 1", "Turf A"
+  sport SportType @default(cricket)
+
+  pricePerSlot Int          // rupees per slot
+  slotMinutes  Int @default(60)
+
+  // operating hours as minutes-from-midnight (06:00 => 360, 23:00 => 1380)
+  openMinute  Int @default(360)
+  closeMinute Int @default(1380)
+
+  isActive Boolean @default(true)
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([venueId, isActive])
+  @@map("court")
+}
+
+model Booking {
+  id      String @id @default(cuid())
+  courtId String
+  court   Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("BookingUser", fields: [userId], references: [id])
+
+  customerName  String?
+  customerPhone String?
+
+  startTime DateTime
+  endTime   DateTime
+
+  price  Int
+  status BookingStatus @default(confirmed)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Double-booking guard: at most ONE row per court+startTime.
+  // Cancel hard-deletes the row so the slot frees immediately.
+  @@unique([courtId, startTime])
+  @@index([courtId, startTime])
+  @@index([userId])
+  @@map("booking")
 }

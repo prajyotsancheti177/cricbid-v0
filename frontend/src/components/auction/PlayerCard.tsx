@@ -2,6 +2,7 @@ import { Player } from "@/types/auction";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
 
 interface PlayerCardProps {
   player: Player;
@@ -31,6 +32,8 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
   };
 
   const logoSrc = getDriveThumbnail(player.photo as unknown as string);
+  const maskingEligible = useMaskingEligible(player.touranmentId);
+  const masked = shouldMaskPlayer(player, maskingEligible);
 
   const handleClick = () => {
     if (onClick) {
@@ -42,11 +45,11 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
     <div
       onClick={handleClick}
       className={cn(
-        "relative overflow-hidden rounded-lg sm:rounded-2xl bg-card border border-border sm:border-2 shadow-elevated transition-all w-full",
+        "relative overflow-hidden rounded-lg sm:rounded-2xl bg-card border border-border sm:border-2 shadow-elevated transition-all duration-300 w-full",
         // mobile: column layout for compact cards. md+: stacked column with larger image
         "flex flex-col",
-        // Add cursor pointer and hover effects when clickable
-        onClick && "cursor-pointer hover:shadow-2xl hover:scale-[1.02] hover:border-primary/50",
+        // Satisfying hover + press feel
+        onClick && "cursor-pointer hover:shadow-2xl hover:scale-[1.03] hover:border-primary/60 active:scale-[0.97]",
         isAnimated && "animate-pop-in",
         isSold && "animate-celebrate",
         className
@@ -63,7 +66,7 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
         <img
           src={logoSrc}
           alt={player.name}
-          className="relative h-full w-full object-contain z-10"
+          className={cn("relative h-full w-full object-contain z-10", masked && "blur-xl scale-110")}
           onError={(e) => {
             e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(player.name)}&backgroundColor=6366f1,8b5cf6,ec4899&backgroundType=gradientLinear&fontSize=40&fontWeight=600`;
           }}

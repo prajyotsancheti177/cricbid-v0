@@ -98,7 +98,7 @@ export const saveAuctionLog = async (auctionData: {
     playerName: string;
     playerCategory: string;
     basePrice: number;
-    auctionMode: "category" | "manual";
+    auctionMode: "category" | "manual" | "serial";
     status: "sold" | "unsold";
     winningTeamId?: string;
     winningTeamName?: string;

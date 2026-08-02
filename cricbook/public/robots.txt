@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Block scorer panel (requires auth) — only public scorecard pages need indexing
+Disallow: /score/
+Disallow: /schedule-builder
+Disallow: /login
+
+Sitemap: https://scoring.cricbid.online/sitemap.xml

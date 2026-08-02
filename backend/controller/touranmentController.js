@@ -122,6 +122,19 @@ const updateRegistrationConfig = async (req, res) => {
     }
 };
 
+const uploadImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return sendError(res, 400, "No image file provided");
+        }
+        // multer-s3 puts the public URL in file.location; local disk uses file.path
+        const imageUrl = req.file.location || req.file.path;
+        return sendSuccess(res, 200, "Image uploaded successfully", { imageUrl });
+    } catch (error) {
+        return sendError(res, 500, "Failed to upload image", error);
+    }
+};
+
 module.exports = {
     addTournamnet,
     getAllTournaments,
@@ -131,5 +144,6 @@ module.exports = {
     getAllTournamentHosts,
     exportTournamentData,
     getRegistrationConfig,
-    updateRegistrationConfig
+    updateRegistrationConfig,
+    uploadImage
 };

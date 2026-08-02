@@ -10,7 +10,6 @@ import {
     MessageSquare,
     Wallet,
     Radio,
-    Play,
     ArrowRight,
     Zap,
     Shield,
@@ -265,17 +264,6 @@ export default function Home() {
                             Take me to CricBid
                             <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                        <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 border-primary/30 hover:bg-primary/10"
-                            onClick={() => {
-                                document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" });
-                            }}
-                        >
-                            <Play className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                            See Demo
-                        </Button>
                     </motion.div>
 
                     {/* Contact Info */}
@@ -288,15 +276,6 @@ export default function Home() {
                         <p className="text-sm text-muted-foreground mb-3">Contact Us</p>
                         <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
                             <a
-                                href="https://wa.me/918208216407"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span className="font-medium text-sm">Pushkar Sancheti: 8208216407</span>
-                            </a>
-                            <a
                                 href="https://wa.me/919423931031"
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -304,15 +283,6 @@ export default function Home() {
                             >
                                 <Phone className="w-4 h-4" />
                                 <span className="font-medium text-sm">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                            <a
-                                href="https://wa.me/919309848331"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span className="font-medium text-sm">Prajyot Sancheti: 9309848331</span>
                             </a>
                         </div>
                     </motion.div>
@@ -334,40 +304,6 @@ export default function Home() {
                     </motion.div>
                 </motion.div>
             </motion.section>
-
-            {/* Demo Video Section */}
-            <section id="demo" className="py-16 md:py-24 relative">
-                <div className="container mx-auto px-4">
-                    <motion.div {...fadeInUp} className="text-center mb-8 md:mb-12">
-                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 md:mb-4">
-                            See the <span className="text-primary">Auction App</span> in Action
-                        </h2>
-                        <p className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
-                            Experience the thrill of a digital cricket player auction.
-                        </p>
-                    </motion.div>
-
-                    <motion.div {...scaleIn} className="max-w-5xl mx-auto">
-                        <Card className="overflow-hidden bg-card/50 backdrop-blur border-primary/20 shadow-2xl">
-                            <CardContent className="p-0">
-                                <div className="relative aspect-video bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center group cursor-pointer">
-                                    <div className="absolute inset-0 bg-[url('/stadium-bg.jpg')] bg-cover bg-center opacity-30" />
-                                    <div className="relative z-10 text-center">
-                                        <motion.div
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-primary/90 flex items-center justify-center shadow-[0_0_50px_hsl(263,70%,50%,0.5)] group-hover:shadow-[0_0_70px_hsl(263,70%,50%,0.7)] transition-all duration-300"
-                                        >
-                                            <Play className="w-6 h-6 sm:w-10 sm:h-10 text-white ml-1" />
-                                        </motion.div>
-                                        <p className="mt-3 sm:mt-4 text-sm sm:text-lg text-muted-foreground">Watch Demo Guide</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </div>
-            </section>
 
             {/* Features Section */}
             <section className="py-16 md:py-24 relative">
@@ -572,15 +508,6 @@ export default function Home() {
                         <motion.div {...fadeInUp}>
                             <Card className="bg-card/50 backdrop-blur border-border/50">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-2 text-foreground">Does CricBid also include cricket scoring and live scorecards?</h3>
-                                    <p className="text-muted-foreground">Yes! CricBid now includes CricScoring at <a href="https://scoring.cricbid.online" className="text-primary hover:underline">scoring.cricbid.online</a> — a free ball-by-ball cricket scoring app. Score matches live, track batsman and bowler stats, show real-time scorecards to spectators, and build match schedules for your tournament. Auction data and player rosters sync automatically from CricBid.</p>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-
-                        <motion.div {...fadeInUp}>
-                            <Card className="bg-card/50 backdrop-blur border-border/50">
-                                <CardContent className="p-6">
                                     <h3 className="text-xl font-bold mb-2 text-foreground">Which cities in India use Vardhaman CricBid?</h3>
                                     <p className="text-muted-foreground">CricBid is used by cricket tournament organizers across India — Mumbai, Pune, Nagpur, Delhi, Hyderabad, Bangalore, Chennai, Kolkata, Ahmedabad, Surat, Jaipur, Nashik, Aurangabad, and hundreds of smaller towns. Any cricket organizer in India can use our online platform to run an IPL-style player auction.</p>
                                 </CardContent>
@@ -613,15 +540,6 @@ export default function Home() {
                         <h3 className="text-xl font-semibold text-muted-foreground mb-2">Contact Us</h3>
                         <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 sm:gap-4">
                             <a
-                                href="https://wa.me/918208216407"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="font-semibold text-sm sm:text-base">Pushkar Sancheti: 8208216407</span>
-                            </a>
-                            <a
                                 href="https://wa.me/919423931031"
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -629,15 +547,6 @@ export default function Home() {
                             >
                                 <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                                 <span className="font-semibold text-sm sm:text-base">Dr. Kartik Bakliwal: 9423931031</span>
-                            </a>
-                            <a
-                                href="https://wa.me/919309848331"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
-                            >
-                                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="font-semibold text-sm sm:text-base">Prajyot Sancheti: 9309848331</span>
                             </a>
                         </div>
                     </div>
@@ -662,13 +571,7 @@ export default function Home() {
                             <span className="text-xl font-bold">Vardhaman cricBid</span>
                         </div>
                         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-muted-foreground">
-                            <a href="#demo" className="hover:text-primary transition-colors">How it works</a>
-                            <a href="https://scoring.cricbid.online" className="hover:text-primary transition-colors" rel="noopener">Cricket Scoring</a>
                             <a href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</a>
-                            <div className="flex items-center gap-2">
-                                <Phone className="w-4 h-4" />
-                                <a href="tel:+918208216407" className="hover:text-primary transition-colors">+91-8208216407</a>
-                            </div>
                         </div>
                         <div className="text-muted-foreground text-sm">
                             © {new Date().getFullYear()} Vardhaman CricBid. India's #1 Cricket Auction Software. All rights reserved.

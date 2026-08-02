@@ -20,6 +20,7 @@ export interface TournamentFormData {
   maxPlayersPerTeam: number | string;
   minPlayersPerTeam: number | string;
   totalBudget: number | string;
+  auctionDate: string;
   playerCategories: string;
   categoryBasePrices: { [key: string]: string };
   bidIncrementSlabs: BidSlab[];
@@ -39,6 +40,7 @@ export interface TournamentForForm {
   maxPlayersPerTeam?: number;
   minPlayersPerTeam?: number;
   totalBudget?: number;
+  auctionDate?: string | null;
   playerCategories?: string[];
   categoryBasePrices?: { [key: string]: number };
   bidIncrementSlabs?: BidSlab[];
@@ -51,8 +53,17 @@ const DEFAULT_SLABS: BidSlab[] = [
 
 const BLANK_FORM: TournamentFormData = {
   name: "", tournamentHostId: "", noOfTeams: "", maxPlayersPerTeam: "",
-  minPlayersPerTeam: "", totalBudget: "", playerCategories: "",
+  minPlayersPerTeam: "", totalBudget: "", auctionDate: "", playerCategories: "",
   categoryBasePrices: {}, bidIncrementSlabs: DEFAULT_SLABS,
+};
+
+// Tournament.auctionDate is stored as a full DateTime; the <input type="date">
+// only wants the "yyyy-MM-dd" portion.
+const toDateInputValue = (iso?: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 };
 
 function toFormData(t: TournamentForForm): TournamentFormData {
@@ -68,6 +79,7 @@ function toFormData(t: TournamentForForm): TournamentFormData {
     maxPlayersPerTeam: t.maxPlayersPerTeam ?? "",
     minPlayersPerTeam: t.minPlayersPerTeam ?? "",
     totalBudget: t.totalBudget ?? "",
+    auctionDate: toDateInputValue(t.auctionDate),
     playerCategories: t.playerCategories?.join(", ") || "",
     categoryBasePrices: basePrices,
     bidIncrementSlabs: t.bidIncrementSlabs ?? DEFAULT_SLABS,
@@ -138,6 +150,7 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       maxPlayersPerTeam: Number(formData.maxPlayersPerTeam),
       minPlayersPerTeam: Number(formData.minPlayersPerTeam),
       totalBudget: Number(formData.totalBudget),
+      auctionDate: formData.auctionDate ? new Date(formData.auctionDate).toISOString() : null,
       playerCategories: categories,
       categoryBasePrices,
       bidIncrementSlabs: formData.bidIncrementSlabs,
@@ -210,6 +223,19 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
               <Label htmlFor="t-budget">Total Budget *</Label>
               <Input id="t-budget" type="number" placeholder="e.g., 100000" value={formData.totalBudget} onChange={(e) => set("totalBudget", e.target.value)} />
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="t-auction-date">Auction Date</Label>
+            <Input
+              id="t-auction-date"
+              type="date"
+              value={formData.auctionDate}
+              onChange={(e) => set("auctionDate", e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              When the auction itself will be held. Separate from the tournament's created date.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 export interface AuctionState {
     tournamentId: string;
     isActive: boolean;
-    auctionMode: 'category' | 'manual' | null;
+    auctionMode: 'category' | 'manual' | 'serial' | null;
     selectedCategory: string | null;
     currentPlayer: Player | null;
     currentBid: number;
@@ -32,16 +32,32 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
 
         const socket = socketRef.current;
 
+        const joinRoom = () => {
+            socket.emit("auction:join", { tournamentId, userId });
+        };
+
         // Connect if not connected
         if (!socket.connected) {
             socket.connect();
+        } else {
+            // Socket was already connected (e.g. reused across page navigation)
+            // — the "connect" event below won't fire again, so join now.
+            joinRoom();
         }
 
-        // Join room
-        socket.emit("auction:join", { tournamentId, userId });
-
         // Event listeners
-        const onConnect = () => setIsConnected(true);
+        const onConnect = () => {
+            setIsConnected(true);
+            // Re-announce on every (re)connect, not just the first one. socket.io
+            // reconnects (network blip, tab backgrounded, laptop sleep, etc.)
+            // hand out a NEW socket.id — without re-joining, the server keeps
+            // treating this browser as a stranger, and a host who was mid-auction
+            // starts getting "Unauthorized: Only auctioneer can bid" on every
+            // action until they reload. The server already re-links a
+            // reconnecting socket.id to this userId's auctioneer status inside
+            // its auction:join handler; it just needs to be told again.
+            joinRoom();
+        };
         const onDisconnect = () => setIsConnected(false);
 
         const onStateUpdate = (state: AuctionState) => {
@@ -53,13 +69,27 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
             setAuctionState(prev => prev ? { ...prev, viewerCount: count } : null);
         };
 
-        const onError = (error: string) => {
+        const onError = (error: string | { code?: string; message?: string; hostName?: string }) => {
             console.error("Auction socket error:", error);
-            toast({
-                title: "Auction Error",
-                description: error,
-                variant: "destructive"
-            });
+            if (typeof error === 'object' && error.code === 'HOST_CONFLICT') {
+                toast({
+                    title: "Auction already in progress",
+                    description: `Auction is already being hosted by ${error.hostName || 'another user'}. You are in viewer mode.`,
+                    variant: "destructive"
+                });
+            } else if (typeof error === 'object' && error.code === 'UNAUTHORIZED') {
+                toast({
+                    title: "Unauthorized",
+                    description: error.message || "You are not authorized to host this auction.",
+                    variant: "destructive"
+                });
+            } else {
+                toast({
+                    title: "Auction Error",
+                    description: typeof error === 'object' ? (error.message || JSON.stringify(error)) : error,
+                    variant: "destructive"
+                });
+            }
         };
 
         const onRole = (role: string) => {
@@ -126,9 +156,9 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
         socketRef.current.emit("auction:start", { tournamentId, userId });
     }, [tournamentId, userId]);
 
-    const selectPlayer = useCallback((playerId?: string, category?: string) => {
+    const selectPlayer = useCallback((playerId?: string, category?: string, orderMode?: 'random' | 'serial') => {
         if (!tournamentId) return;
-        socketRef.current.emit("auction:selectPlayer", { tournamentId, playerId, category });
+        socketRef.current.emit("auction:selectPlayer", { tournamentId, playerId, category, orderMode });
     }, [tournamentId]);
 
     const placeBid = useCallback((teamId: string) => {

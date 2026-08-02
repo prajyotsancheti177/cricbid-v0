@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, Users, Calendar, DollarSign, ArrowLeft, UserCircle, Shield } from "lucide-react";
+import { Trophy, Users, Calendar, Wallet, ArrowLeft, UserCircle, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
@@ -23,6 +23,7 @@ interface Tournament {
   playerCategories?: string[];
   createdAt?: string;
   updatedAt?: string;
+  auctionDate?: string | null;
 }
 
 const TournamentDetail = () => {
@@ -151,7 +152,13 @@ const TournamentDetail = () => {
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
               <div className="flex items-center gap-1">
                 <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{formatDate(tournament.createdAt)}</span>
+                <span>Created {formatDate(tournament.createdAt)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>
+                  Auction Date: {tournament.auctionDate ? formatDate(tournament.auctionDate) : "Not scheduled yet"}
+                </span>
               </div>
               {tournament.tournamentHostId && (
                 <div className="flex items-center gap-1">
@@ -181,9 +188,9 @@ const TournamentDetail = () => {
 
               {/* Budget */}
               <div className="flex-1 p-2 sm:p-4 bg-muted rounded-lg text-center">
-                <DollarSign className="h-4 w-4 sm:h-6 md:h-8 text-primary mx-auto mb-0.5 sm:mb-1" />
+                <Wallet className="h-4 w-4 sm:h-6 md:h-8 text-primary mx-auto mb-0.5 sm:mb-1" />
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Budget</p>
-                <p className="text-lg sm:text-2xl md:text-3xl font-bold">₹{formatCurrency(tournament.totalBudget)}</p>
+                <p className="text-lg sm:text-2xl md:text-3xl font-bold">{formatCurrency(tournament.totalBudget)} Pts</p>
               </div>
             </div>
 

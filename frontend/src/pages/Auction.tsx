@@ -4,6 +4,7 @@ import { SoldCelebration } from "@/components/auction/SoldCelebration";
 import { UnsoldAnimation } from "@/components/auction/UnsoldAnimation";
 import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
 import { TeamBudgetPanel } from "@/components/auction/TeamBudgetPanel";
+import { TeamBidGrid } from "@/components/auction/TeamBidGrid";
 import { OverlayControlBar } from "@/components/auction/OverlayControlBar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,11 +22,14 @@ import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { useToast } from "@/hooks/use-toast";
 import { trackPageView } from "@/lib/eventTracker";
 import { useAuctionSocket } from "@/hooks/useAuctionSocket";
+import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
+import { cn } from "@/lib/utils";
 
 const Auction = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
 
   // Auth & Context
   const userStr = localStorage.getItem("user");
@@ -69,6 +73,7 @@ const Auction = () => {
 
   const [showSearchDialog, setShowSearchDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [pendingOrderMode, setPendingOrderMode] = useState<"random" | "serial">("random");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -90,7 +95,14 @@ const Auction = () => {
       maxBid: number | null;
       increment: number;
     }>;
+    features?: {
+      countdownEnabled?: boolean;
+      countdownSeconds?: number;
+    };
   } | null>(null);
+
+  // Countdown timer state
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // Reset unsold players states
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -166,8 +178,16 @@ const Auction = () => {
           body: JSON.stringify({ tournamentId }),
         });
         const tournData = await tournRes.json();
-        if (tournData?.data?.bidIncrementSlabs) {
-          setBidIncrementSlabs(tournData.data.bidIncrementSlabs);
+        if (tournData?.data) {
+          setTournamentData(tournData.data);
+          if (tournData.data.bidIncrementSlabs) {
+            setBidIncrementSlabs(tournData.data.bidIncrementSlabs);
+          } else {
+            setBidIncrementSlabs([
+              { minBid: 0, maxBid: 499, increment: 50 },
+              { minBid: 500, maxBid: null, increment: 100 }
+            ]);
+          }
         } else {
           setBidIncrementSlabs([
             { minBid: 0, maxBid: 499, increment: 50 },
@@ -181,6 +201,22 @@ const Auction = () => {
     };
     fetchInitialData();
   }, [tournamentId]);
+
+  // Countdown timer: reset when a new player is selected
+  useEffect(() => {
+    if (tournamentData?.features?.countdownEnabled && tournamentData?.features?.countdownSeconds) {
+      setSecondsLeft(tournamentData.features.countdownSeconds);
+    } else {
+      setSecondsLeft(null);
+    }
+  }, [currentPlayer?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown timer: tick every second
+  useEffect(() => {
+    if (secondsLeft === null || secondsLeft <= 0) return;
+    const t = setInterval(() => setSecondsLeft(s => (s !== null && s > 0 ? s - 1 : s)), 1000);
+    return () => clearInterval(t);
+  }, [secondsLeft]);
 
   // Fetch unsold players only when dialog opens
   useEffect(() => {
@@ -219,17 +255,25 @@ const Auction = () => {
 
   const handleNextPlayer = () => {
     // If we're already in an auction with a category selected, use that category
+    // and whatever order mode (random/serial) is already active for this auction.
     if (auctionState?.selectedCategory) {
-      actions.selectPlayer(undefined, auctionState.selectedCategory);
+      const orderMode = auctionState.auctionMode === "serial" ? "serial" : "random";
+      actions.selectPlayer(undefined, auctionState.selectedCategory, orderMode);
     } else {
       // Show category selection dialog for initial selection
+      setPendingOrderMode("random");
       setShowCategoryDialog(true);
     }
   };
 
+  const handleNextPlayerSerial = () => {
+    setPendingOrderMode("serial");
+    setShowCategoryDialog(true);
+  };
+
   const handleCategorySelect = (category: string) => {
     setShowCategoryDialog(false);
-    actions.selectPlayer(undefined, category);
+    actions.selectPlayer(undefined, category, pendingOrderMode);
   };
 
   const handleChangeMode = () => {
@@ -295,7 +339,10 @@ const Auction = () => {
           {isAuctioneer && (
             <div className="space-y-4">
               <Button onClick={handleNextPlayer} size="lg" className="w-full">
-                Start with Next Player (Category Mode)
+                Start with Next Player (Random Order)
+              </Button>
+              <Button onClick={handleNextPlayerSerial} size="lg" variant="secondary" className="w-full">
+                Start with Next Player (Serial Number Order)
               </Button>
               <Button onClick={() => setShowSearchDialog(true)} variant="outline" className="w-full">
                 Select Player Manually
@@ -308,7 +355,10 @@ const Auction = () => {
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Select Category</DialogTitle>
-                <DialogDescription>Choose which category to auction next</DialogDescription>
+                <DialogDescription>
+                  Choose which category to auction next
+                  {pendingOrderMode === "serial" ? " — players will come up in ascending serial number order" : ""}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 py-4">
                 <Button
@@ -364,7 +414,7 @@ const Auction = () => {
                 {filteredPlayers.map(player => (
                   <Card key={player._id} className="p-4 cursor-pointer hover:bg-accent" onClick={() => handleManualSelect(player)}>
                     <div className="flex items-center gap-4">
-                      {player.photo && <img src={getDriveThumbnail(player.photo)} className="w-12 h-12 rounded-full object-cover" />}
+                      {player.photo && <img src={getDriveThumbnail(player.photo)} className={cn("w-12 h-12 rounded-full object-cover", shouldMaskPlayer(player, maskingEligible) && "blur-md scale-110")} />}
                       <div>
                         <div className="font-bold">{player.name}</div>
                         <div className="text-sm text-muted-foreground">{player.playerCategory}</div>
@@ -429,6 +479,11 @@ const Auction = () => {
                 {auctionState.selectedCategory}
               </span>
             )}
+            {auctionState?.auctionMode === "serial" && (
+              <span className="text-xs md:text-sm px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                Serial Order
+              </span>
+            )}
           </div>
           <div className="flex justify-end gap-1 md:gap-2">
             {/* Sound Toggle */}
@@ -471,6 +526,32 @@ const Auction = () => {
         )}
 
         <div className="space-y-4 md:space-y-8 max-w-full mx-auto">
+          {/* Countdown Timer — shown only when enabled and a player is active */}
+          {tournamentData?.features?.countdownEnabled && currentPlayer && secondsLeft !== null && (
+            <div className="flex justify-center animate-fade-in">
+              <div className={`inline-flex flex-col items-center px-6 py-3 rounded-2xl border-2 shadow-elevated transition-all
+                ${secondsLeft <= 0
+                  ? "border-red-500 bg-red-500/20 animate-pulse"
+                  : secondsLeft <= 10
+                    ? "border-red-400 bg-red-400/10 animate-pulse"
+                    : "border-primary/40 bg-card/80"
+                }`}>
+                {secondsLeft <= 0 ? (
+                  <span className="text-2xl md:text-4xl font-black text-red-500 tracking-widest">TIME'S UP</span>
+                ) : (
+                  <>
+                    <span className={`text-3xl md:text-5xl font-black tabular-nums ${secondsLeft <= 10 ? "text-red-500" : "text-foreground"}`}>
+                      {secondsLeft >= 60
+                        ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
+                        : String(secondsLeft).padStart(2, "0")}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-medium mt-0.5">seconds remaining</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Player Card + Team Budget Panel */}
           <div className="flex flex-col md:flex-row gap-3 md:gap-4 animate-scale-in mx-2 md:mx-0 max-w-7xl md:mx-auto md:h-[55vh]">
             {/* Large Player Card */}
@@ -512,63 +593,32 @@ const Auction = () => {
                 Click on Team to Bid
               </h2>
 
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3 mb-3 md:mb-4">
-                {teams.map((team: any) => {
-                  const nextBidAmount = leadingTeam === null ? currentBid : currentBid + bidPrice;
-                  const noSlots = (team.maxPlayersPerTeam ?? 0) - (team.playersCount ?? 0) <= 0;
-                  const insufficientBudget = (team.remainingBudget ?? 0) < nextBidAmount;
-                  const exceedsMaxBiddable = (team.maxBiddableAmount ?? 0) < nextBidAmount;
-                  const isWarning = noSlots || insufficientBudget || exceedsMaxBiddable;
-
-                  return (
-                    <div key={team._id} className="flex flex-col items-center">
-                      <button
-                        onClick={() => actions.placeBid(team._id)}
-                        className={`w-full p-3 md:p-4 rounded-xl border-2 transition-all ${isWarning ? "border-red-500 bg-red-500/20" :
-                          leadingTeam === team._id ? "border-primary bg-primary/20 shadow-glow scale-105" :
-                            "border-border hover:border-primary/50 hover:scale-105"
-                          }`}
-                      >
-                        <div className="mb-2">
-                          <img
-                            src={getDriveThumbnail(team.logo) || 'placeholder.png'}
-                            alt={team.name}
-                            className="h-14 w-14 md:h-16 md:w-16 rounded-full shadow-md object-cover mx-auto"
-                            onError={(e) => {
-                              e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(team.name)}&backgroundColor=6366f1,8b5cf6,ec4899&backgroundType=gradientLinear&fontSize=36&fontWeight=600`;
-                            }}
-                          />
-                        </div>
-                        <p className="font-bold text-xs md:text-sm text-foreground mb-1 text-center truncate">{team.name}</p>
-                        <div className="text-[11px] md:text-xs text-muted-foreground text-center">
-                          {team.remainingBudget} Pts • {(team.maxPlayersPerTeam || 0) - (team.playersCount || 0)} slots
-                        </div>
-                        {teamBids[team._id] && (
-                          <p className="text-[11px] md:text-xs text-primary font-bold mt-1 text-center">{teamBids[team._id]} Pts.</p>
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <TeamBidGrid
+                teams={teams}
+                currentBid={currentBid}
+                bidPrice={bidPrice}
+                leadingTeam={leadingTeam}
+                teamBids={teamBids}
+                onBid={actions.placeBid}
+              />
 
               <div className="flex gap-2 md:gap-3 justify-center flex-wrap">
-                <Button onClick={handleChangeMode} variant="ghost" size="sm" className="px-3 md:px-4 text-xs md:text-sm text-muted-foreground hover:text-foreground">
+                <Button onClick={handleChangeMode} variant="ghost" size="sm" className="px-3 md:px-4 text-xs md:text-sm text-muted-foreground hover:text-foreground transition-all hover:scale-[1.04] active:scale-95">
                   ← Change Mode
                 </Button>
-                <Button onClick={handleNextPlayer} size="sm" className="px-3 md:px-6 text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button onClick={handleNextPlayer} size="sm" className="px-3 md:px-6 text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-[1.06] active:scale-95">
                   Next
                 </Button>
-                <Button onClick={() => { setShowSearchDialog(true); }} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm">
+                <Button onClick={() => { setShowSearchDialog(true); }} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   <Search className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" /> Search
                 </Button>
-                <Button onClick={actions.undoBid} disabled={currentBid === 0 || !currentPlayer} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm">
+                <Button onClick={actions.undoBid} disabled={currentBid === 0 || !currentPlayer} variant="secondary" size="sm" className="px-3 md:px-6 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   Undo
                 </Button>
-                <Button onClick={actions.markUnsold} disabled={!currentPlayer} variant="outline" size="sm" className="px-4 md:px-8 text-xs md:text-sm">
+                <Button onClick={actions.markUnsold} disabled={!currentPlayer} variant="outline" size="sm" className="px-4 md:px-8 text-xs md:text-sm transition-all hover:scale-[1.06] active:scale-95">
                   Unsold
                 </Button>
-                <Button onClick={actions.markSold} disabled={!leadingTeam || !currentPlayer} size="sm" className="px-4 md:px-8 text-xs md:text-sm bg-gradient-accent hover:opacity-90">
+                <Button onClick={actions.markSold} disabled={!leadingTeam || !currentPlayer} size="sm" className="px-4 md:px-8 text-xs md:text-sm bg-gradient-accent hover:opacity-90 transition-all hover:scale-[1.08] active:scale-95 disabled:hover:scale-100">
                   Sold!
                 </Button>
               </div>
@@ -621,7 +671,7 @@ const Auction = () => {
                   <Card key={player._id} className="p-4 hover:bg-accent cursor-pointer" onClick={() => handleManualSelect(player)}>
                     <div className="flex items-center gap-4">
                       {player.photo && (
-                        <img src={getDriveThumbnail(player.photo)} className="w-16 h-16 rounded-full object-cover" />
+                        <img src={getDriveThumbnail(player.photo)} className={cn("w-16 h-16 rounded-full object-cover", shouldMaskPlayer(player, maskingEligible) && "blur-md scale-110")} />
                       )}
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">{player.name}</h3>

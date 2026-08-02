@@ -7,12 +7,47 @@ const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
 const whatsappService = require("../services/whatsappService");
 const prisma = require("../db/prisma");
+const eventService = require("../services/eventService");
 
 // Store interval IDs for viewer history sampling per tournament
 const viewerHistoryIntervals = new Map();
 
 module.exports = (io) => {
   const auctionNamespace = io.of("/auction");
+
+  // Auto-advance to the next player after a SOLD/UNSOLD result, when the
+  // auction is running in 'category' or 'serial' mode ('manual' mode instead
+  // returns to the selection screen — handled by the caller before this runs).
+  const autoAdvanceNextPlayer = (tournamentId, socket, auctionRaw) => {
+    setTimeout(async () => {
+      try {
+        const category = auctionRaw.selectedCategory || 'All';
+        const orderMode = auctionRaw.auctionMode === 'serial' ? 'serial' : 'random';
+        const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category, orderMode);
+
+        if (nextPlayer) {
+          const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+          const slabs = t ? (t.bidIncrementSlabs || []) : [];
+          // basePrice is already attached by nextAuctionPlayer via the
+          // tournament's categoryBasePrices map (no need to re-derive it here).
+
+          const selRes = auctionStateManager.selectPlayer(tournamentId, nextPlayer, slabs);
+          if (selRes.success) {
+            auctionNamespace.to(tournamentId).emit("auction:playerSelected", nextPlayer);
+            auctionNamespace.to(tournamentId).emit("auction:state", selRes.state);
+          } else {
+            console.error("Failed to auto-select next player:", selRes.error);
+          }
+        } else {
+          auctionRaw.auctionMode = null;
+          auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
+          socket.emit("auction:info", "No more players in this category");
+        }
+      } catch (err) {
+        console.error("Error auto-fetching next player:", err);
+      }
+    }, 3000);
+  };
 
   auctionNamespace.on("connection", (socket) => {
     console.log(`Socket connected: ${socket.id}`);
@@ -98,6 +133,13 @@ module.exports = (io) => {
 
         // Proceed with deletion
         auctionStateManager.cleanupAuction(tournamentId);
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_ended",
+          eventData: { tournamentId, auctioneerUserId: userId || null },
+        }).catch(() => {});
 
         // End session analytics (only if we have valid user context)
         if (!skipAnalytics) {
@@ -192,9 +234,48 @@ module.exports = (io) => {
         // Here you would optimally verify userId with a user service or token
         // For now, we trust the client (as per user instruction "One person for now to keep it simple")
 
+        // Check tournament ownership before allowing host claim
+        let tournamentOwnerId = null;
+        let existingHostName = null;
+        try {
+          const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { tournamentHostId: true } });
+          if (t) tournamentOwnerId = String(t.tournamentHostId);
+        } catch (_) {}
+
+        // Try to resolve existing auctioneer's display name for conflict messages
+        const preAuction = auctionStateManager.getOrCreateAuction(tournamentId);
+        if (preAuction.auctioneerUserId && preAuction.auctioneerUserId !== userId) {
+          try {
+            const existingHost = await prisma.user.findUnique({ where: { id: preAuction.auctioneerUserId }, select: { name: true } });
+            existingHostName = existingHost?.name || 'Another user';
+          } catch (_) {
+            existingHostName = 'Another user';
+          }
+        }
+
         const result = auctionStateManager.setAuctioneer(tournamentId, socket.id, userId);
         if (!result.success) {
-          return socket.emit("auction:error", result.error);
+          return socket.emit("auction:error", {
+            code: 'HOST_CONFLICT',
+            message: 'Auction is already being hosted',
+            hostName: existingHostName || 'Another user',
+          });
+        }
+
+        // Gate: only tournament owner or admin may claim auctioneer role
+        if (userId && tournamentOwnerId) {
+          let user = null;
+          try { user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }); } catch (_) {}
+          const isAdmin = user && ['boss', 'super_user'].includes(user.role);
+          const isOwner = tournamentOwnerId === userId;
+          if (!isAdmin && !isOwner) {
+            // Revoke the just-set auctioneer
+            auctionStateManager.setAuctioneer(tournamentId, null, null);
+            return socket.emit("auction:error", {
+              code: 'UNAUTHORIZED',
+              message: 'Only the tournament owner or an admin can host the auction',
+            });
+          }
         }
 
         socket.join(tournamentId);
@@ -239,6 +320,13 @@ module.exports = (io) => {
             hostUserId: userId,
             hostUserName
           });
+
+          eventService.trackEvent({
+            userId: userId || null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_started",
+            eventData: { tournamentId, tournamentName, auctioneerUserId: userId || null },
+          }).catch(() => {});
 
           // Start 1-minute interval for viewer history sampling
           if (!viewerHistoryIntervals.has(tournamentId)) {
@@ -288,7 +376,7 @@ module.exports = (io) => {
     });
 
     // Select Player (Next Player or Manual Select)
-    socket.on("auction:selectPlayer", async ({ tournamentId, playerId, category }) => {
+    socket.on("auction:selectPlayer", async ({ tournamentId, playerId, category, orderMode }) => {
       if (!auctionStateManager.isAuctioneer(tournamentId, socket.id)) {
         return socket.emit("auction:error", "Unauthorized: Only auctioneer can select players");
       }
@@ -299,6 +387,9 @@ module.exports = (io) => {
         if (auctionRaw && !auctionRaw.auctionMode) {
           if (playerId) {
             auctionRaw.auctionMode = 'manual';
+          } else if (orderMode === 'serial') {
+            auctionRaw.auctionMode = 'serial';
+            auctionRaw.selectedCategory = category || 'All';
           } else {
             auctionRaw.auctionMode = 'category';
             auctionRaw.selectedCategory = category || 'All';
@@ -328,8 +419,8 @@ module.exports = (io) => {
             if (p) player.basePrice = p.basePrice;
           }
         } else {
-          // Next player in category
-          player = await auctionService.nextAuctionPlayer(tournamentId, category);
+          // Next player in category or serial-number order
+          player = await auctionService.nextAuctionPlayer(tournamentId, category, auctionRaw.auctionMode === 'serial' ? 'serial' : 'random');
         }
 
         const selResult = auctionStateManager.selectPlayer(tournamentId, player, bidIncrementSlabs);
@@ -337,6 +428,13 @@ module.exports = (io) => {
         if (selResult.success) {
           auctionNamespace.to(tournamentId).emit("auction:state", selResult.state);
           auctionNamespace.to(tournamentId).emit("auction:playerSelected", player);
+
+          eventService.trackEvent({
+            userId: null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_player_selected",
+            eventData: { tournamentId, playerId: player._id, playerName: player.name, category: player.playerCategory, selectionMode: playerId ? "manual" : auctionRaw.auctionMode },
+          }).catch(() => {});
 
           // WhatsApp — notify players in this category that their turn is starting
           if (category && category !== 'All') {
@@ -370,6 +468,14 @@ module.exports = (io) => {
           // Track bid in session analytics
           auctionRoomSessionService.recordAuctionActivity(tournamentId, 'bid');
 
+          const bidState = auctionStateManager.getAuctionState(tournamentId);
+          eventService.trackEvent({
+            userId: null,
+            tournamentId: tournamentId || null,
+            eventType: "auction_bid_placed",
+            eventData: { tournamentId, playerId: bidState?.currentPlayer?._id || null, playerName: bidState?.currentPlayer?.name || null, teamId, teamName: result.teamName, bidAmount: result.newBid },
+          }).catch(() => {});
+
           auctionNamespace.to(tournamentId).emit("auction:bidPlaced", {
             teamId,
             amount: result.newBid,
@@ -393,6 +499,13 @@ module.exports = (io) => {
       const result = auctionStateManager.undoBid(tournamentId);
 
       if (result.success) {
+        eventService.trackEvent({
+          userId: null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_bid_undone",
+          eventData: { tournamentId, playerId: result.state?.currentPlayer?._id || null, previousAmount: result.previousAmount || null, currentAmount: result.state?.currentBid || null },
+        }).catch(() => {});
+
         auctionNamespace.to(tournamentId).emit("auction:undoBid");
         auctionNamespace.to(tournamentId).emit("auction:state", result.state);
       } else {
@@ -457,6 +570,13 @@ module.exports = (io) => {
       if (result.success) {
         // Track sold in session analytics
         auctionRoomSessionService.recordAuctionActivity(tournamentId, 'sold');
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_player_sold",
+          eventData: { tournamentId, playerId: result.player?._id || null, playerName: result.player?.name || null, winningTeamId: result.teamId || null, winningTeamName: result.team?.name || null, finalPrice: result.amount },
+        }).catch(() => {});
 
         // Broadcast immediately for animation
         auctionNamespace.to(tournamentId).emit("auction:sold", {
@@ -557,40 +677,8 @@ module.exports = (io) => {
           auctionRaw.auctionMode = null;
           auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
 
-        } else if (auctionRaw.auctionMode === 'category') {
-          // Auto-fetch next player
-          setTimeout(async () => {
-            try {
-              const category = auctionRaw.selectedCategory || 'All';
-              const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category);
-
-              if (nextPlayer) {
-                const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-                const slabs = t ? (t.bidIncrementSlabs || []) : [];
-
-                if (t && t.categoryBasePrices && nextPlayer.playerCategory) {
-                  const bp = t.categoryBasePrices.get(nextPlayer.playerCategory);
-                  nextPlayer.basePrice = bp || 0;
-                } else {
-                  nextPlayer.basePrice = 0;
-                }
-
-                const selRes = auctionStateManager.selectPlayer(tournamentId, nextPlayer, slabs);
-                if (selRes.success) {
-                  auctionNamespace.to(tournamentId).emit("auction:playerSelected", nextPlayer);
-                  auctionNamespace.to(tournamentId).emit("auction:state", selRes.state);
-                } else {
-                  console.error("Failed to auto-select next player after SOLD:", selRes.error);
-                }
-              } else {
-                auctionRaw.auctionMode = null;
-                auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
-                socket.emit("auction:info", "No more players in this category");
-              }
-            } catch (err) {
-              console.error("Error auto-fetching next player:", err);
-            }
-          }, 3000);
+        } else if (auctionRaw.auctionMode === 'category' || auctionRaw.auctionMode === 'serial') {
+          autoAdvanceNextPlayer(tournamentId, socket, auctionRaw);
         }
       } else {
         socket.emit("auction:error", result.error);
@@ -608,6 +696,13 @@ module.exports = (io) => {
       if (result.success) {
         // Track unsold in session analytics
         auctionRoomSessionService.recordAuctionActivity(tournamentId, 'unsold');
+
+        eventService.trackEvent({
+          userId: userId || null,
+          tournamentId: tournamentId || null,
+          eventType: "auction_player_unsold",
+          eventData: { tournamentId, playerId: result.player?._id || null, playerName: result.player?.name || null },
+        }).catch(() => {});
 
         auctionNamespace.to(tournamentId).emit("auction:unsold", {
           player: result.player
@@ -659,39 +754,8 @@ module.exports = (io) => {
           auctionRaw.auctionMode = null;
           auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
 
-        } else if (auctionRaw.auctionMode === 'category') {
-          setTimeout(async () => {
-            try {
-              const category = auctionRaw.selectedCategory || 'All';
-              const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category);
-
-              if (nextPlayer) {
-                const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-                const slabs = t ? (t.bidIncrementSlabs || []) : [];
-
-                if (t && t.categoryBasePrices && nextPlayer.playerCategory) {
-                  const bp = t.categoryBasePrices.get(nextPlayer.playerCategory);
-                  nextPlayer.basePrice = bp || 0;
-                } else {
-                  nextPlayer.basePrice = 0;
-                }
-
-                const selRes = auctionStateManager.selectPlayer(tournamentId, nextPlayer, slabs);
-                if (selRes.success) {
-                  auctionNamespace.to(tournamentId).emit("auction:playerSelected", nextPlayer);
-                  auctionNamespace.to(tournamentId).emit("auction:state", selRes.state);
-                } else {
-                  console.error("Failed to auto-select next player after UNSOLD:", selRes.error);
-                }
-              } else {
-                auctionRaw.auctionMode = null;
-                auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
-                socket.emit("auction:info", "No more players in this category");
-              }
-            } catch (err) {
-              console.error("Error auto-fetching next player:", err);
-            }
-          }, 3000);
+        } else if (auctionRaw.auctionMode === 'category' || auctionRaw.auctionMode === 'serial') {
+          autoAdvanceNextPlayer(tournamentId, socket, auctionRaw);
         }
       } else {
         socket.emit("auction:error", result.error);

@@ -5,9 +5,19 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { compressImage } from "@/lib/imageCompressor";
+
+
+
+interface PaymentPanelConfig {
+  enabled: boolean;
+  qrImage?: string; // base64 data URL
+  text?: string;
+}
 
 interface fieldConfig {
   required: boolean;
@@ -43,6 +53,9 @@ interface RegistrationConfig {
   customFields?: CustomFieldConfig[];
   googleSheetUrl?: string;
   googleSheetId?: string;
+  showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
+  paymentPanel?: PaymentPanelConfig;
+  posterImage?: string;            // tournament logo/poster shown at the top of the public form (S3 URL)
 }
 
 const defaultFields = {
@@ -67,7 +80,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [config, setConfig] = useState<RegistrationConfig>({ isActive: false, fields: defaultFields, customFields: [] });
+  const [config, setConfig] = useState<RegistrationConfig>({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
 
   const customFieldTypes = ["text", "number", "textarea", "dropdown", "checkbox", "file"];
 
@@ -97,9 +110,12 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           customFields: data.data.registrationFormConfig.customFields || [],
           googleSheetUrl: data.data.registrationFormConfig.googleSheetUrl || '',
           googleSheetId: data.data.registrationFormConfig.googleSheetId || '',
+          showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
+          paymentPanel: data.data.registrationFormConfig.paymentPanel || { enabled: false, qrImage: '', text: '' },
+          posterImage: data.data.registrationFormConfig.posterImage || '',
         });
       } else {
-        setConfig({ isActive: false, fields: defaultFields, customFields: [] });
+        setConfig({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
       }
     } catch (error) {
        console.error(error);
@@ -187,9 +203,74 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     toast({ title: "Copied!", description: "Link copied to clipboard" });
   };
 
+  const updatePaymentPanel = (patch: Partial<PaymentPanelConfig>) => {
+    setConfig(prev => ({
+      ...prev,
+      paymentPanel: { ...(prev.paymentPanel || { enabled: false }), ...patch },
+    }));
+  };
+
+  const handleQrUpload = async (file?: File) => {
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 800, 800, 0.8);
+      const formData = new FormData();
+      formData.append('image', compressed, file.name);
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
+        method: 'POST',
+        headers: { 'x-user-id': user._id },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok && data.data?.imageUrl) {
+        updatePaymentPanel({ qrImage: data.data.imageUrl });
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to upload QR image", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Could not upload that image", variant: "destructive" });
+    }
+  };
+
+  const handlePosterUpload = async (file?: File) => {
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 1400, 1400, 0.8);
+      const formData = new FormData();
+      formData.append('image', compressed, file.name);
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
+        method: 'POST',
+        headers: { 'x-user-id': user._id },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok && data.data?.imageUrl) {
+        setConfig(prev => ({ ...prev, posterImage: data.data.imageUrl }));
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to upload image", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Could not upload that image", variant: "destructive" });
+    }
+  };
+
+  // Radix Select/Popover render their dropdown in a portal OUTSIDE the dialog's
+  // DOM subtree. On touch devices especially, tapping a dropdown option registers
+  // as an "interact outside" and dismisses the whole dialog. Ignore any outside
+  // interaction that actually originated from a popper (dropdown) so changing a
+  // field's visibility/type no longer closes the dialog.
+  const isInsidePopper = (e: any): boolean => {
+    const t = (e?.detail?.originalEvent?.target ?? e?.target) as HTMLElement | undefined;
+    return !!t?.closest?.('[data-radix-popper-content-wrapper]');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle>Customize Registration Form - {tournamentName}</DialogTitle>
           <DialogDescription>
@@ -262,6 +343,48 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                 </div>
               </div>
             )}
+
+            {/* Tournament logo / poster */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Tournament Logo / Poster (optional)
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Shown at the top of the public registration page. Use your tournament logo or a promotional poster.
+                </p>
+                {config.posterImage ? (
+                  <div className="space-y-2">
+                    <img
+                      src={config.posterImage}
+                      alt="Tournament poster"
+                      className="max-h-48 w-auto rounded-lg border bg-white object-contain"
+                    />
+                    <div className="flex gap-2">
+                      <label className="inline-flex">
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePosterUpload(e.target.files?.[0])} />
+                        <span className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border cursor-pointer hover:bg-muted">
+                          <UploadCloud className="h-4 w-4" /> Replace
+                        </span>
+                      </label>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        className="text-destructive hover:text-destructive px-2"
+                        onClick={() => setConfig(prev => ({ ...prev, posterImage: '' }))}
+                      >
+                        <X className="h-4 w-4 mr-1" /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border border-dashed cursor-pointer hover:bg-muted/40 text-muted-foreground">
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePosterUpload(e.target.files?.[0])} />
+                    <UploadCloud className="h-6 w-6" />
+                    <span className="text-sm">Upload a logo or poster image</span>
+                  </label>
+                )}
+              </div>
+            </div>
 
             <div>
               <h4 className="font-semibold text-md border-b pb-2 mb-4">Standard Field Configuration</h4>
@@ -579,7 +702,94 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                 )}
               </div>
             </div>
-            
+
+            {/* Sign-in / Profile access */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4">Player Sign-in</h4>
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                <div className="pr-4">
+                  <h4 className="font-medium">Show CricBid profile login</h4>
+                  <p className="text-sm text-muted-foreground">
+                    When on, players can log in / create a CricBid profile to auto-fill their details.
+                    Turn off to make the form fully anonymous — no sign-in shown.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.showProfileLogin !== false}
+                  onCheckedChange={(c) => setConfig(prev => ({ ...prev, showProfileLogin: c }))}
+                />
+              </div>
+            </div>
+
+            {/* Payment QR panel */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <QrCode className="h-4 w-4" /> Payment QR (optional)
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="pr-4">
+                    <h4 className="font-medium">Show a payment panel on the form</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Display a QR code and instructions so players can pay the registration fee while filling the form.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!config.paymentPanel?.enabled}
+                    onCheckedChange={(c) => updatePaymentPanel({ enabled: c })}
+                  />
+                </div>
+
+                {config.paymentPanel?.enabled && (
+                  <div className="space-y-4 pt-2 border-t">
+                    <div className="space-y-2">
+                      <Label>QR code image</Label>
+                      {config.paymentPanel?.qrImage ? (
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={config.paymentPanel.qrImage}
+                            alt="Payment QR"
+                            className="w-32 h-32 object-contain rounded-lg border bg-white p-1"
+                          />
+                          <div className="flex flex-col gap-2">
+                            <label className="inline-flex">
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(e.target.files?.[0])} />
+                              <span className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border cursor-pointer hover:bg-muted">
+                                <UploadCloud className="h-4 w-4" /> Replace
+                              </span>
+                            </label>
+                            <Button
+                              type="button" variant="ghost" size="sm"
+                              className="text-destructive hover:text-destructive justify-start px-2"
+                              onClick={() => updatePaymentPanel({ qrImage: '' })}
+                            >
+                              <X className="h-4 w-4 mr-1" /> Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border border-dashed cursor-pointer hover:bg-muted/40 text-muted-foreground">
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(e.target.files?.[0])} />
+                          <UploadCloud className="h-6 w-6" />
+                          <span className="text-sm">Upload a QR screenshot (PhonePe / GPay / UPI)</span>
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Payment instructions (optional)</Label>
+                      <Textarea
+                        placeholder="e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."
+                        value={config.paymentPanel?.text || ''}
+                        onChange={(e) => updatePaymentPanel({ text: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 

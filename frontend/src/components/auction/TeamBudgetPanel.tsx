@@ -1,6 +1,8 @@
+import { memo } from "react";
 import { Team } from "@/types/auction";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 interface TeamBudgetPanelProps {
   teams: Team[];
@@ -9,7 +11,11 @@ interface TeamBudgetPanelProps {
   leadingTeam: string | null;
 }
 
-export const TeamBudgetPanel = ({
+// Memoized so it only re-renders when auction state that actually affects it
+// changes — not on every countdown-timer tick or viewer-count update, which
+// otherwise restart the leading team's `animate-glow-pulse` CSS animation
+// from frame 0 on a ~1s cadence and make a slow, soft glow look like a flicker.
+export const TeamBudgetPanel = memo(({
   teams,
   currentBid,
   bidPrice,
@@ -47,12 +53,17 @@ export const TeamBudgetPanel = ({
                 <div
                   key={team._id}
                   className={cn(
-                    "flex items-center gap-2 px-2.5 py-2.5 rounded-xl border transition-all duration-200",
+                    "flex items-center gap-2 px-2.5 py-2.5 rounded-xl border",
                     isWarning
-                      ? "border-red-500/60 bg-red-500/10"
+                      ? "border-red-500/60 bg-red-500/10 transition-all duration-200"
                       : isLeading
-                        ? "border-primary/60 bg-primary/10 shadow-glow"
-                        : "border-border/50 bg-background/40 hover:bg-muted/30"
+                        // No duration-* class here: tailwindcss-animate defines its own
+                        // .duration-N { animation-duration: Ns } utility sharing the same
+                        // class name as the core transition-duration utility, which was
+                        // silently overriding animate-glow-pulse's real (8s) duration down
+                        // to whatever duration-N was on the element the whole time.
+                        ? "border-primary/60 bg-primary/10 animate-glow-pulse"
+                        : "border-border/50 bg-background/40 hover:bg-muted/30 transition-all duration-200"
                   )}
                 >
                   <img
@@ -73,7 +84,7 @@ export const TeamBudgetPanel = ({
                         isWarning ? "text-red-400" : "text-secondary"
                       )}
                     >
-                      {team.maxBiddableAmount ?? 0} Pts
+                      <AnimatedNumber value={team.maxBiddableAmount ?? 0} suffix=" Pts" duration={150} />
                     </p>
                   </div>
                   <div
@@ -148,4 +159,6 @@ export const TeamBudgetPanel = ({
       </div>
     </>
   );
-};
+});
+
+TeamBudgetPanel.displayName = "TeamBudgetPanel";

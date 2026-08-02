@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Trophy, LogOut, User, Menu, X, Phone, ChevronDown, Activity } from "lucide-react";
+import { Trophy, LogOut, User, Menu, X, ChevronDown, Activity, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ const buildAdminLinks = () => {
     if (user.role === 'boss' || user.role === 'super_user') {
       links.push({ path: "/users", label: "Users" });
       links.push({ path: "/analytics", label: "Analytics" });
+      links.push({ path: "/site-settings", label: "Site Settings" });
     }
   } catch {
     // ignore localStorage errors
@@ -184,6 +185,7 @@ export const Navbar = () => {
               ))}
             </div>
 
+            {/* Cric Scoring button — commented out for now
             {userName && (
               <a
                 href="https://scoring.cricbid.online"
@@ -195,12 +197,17 @@ export const Navbar = () => {
                 Cric Scoring
               </a>
             )}
+            */}
 
             {userName ? (
               <div className="flex items-center gap-2 border-l pl-4">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 rounded-full border-border bg-muted/40 hover:bg-muted hover:border-primary/40 transition-colors"
+                    >
                       <User className="h-4 w-4" />
                       <span className="max-w-[140px] truncate">{userName}</span>
                       <ChevronDown className="h-4 w-4 opacity-60" />
@@ -324,6 +331,7 @@ export const Navbar = () => {
                       <User className="h-4 w-4" />
                       <span>Logged in as {userName}</span>
                     </div>
+                    {/* Cric Scoring link — commented out for now
                     <a
                       href="https://scoring.cricbid.online"
                       target="_blank"
@@ -333,6 +341,7 @@ export const Navbar = () => {
                       <Activity className="h-4 w-4" />
                       <span>Cric Scoring</span>
                     </a>
+                    */}
                     <button
                       onClick={handleLogout}
                       className="w-full px-4 py-3 rounded-lg font-medium text-left transition-all text-destructive hover:bg-destructive/10 flex items-center gap-2"
@@ -357,15 +366,6 @@ export const Navbar = () => {
                 <p className="px-4 py-2 text-sm text-muted-foreground">Contact Us</p>
                 <div className="flex flex-col gap-2">
                   <a
-                    href="https://wa.me/918208216407"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm font-medium">Pushkar Sancheti: 8208216407</span>
-                  </a>
-                  <a
                     href="https://wa.me/919423931031"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -373,15 +373,6 @@ export const Navbar = () => {
                   >
                     <Phone className="h-4 w-4" />
                     <span className="text-sm font-medium">Dr. Kartik Bakliwal: 9423931031</span>
-                  </a>
-                  <a
-                    href="https://wa.me/919309848331"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm font-medium">Prajyot Sancheti: 9309848331</span>
                   </a>
                 </div>
               </div>

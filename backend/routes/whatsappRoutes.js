@@ -17,6 +17,12 @@ whatsappRouter.post("/send-reminder",     c.sendReminder);
 // Logs
 whatsappRouter.post("/logs",              c.getLogs);
 
+// Incoming messages
+whatsappRouter.get("/incoming/webhook",   c.incomingWebhookVerify);
+whatsappRouter.post("/incoming/webhook",  c.incomingWebhook);
+whatsappRouter.post("/incoming/list",     c.getIncoming);
+whatsappRouter.post("/incoming/mark-read", c.markIncomingRead);
+
 // Legacy
 whatsappRouter.post("/announce-auction",  c.announceAuction);
 whatsappRouter.post("/preview-recipients",c.previewRecipients);

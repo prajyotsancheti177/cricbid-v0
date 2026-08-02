@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, Users, Calendar, DollarSign, ArrowRight, Megaphone, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Trophy, Users, Calendar, Wallet, ArrowRight, Megaphone, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
@@ -20,6 +21,7 @@ interface Tournament {
   playerCategories: string[];
   createdAt: string;
   updatedAt: string;
+  auctionDate?: string | null;
 }
 
 const Tournaments = () => {
@@ -168,8 +170,36 @@ const Tournaments = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-base sm:text-xl text-muted-foreground">Loading tournaments...</p>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-3 sm:p-4 md:p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header skeleton */}
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-9 w-48" />
+            </div>
+            <Skeleton className="h-5 w-64" />
+          </div>
+          {/* Tournament card skeletons — matches 2/2/3 grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border bg-card overflow-hidden">
+                {/* Card header gradient area */}
+                <div className="p-3 sm:p-4 md:p-6 bg-muted/40 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                {/* Card content */}
+                <div className="p-2 sm:p-4 space-y-2 sm:space-y-3">
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -222,9 +252,17 @@ const Tournaments = () => {
                       <CardTitle className="text-sm sm:text-lg md:text-2xl mb-0.5 sm:mb-2 group-hover:text-primary transition-colors truncate">
                         {tournament.name}
                       </CardTitle>
-                      <CardDescription className="flex items-center gap-1 text-xs sm:text-sm">
-                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">{formatDate(tournament.createdAt)}</span>
+                      <CardDescription className="flex flex-col gap-0.5 text-xs sm:text-sm">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">Created {formatDate(tournament.createdAt)}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">
+                            Auction Date: {tournament.auctionDate ? formatDate(tournament.auctionDate) : "Not scheduled yet"}
+                          </span>
+                        </span>
                       </CardDescription>
                     </div>
                     <Trophy className="h-5 w-5 sm:h-8 sm:w-8 text-primary opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0 hidden sm:block" />
@@ -257,11 +295,11 @@ const Tournaments = () => {
                   {/* Budget */}
                   <div className="flex items-center justify-between p-1.5 sm:p-3 bg-muted rounded-md sm:rounded-lg">
                     <div className="flex items-center gap-1 sm:gap-2">
-                      <DollarSign className="h-3 w-3 sm:h-5 sm:w-5 text-primary" />
+                      <Wallet className="h-3 w-3 sm:h-5 sm:w-5 text-primary" />
                       <span className="font-medium text-xs sm:text-base">Budget</span>
                     </div>
                     <Badge variant="default" className="text-xs sm:text-base font-bold px-1.5 sm:px-3">
-                      ₹{formatCurrency(tournament.totalBudget)}
+                      {formatCurrency(tournament.totalBudget)} Pts
                     </Badge>
                   </div>
 

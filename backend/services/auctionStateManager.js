@@ -15,7 +15,7 @@ const getOrCreateAuction = (tournamentId) => {
     activeAuctions.set(tournamentId, {
       tournamentId,
       isActive: false,
-      auctionMode: null, // 'category' | 'manual'
+      auctionMode: null, // 'category' | 'manual' | 'serial'
       selectedCategory: null,
       currentPlayer: null,
       currentBid: 0,

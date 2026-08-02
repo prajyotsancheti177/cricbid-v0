@@ -28,6 +28,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "cwd": "scoring"
+    },
+    {
+      "name": "cricbook-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5174,
+      "cwd": "cricbook"
     }
   ]
 }

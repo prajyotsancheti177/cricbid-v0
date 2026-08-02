@@ -6,6 +6,7 @@ const userRouter = require('./userRoutes');
 const tournamentRouter = require('./tournamentRoutes');
 const teamRouter = require('./teamRoutes');
 const playerRouter = require('./playerRoutes');
+const playerProfileRouter = require('./playerProfileRoutes');
 const auctionRouter = require('./auctionRoutes');
 const whatsappRouter = require('./whatsappRoutes');
 const eventRouter = require('./eventRoutes');
@@ -13,7 +14,8 @@ const auctionLogRouter = require('./auctionLogRoutes');
 const backupRouter = require('./backupRoutes');
 const matchRouter   = require('./matchRoutes');
 const scoringRouter = require('./scoringRoutes');
-const playerProfileRouter = require('./playerProfileRoutes');
+const bookingRouter = require('./bookingRoutes');
+const siteSettingsRouter = require('./siteSettingsRoutes');
 
 // Mount routes with their base paths
 router.use("/user", userRouter);
@@ -28,5 +30,7 @@ router.use("/auction-log", auctionLogRouter);
 router.use("/backup", backupRouter);
 router.use("/match", matchRouter);
 router.use("/scoring", scoringRouter);
+router.use("/booking", bookingRouter);
+router.use("/site-settings", siteSettingsRouter);
 
 module.exports = router;

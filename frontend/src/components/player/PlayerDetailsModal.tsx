@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { getDriveThumbnail } from "@/lib/imageUtils";
+import { shouldMaskPlayer, maskMobile, useMaskingEligible } from "@/lib/privacyUtils";
+import { cn } from "@/lib/utils";
 
 interface Team {
   _id: string;
@@ -54,6 +56,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
   const [playerCategories, setPlayerCategories] = useState<string[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [editData, setEditData] = useState<Partial<Player>>({});
+  const maskingEligible = useMaskingEligible(player?.touranmentId);
 
   // Check authentication status
   useEffect(() => {
@@ -108,6 +111,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
   if (!player) return null;
 
   const logoSrc = getDriveThumbnail(player.photo as string);
+  const masked = shouldMaskPlayer(player, maskingEligible);
 
   const handleEdit = () => {
     setEditData({
@@ -251,7 +255,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
             <img
               src={logoSrc}
               alt={player.name}
-              className="relative h-full w-full object-contain z-10"
+              className={cn("relative h-full w-full object-contain z-10", masked && "blur-xl scale-110")}
               onError={(e) => {
                 e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(player.name)}&backgroundColor=6366f1,8b5cf6,ec4899&backgroundType=gradientLinear&fontSize=40&fontWeight=600`;
               }}
@@ -344,7 +348,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
             {player.mobile && !isEditing && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Phone className="h-4 w-4" />
-                <span className="text-sm">{player.mobile}</span>
+                <span className="text-sm">{masked ? maskMobile(player.mobile) : player.mobile}</span>
               </div>
             )}
 

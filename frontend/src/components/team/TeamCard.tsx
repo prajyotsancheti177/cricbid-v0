@@ -19,14 +19,14 @@ export const TeamCard = ({ team }: TeamCardProps) => {
 
   return (
     <Link to={`/team/${team._id}`}>
-      <Card className="group relative overflow-hidden border border-border hover:border-primary transition-all duration-300 hover:shadow-glow cursor-pointer bg-card">
+      <Card className="group relative overflow-hidden border border-border hover:border-primary transition-all duration-300 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-card">
         {/* Team Header with Logo */}
         <div className="flex items-center gap-4 p-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
           <img
             src={logoSrc}
             onError={(e) => { (e.currentTarget as HTMLImageElement).src = placeholderImg; }}
             alt={`${team.name} logo`}
-            className="h-14 w-14 rounded-full shadow-md ring-2 ring-primary/20 transition-transform group-hover:scale-105 object-cover"
+            className="h-14 w-14 rounded-full shadow-md ring-2 ring-primary/20 transition-transform duration-300 group-hover:scale-110 group-hover:ring-primary/60 object-cover"
           />
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors truncate">
@@ -48,13 +48,13 @@ export const TeamCard = ({ team }: TeamCardProps) => {
                 <span className="text-sm font-medium">Budget</span>
               </div>
               <span className="text-sm font-bold text-foreground">
-                {team.remainingBudget.toLocaleString()} <span className="text-muted-foreground font-normal">/ {totalBudget.toLocaleString()}</span>
+                {team.remainingBudget.toLocaleString()} <span className="text-muted-foreground font-normal">/ {totalBudget.toLocaleString()} Pts</span>
               </span>
             </div>
             <Progress value={budgetUsedPercentage} className="h-2" />
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Spent: <span className="text-secondary font-medium">{team.totalSpent.toLocaleString()}</span></span>
-              <span className="text-accent font-medium">{team.remainingBudget.toLocaleString()} remaining</span>
+              <span className="text-muted-foreground">Spent: <span className="text-secondary font-medium">{team.totalSpent.toLocaleString()} Pts</span></span>
+              <span className="text-accent font-medium">{team.remainingBudget.toLocaleString()} Pts remaining</span>
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -34,6 +35,7 @@ const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description:
   { key: "publicTeamRegistration", label: "Public team registration", description: "Allow team owners to register via a shareable public link." },
   { key: "googleSheetsSync", label: "Google Sheets sync", description: "Enable bi-directional sync between the database and a connected Google Sheet." },
   { key: "dataExport", label: "Data export (CSV & PDF)", description: "Allow downloading player and team data as CSV or PDF files." },
+  { key: "showRegisteredPlayers", label: "Show registered players publicly", description: "Let visitors on the public players page see who has registered so far. Turning this off hides the player list from everyone except tournament admins." },
 ];
 
 const TournamentSettingsSection = () => {
@@ -45,6 +47,12 @@ const TournamentSettingsSection = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [savingFeature, setSavingFeature] = useState<string | null>(null);
 
+  // Countdown timer settings (derived from tournament.features)
+  const currentFeatures = (tournament.features as TournamentFeatures) ?? {};
+  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(currentFeatures.countdownEnabled ?? false);
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(currentFeatures.countdownSeconds ?? 60);
+  const [savingCountdown, setSavingCountdown] = useState(false);
+
   const user = getUser();
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${apiConfig.baseUrl}${path}`, {
@@ -52,6 +60,26 @@ const TournamentSettingsSection = () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
+  const saveCountdownSettings = async (enabled: boolean, seconds: number) => {
+    setSavingCountdown(true);
+    const newFeatures: TournamentFeatures = { ...currentFeatures, countdownEnabled: enabled, countdownSeconds: seconds };
+    try {
+      const res = await post("/api/tournament/update", {
+        tournamentId: tournament._id,
+        userId: user?._id,
+        userRole: user?.role,
+        features: newFeatures,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || "Save failed");
+      reload();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Save failed", variant: "destructive" });
+    } finally {
+      setSavingCountdown(false);
+    }
+  };
 
   const toggleFeature = async (key: keyof TournamentFeatures, value: boolean) => {
     setSavingFeature(key);
@@ -116,6 +144,13 @@ const TournamentSettingsSection = () => {
     }
   };
 
+  const formatSummaryDate = (dateString: string | null | undefined, fallback: string) => {
+    if (!dateString) return fallback;
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return fallback;
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  };
+
   const SummaryRow = ({ label, value }: { label: string; value: string }) => (
     <div className="flex justify-between py-2 border-b border-border last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -142,10 +177,12 @@ const TournamentSettingsSection = () => {
         </CardHeader>
         <CardContent>
           <SummaryRow label="Name" value={tournament.name || "—"} />
-          <SummaryRow label="Total budget" value={`₹${(tournament.totalBudget || 0).toLocaleString()}`} />
+          <SummaryRow label="Total budget" value={`${(tournament.totalBudget || 0).toLocaleString()} Pts`} />
           <SummaryRow label="Teams" value={String(tournament.noOfTeams ?? "—")} />
           <SummaryRow label="Players per team" value={`${tournament.minPlayersPerTeam ?? 0} – ${tournament.maxPlayersPerTeam ?? 0}`} />
           <SummaryRow label="Categories" value={(tournament.playerCategories || []).join(", ") || "—"} />
+          <SummaryRow label="Created" value={formatSummaryDate(tournament.createdAt, "—")} />
+          <SummaryRow label="Auction Date" value={formatSummaryDate(tournament.auctionDate, "Not scheduled yet")} />
         </CardContent>
       </Card>
 
@@ -176,6 +213,56 @@ const TournamentSettingsSection = () => {
               </div>
             );
           })}
+
+          {/* Countdown timer — special feature with number input */}
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Label htmlFor="feature-countdownEnabled" className="text-sm font-medium cursor-pointer">
+                  Enable player countdown timer
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Show a countdown timer in the auction room for each player. Purely visual — the auctioneer still controls selling.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                {savingCountdown && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                <Switch
+                  id="feature-countdownEnabled"
+                  checked={countdownEnabled}
+                  disabled={savingCountdown}
+                  onCheckedChange={(v) => {
+                    setCountdownEnabled(v);
+                    saveCountdownSettings(v, countdownSeconds);
+                  }}
+                />
+              </div>
+            </div>
+            {countdownEnabled && (
+              <div className="mt-3 flex items-center gap-3">
+                <Label htmlFor="countdownSeconds" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Duration (seconds)
+                </Label>
+                <Input
+                  id="countdownSeconds"
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={countdownSeconds}
+                  onChange={(e) => setCountdownSeconds(Number(e.target.value))}
+                  className="w-24"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={savingCountdown}
+                  onClick={() => saveCountdownSettings(countdownEnabled, countdownSeconds)}
+                >
+                  {savingCountdown ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

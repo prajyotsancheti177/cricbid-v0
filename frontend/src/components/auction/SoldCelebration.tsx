@@ -229,7 +229,7 @@ export const SoldCelebration = ({
                 transition={{ duration: 0.5, repeat: Infinity }}
                 className="text-4xl sm:text-6xl font-black text-yellow-300 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]"
               >
-                💰 {amount} Pts. 💰
+                💰 {amount} Pts 💰
               </motion.p>
             </motion.div>
           </motion.div>

@@ -1,6 +1,7 @@
 const prisma = require("../db/prisma");
 const whatsappService = require("./whatsappService");
 const { serializePlayer } = require("../utils/serialize");
+const eventService = require("./eventService");
 
 // ---- coercion helpers (Postgres typing) ----------------------------------
 const toInt = (v) => {
@@ -75,6 +76,15 @@ const registerPlayer = async (playerInput) => {
     const data = buildPlayerData({ ...playerInput, name });
     data.auctionSerialNumber = finalSerialNumber;
     const saved = await prisma.player.create({ data });
+
+    eventService.trackEvent({
+        userId: playerInput.userId || null,
+        tournamentId: playerInput.touranmentId || null,
+        eventType: "player_created",
+        page: "/players",
+        eventData: { playerId: saved.id, playerName: saved.name, category: saved.playerCategory, source: playerInput.isPublic ? "public_form" : "manual" },
+    }).catch(() => {});
+
     return serializePlayer(saved);
 };
 
@@ -174,12 +184,29 @@ const updatePlayer = async (playerInput) => {
         }
     }
 
+    eventService.trackEvent({
+        userId: playerInput.userId || null,
+        tournamentId: updatedPlayer.touranmentId || null,
+        eventType: "player_updated",
+        page: "/players",
+        eventData: { playerId: updatedPlayer.id, playerName: updatedPlayer.name, fieldsUpdated: Object.keys(updateData) },
+    }).catch(() => {});
+
     return serializePlayer(updatedPlayer);
 };
 
 const deletePlayer = async (playerId) => {
     try {
         const deleted = await prisma.player.delete({ where: { id: playerId } });
+
+        eventService.trackEvent({
+            userId: null,
+            tournamentId: deleted.touranmentId || null,
+            eventType: "player_deleted",
+            page: "/players",
+            eventData: { playerId: deleted.id, playerName: deleted.name },
+        }).catch(() => {});
+
         return serializePlayer(deleted);
     } catch (e) {
         if (e.code === 'P2025') return null;
@@ -301,13 +328,23 @@ const bulkCreatePlayers = async (playersData, touranmentId) => {
         createdCount = res.count;
     }
 
-    return {
+    const bulkResult = {
         created: createdCount,
         updated: updatedCount,
         total: createdCount + updatedCount,
         unmatchedTeams: unmatchedTeams,
         message: `Created ${createdCount} new player(s), updated ${updatedCount} existing player(s)${unmatchedTeams.length > 0 ? `. Teams not found: ${unmatchedTeams.join(', ')}` : ''}`,
     };
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId || null,
+        eventType: "players_bulk_created",
+        page: "/bulk-upload",
+        eventData: { count: newPlayers.length, tournamentId: touranmentId },
+    }).catch(() => {});
+
+    return bulkResult;
 };
 
 const resetUnsoldPlayers = async (touranmentId) => {
@@ -315,6 +352,15 @@ const resetUnsoldPlayers = async (touranmentId) => {
         where: { touranmentId, auctionStatus: true, sold: false },
         data: { auctionStatus: false },
     });
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId || null,
+        eventType: "players_unsold_reset",
+        page: "/players",
+        eventData: { tournamentId: touranmentId, count: result.count },
+    }).catch(() => {});
+
     return {
         count: result.count,
         message: `${result.count} unsold player(s) reset successfully`,
@@ -329,6 +375,15 @@ const deleteAllPlayersByTournament = async (tournamentId) => {
         throw new Error("Tournament ID is required");
     }
     const result = await prisma.player.deleteMany({ where: { touranmentId: tournamentId } });
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: tournamentId || null,
+        eventType: "players_all_deleted",
+        page: "/players",
+        eventData: { tournamentId, count: result.count },
+    }).catch(() => {});
+
     return {
         deletedCount: result.count,
         message: `Successfully deleted ${result.count} players`,
@@ -383,6 +438,14 @@ const bulkUpdatePlayers = async (playersData, touranmentId) => {
             updatedCount++;
         }
     }
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId || null,
+        eventType: "players_bulk_updated",
+        page: "/players",
+        eventData: { count: updatedCount, tournamentId: touranmentId },
+    }).catch(() => {});
 
     return {
         updated: updatedCount,

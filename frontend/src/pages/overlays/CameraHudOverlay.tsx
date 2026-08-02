@@ -7,9 +7,11 @@ import {
   getPlayerPhotoUrl,
   getFallbackAvatar,
   getTeamFallbackAvatar,
+  overlayPhotoStyle,
 } from "@/lib/overlayUtils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import apiConfig from "@/config/apiConfig";
+import { useMaskingEligible } from "@/lib/privacyUtils";
 import "./overlays.css";
 
 /**
@@ -25,6 +27,7 @@ import "./overlays.css";
  */
 const CameraHudOverlay = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
+  const maskingEligible = useMaskingEligible(tournamentId);
   const {
     isConnected,
     auctionState,
@@ -45,7 +48,6 @@ const CameraHudOverlay = () => {
   const [showTopPlayersPanel, setShowTopPlayersPanel] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [showPromoBanner, setShowPromoBanner] = useState(false);
   const [overlayStats, setOverlayStats] = useState<any>(null);
 
   const prevPlayerRef = useRef<string | null>(null);
@@ -114,26 +116,11 @@ const CameraHudOverlay = () => {
       }, 60000);
     }, 30000);
 
-    // Promo banner: 60s off, 30s on
-    let promoInterval: NodeJS.Timeout;
-    let promoTimeout: NodeJS.Timeout;
-    const initialPromoTimeout = setTimeout(() => {
-      setShowPromoBanner(true);
-      promoTimeout = setTimeout(() => setShowPromoBanner(false), 30000);
-      promoInterval = setInterval(() => {
-        setShowPromoBanner(true);
-        promoTimeout = setTimeout(() => setShowPromoBanner(false), 30000);
-      }, 90000);
-    }, 60000);
-
     return () => {
       clearInterval(teamsInterval);
       clearInterval(topPlayersInterval);
       clearTimeout(qrTimeout);
       if (qrInterval) clearInterval(qrInterval);
-      clearTimeout(initialPromoTimeout);
-      if (promoTimeout) clearTimeout(promoTimeout);
-      if (promoInterval) clearInterval(promoInterval);
     };
   }, [tournamentId]);
 
@@ -207,7 +194,7 @@ const CameraHudOverlay = () => {
                 </div>
                 {overlayStats.recentPlayers.map((p: any, idx: number) => (
                   <div key={`${loopIdx}-${idx}`} className="overlay-marquee-item">
-                    <img src={getDriveThumbnail(p.photo)} style={{ width: 24, height: 24, borderRadius: "50%", marginRight: 10, objectFit: "cover" }} onError={(e) => e.currentTarget.src = getFallbackAvatar(p.name)} />
+                    <img src={getDriveThumbnail(p.photo)} style={{ width: 24, height: 24, borderRadius: "50%", marginRight: 10, objectFit: "cover", ...overlayPhotoStyle(p, maskingEligible) }} onError={(e) => e.currentTarget.src = getFallbackAvatar(p.name)} />
                     <span>{p.name}</span>
                     <span style={{ color: "#a78bfa", margin: "0 8px" }}>sold to</span>
                     <span style={{ color: getTeamColor(p.teamName || "") }}>{p.teamName}</span>
@@ -219,37 +206,6 @@ const CameraHudOverlay = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Promotional Banner */}
-      {showPromoBanner && (
-        <div
-          className="overlay-glass anim-fade-in"
-          style={{
-            position: "absolute",
-            top: overlayStats?.recentPlayers?.length > 0 ? 40 : 0,
-            left: 0,
-            width: "100%",
-            padding: "10px 24px",
-            borderRadius: "0",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 12,
-            fontSize: 20,
-            fontWeight: 700,
-            color: "rgba(255, 255, 255, 0.95)",
-            zIndex: 80,
-            whiteSpace: "nowrap",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-            borderTop: "none",
-            borderLeft: "none",
-            borderRight: "none"
-          }}
-        >
-          <span style={{ color: "#a78bfa" }}>⚡</span>
-          To conduct hassle free auctions with advanced features contact <span style={{ color: "#fbbf24", fontWeight: 900 }}>8208216407</span>
         </div>
       )}
 
@@ -294,13 +250,13 @@ const CameraHudOverlay = () => {
           {overlayStats.topPlayers.map((player: any) => (
             <div key={player._id} className="overlay-list-item">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <img src={getDriveThumbnail(player.photo)} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", border: `2px solid ${getTeamColor(player.teamName || "")}` }} onError={(e) => e.currentTarget.src = getFallbackAvatar(player.name)} />
+                <img src={getDriveThumbnail(player.photo)} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", border: `2px solid ${getTeamColor(player.teamName || "")}`, ...overlayPhotoStyle(player, maskingEligible) }} onError={(e) => e.currentTarget.src = getFallbackAvatar(player.name)} />
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <div className="overlay-item-name">{player.name}</div>
                   <div className="overlay-item-sub" style={{ color: getTeamColor(player.teamName || "") }}>{player.teamName}</div>
                 </div>
               </div>
-              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold}</div>
+              <div className="overlay-item-value" style={{ color: "#fbbf24" }}>{player.amtSold} <span className="overlay-item-sub">Pts</span></div>
             </div>
           ))}
         </div>
@@ -311,7 +267,7 @@ const CameraHudOverlay = () => {
         <div className="overlay-intro-container anim-intro-sequence">
           <div className="overlay-intro-bg" />
           <div className="overlay-intro-content">
-            <img src={getPlayerPhotoUrl(currentPlayer)} className="overlay-intro-photo" onError={(e) => e.currentTarget.src = getFallbackAvatar(currentPlayer.name)} />
+            <img src={getPlayerPhotoUrl(currentPlayer)} className="overlay-intro-photo" style={overlayPhotoStyle(currentPlayer, maskingEligible)} onError={(e) => e.currentTarget.src = getFallbackAvatar(currentPlayer.name)} />
             {currentPlayer.auctionSerialNumber && (
               <div className="overlay-intro-serial">#{currentPlayer.auctionSerialNumber}</div>
             )}
@@ -409,7 +365,7 @@ const CameraHudOverlay = () => {
                   className={`overlay-bid-amount ${bidPulse ? "anim-bid-pulse" : ""}`}
                   style={{ fontSize: 68, marginBottom: 8 }}
                 >
-                  {currentBid} <span style={{ fontSize: 40 }}>Pts.</span>
+                  {currentBid} <span style={{ fontSize: 40 }}>Pts</span>
                 </div>
 
                 {leadingTeamData ? (

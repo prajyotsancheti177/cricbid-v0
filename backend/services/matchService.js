@@ -1,4 +1,5 @@
 const prisma = require("../db/prisma");
+const eventService = require("./eventService");
 
 // ─── Points table helpers ────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ const createMatch = async ({
   tournamentId, matchNumber, round, venue, scheduledAt,
   format, totalOvers, teamAId, teamBId,
 }) => {
-  return prisma.match.create({
+  const match = await prisma.match.create({
     data: {
       tournamentId, matchNumber, round, venue,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
@@ -58,6 +59,16 @@ const createMatch = async ({
       innings: true,
     },
   });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: tournamentId || null,
+    eventType: "match_created",
+    page: "/schedule",
+    eventData: { matchId: match.id, tournamentId, teamAId, teamBId, round, matchNumber },
+  }).catch(() => {});
+
+  return match;
 };
 
 const updateMatch = async ({ matchId, ...data }) => {
@@ -65,11 +76,31 @@ const updateMatch = async ({ matchId, ...data }) => {
   const allowed = ["matchNumber","round","venue","scheduledAt","format","totalOvers","status","tossWonById","tossDecision","resultNote","winnerId"];
   allowed.forEach(k => { if (data[k] !== undefined) updateData[k] = data[k]; });
   if (updateData.scheduledAt) updateData.scheduledAt = new Date(updateData.scheduledAt);
-  return prisma.match.update({ where: { id: matchId }, data: updateData });
+  const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: updated.tournamentId || null,
+    eventType: "match_updated",
+    page: "/schedule",
+    eventData: { matchId, fieldsUpdated: Object.keys(updateData) },
+  }).catch(() => {});
+
+  return updated;
 };
 
 const deleteMatch = async ({ matchId }) => {
-  return prisma.match.delete({ where: { id: matchId } });
+  const deleted = await prisma.match.delete({ where: { id: matchId } });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: deleted.tournamentId || null,
+    eventType: "match_deleted",
+    page: "/schedule",
+    eventData: { matchId },
+  }).catch(() => {});
+
+  return deleted;
 };
 
 // ─── Score entry ─────────────────────────────────────────────────────────────
@@ -117,10 +148,20 @@ const completeMatch = async ({ matchId }) => {
     if (winTeam) resultNote = `${winTeam.name} ${resultNote}`;
   }
 
-  return prisma.match.update({
+  const completed = await prisma.match.update({
     where: { id: matchId },
     data: { status: "completed", winnerId, resultNote },
   });
+
+  eventService.trackEvent({
+    userId: null,
+    tournamentId: completed.tournamentId || null,
+    eventType: "match_completed",
+    page: "/schedule",
+    eventData: { matchId, winnerId, resultNote },
+  }).catch(() => {});
+
+  return completed;
 };
 
 // ─── Points table ────────────────────────────────────────────────────────────
@@ -187,7 +228,7 @@ const getPointsTable = async ({ tournamentId }) => {
 };
 
 const bulkCreateMatches = async (matches) => {
-  return prisma.$transaction(
+  const created = await prisma.$transaction(
     matches.map(m => prisma.match.create({
       data: {
         tournamentId: m.tournamentId,
@@ -203,6 +244,17 @@ const bulkCreateMatches = async (matches) => {
       },
     }))
   );
+
+  const tournamentId = matches[0]?.tournamentId || null;
+  eventService.trackEvent({
+    userId: null,
+    tournamentId,
+    eventType: "matches_bulk_created",
+    page: "/schedule",
+    eventData: { tournamentId, count: created.length },
+  }).catch(() => {});
+
+  return created;
 };
 
 module.exports = { getMatches, getMatch, createMatch, updateMatch, deleteMatch, saveInnings, completeMatch, getPointsTable, bulkCreateMatches };

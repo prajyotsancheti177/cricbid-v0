@@ -9,7 +9,15 @@ const playerCategories = async (tournamentId) => {
     return tournamentData.playerCategories || [];
 };
 
-const nextAuctionPlayer = async (touranmentId, playerCategory) => {
+/**
+ * Pick the next auction candidate. `orderMode`:
+ *  - 'random' (default) — uniform random pick, current behavior.
+ *  - 'serial' — lowest `auctionSerialNumber` first (nulls sort last in Postgres).
+ * Category filtering (including the Regular/Icon re-entry rule) applies
+ * identically in both modes — only the pick strategy within the filtered
+ * pool changes.
+ */
+const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'random') => {
     if (!touranmentId) {
         throw new Error("touranmentId is required");
     }
@@ -34,13 +42,25 @@ const nextAuctionPlayer = async (touranmentId, playerCategory) => {
         };
     }
 
-    // Random selection (replaces $sample): pick a random matching candidate
-    const count = await prisma.player.count({ where });
-    if (count === 0) {
-        throw new Error("No more players available for auction.");
+    let candidate;
+    if (orderMode === 'serial') {
+        [candidate] = await prisma.player.findMany({
+            where,
+            orderBy: { auctionSerialNumber: 'asc' },
+            take: 1,
+        });
+        if (!candidate) {
+            throw new Error("No more players available for auction.");
+        }
+    } else {
+        // Random selection (replaces $sample): pick a random matching candidate
+        const count = await prisma.player.count({ where });
+        if (count === 0) {
+            throw new Error("No more players available for auction.");
+        }
+        const skip = Math.floor(Math.random() * count);
+        [candidate] = await prisma.player.findMany({ where, skip, take: 1 });
     }
-    const skip = Math.floor(Math.random() * count);
-    const [candidate] = await prisma.player.findMany({ where, skip, take: 1 });
 
     const nextPlayer = serializePlayer(candidate);
 

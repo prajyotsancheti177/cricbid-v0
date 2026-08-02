@@ -73,4 +73,22 @@ const getScorecard = async (req, res) => {
   } catch (err) { return sendError(res, 500, err.message || "Failed"); }
 };
 
-module.exports = { startInnings, recordBall, undoLastBall, addBatsman, setBowler, getLiveState, getScorecard };
+const getTournamentStats = async (req, res) => {
+  try {
+    const { tournamentId } = req.body;
+    if (!tournamentId) return sendError(res, 400, "tournamentId required");
+    const data = await scoringService.getTournamentStats({ tournamentId });
+    return sendSuccess(res, 200, "Stats", data);
+  } catch (err) { return sendError(res, 500, err.message || "Failed"); }
+};
+
+const getCommentary = async (req, res) => {
+  try {
+    const { matchId } = req.body;
+    if (!matchId) return sendError(res, 400, "matchId required");
+    const data = await scoringService.getCommentary({ matchId });
+    return sendSuccess(res, 200, "Commentary", data);
+  } catch (err) { return sendError(res, 500, err.message || "Failed"); }
+};
+
+module.exports = { startInnings, recordBall, undoLastBall, addBatsman, setBowler, getLiveState, getScorecard, getTournamentStats, getCommentary };
