@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, CheckCheck, Monitor, Radio } from "lucide-react";
-import { getDriveThumbnail } from "@/lib/imageUtils";
 import { FEATURED_PLAYER, TOURNAMENT, formatINR } from "../demoData";
 
 /**
@@ -186,7 +185,7 @@ const AfterTheHammer = () => {
                                 >
                                     {activeOverlay !== "camera" && (
                                         <img
-                                            src={getDriveThumbnail(FEATURED_PLAYER.photo, 400)}
+                                            src={FEATURED_PLAYER.photo}
                                             alt={FEATURED_PLAYER.name}
                                             loading="lazy"
                                             className="h-28 w-24 rounded-lg object-cover shadow-xl md:h-36 md:w-28"

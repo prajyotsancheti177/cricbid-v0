@@ -1,3 +1,5 @@
+import playerPhoto from "@/assets/demo-player-pushkar.jpg";
+
 /**
  * Real auction data, pulled from the production database.
  *
@@ -45,7 +47,12 @@ export const TEAMS = [
 /** The player the replay follows — the tournament's record sale. */
 export const FEATURED_PLAYER = {
     name: "Pushkar Sancheti",
-    photo: "https://drive.google.com/open?id=12pLlxrw5Sr5q_kuzlT6bEjMjnjFpMLSf",
+    /**
+     * His real registration photo, bundled with the app rather than linked.
+     * The production record stores a Google Drive URL, which redirects and
+     * loads slowly — too unreliable for the hero image of a marketing page.
+     */
+    photo: playerPhoto,
     category: "Regular",
     lotNumber: 39,
     basePrice: 15000,

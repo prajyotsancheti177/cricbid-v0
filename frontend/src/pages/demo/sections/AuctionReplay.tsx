@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Pause, Play, RotateCcw, Gavel, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getDriveThumbnail } from "@/lib/imageUtils";
 import { BID_LADDER, FEATURED_PLAYER, TEAMS, TOURNAMENT, formatINR } from "../demoData";
 import { useInViewOnce } from "../useInViewOnce";
 
@@ -189,9 +188,11 @@ const AuctionReplay = () => {
 
                         <div className="mb-4 overflow-hidden rounded-xl">
                             <img
-                                src={getDriveThumbnail(FEATURED_PLAYER.photo, 600)}
+                                src={FEATURED_PLAYER.photo}
                                 alt={FEATURED_PLAYER.name}
-                                loading="lazy"
+                                // Eager: this is the replay's primary image and
+                                // deferring it shows an empty card on arrival.
+                                loading="eager"
                                 className="aspect-[3/4] w-full object-cover"
                             />
                         </div>
