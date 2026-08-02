@@ -53,18 +53,45 @@ Every ssh call: `ssh -i "$SSH_KEY" "$SSH_HOST"`.
    git rev-list --left-right --count origin/sql-migration...HEAD
    ```
 
-   Left = commits live on the server that your branch lacks. **If left > 0, stop
-   and tell the user the exact number** — deploying would roll production
-   backwards. Do not proceed until they explicitly choose to merge
-   `origin/sql-migration` into their work first, or confirm the loss knowingly.
+   Left = commits live on the server that your branch lacks. **If left > 0, STOP
+   and report to the user** — deploying would roll production backwards. Tell them:
+   the count, a `git log HEAD..origin/sql-migration --oneline` summary of what
+   would be lost, and whether any Prisma migrations are among them (those are
+   already applied to the live DB, so rewinding the code strands the schema).
+   **The user decides what happens next. Do not merge, reset, or deploy on your
+   own initiative.**
 
-3. **Confirm.** Show branch, `git log origin/sql-migration..HEAD --oneline`, and
+3. **Conflicts are always the user's call — never resolve them silently.**
+   Before any merge, dry-run it:
+
+   ```bash
+   git merge-tree --write-tree origin/sql-migration HEAD
+   ```
+
+   (Use this form. The legacy 3-argument `git merge-tree` reports no conflicts
+   even when conflicts exist — it has given a false clean result on this repo.)
+
+   If it reports conflicts, **stop and hand the decision to the user**: list the
+   conflicted files, and for each one explain what their side changed versus what
+   production changed. Never pick a side yourself.
+
+   **Never run `git reset --hard`, `git checkout --ours/--theirs`, `git push
+   --force`, or any other history-discarding command as a way to get past a
+   conflict.** Note the deploy's own `git reset --hard` on the *server* (step 6)
+   is different and fine — it only ever fast-forwards the server to an already
+   pushed commit. What is forbidden is discarding *local work* to dodge a merge.
+
+   Watch for a stale refactor: a commit that deletes a large block from a file
+   production has since evolved. Replaying it can silently drop live features even
+   when git reports no textual conflict. Flag it rather than assuming.
+
+4. **Confirm.** Show branch, `git log origin/sql-migration..HEAD --oneline`, and
    the target host. Wait for an explicit yes — this is public and hard to reverse.
 
-4. **Push** to `sql-migration` (merge the work in first if you're on another
+5. **Push** to `sql-migration` (merge the work in first if you're on another
    branch; the server only ever pulls `sql-migration`).
 
-5. **Sync on the server**, one ssh call, `set -euo pipefail`:
+6. **Sync on the server**, one ssh call, `set -euo pipefail`:
 
    ```bash
    cd /home/ubuntu/cricBid/cricbid-v0-sql
@@ -85,13 +112,13 @@ Every ssh call: `ssh -i "$SSH_KEY" "$SSH_HOST"`.
      say in the report that you skipped them and why.
    - Node on the box is v20.19.6, npm 10.8.2.
 
-6. **Verify** — never claim success from an exit code alone:
+7. **Verify** — never claim success from an exit code alone:
    - `pm2 list` → `server-sql` is `online` with a fresh (seconds-old) uptime.
    - `pm2 logs server-sql --lines 30 --nostream` → no boot errors.
    - `curl -s -o /dev/null -w '%{http_code}' https://cricbid.online/` → 200.
    - If `scoring/` was rebuilt, also curl `https://scoring.cricbid.online/`.
 
-7. **Report** the deployed SHA, what was rebuilt, what was skipped, and the
+8. **Report** the deployed SHA, what was rebuilt, what was skipped, and the
    verification output. If anything failed, say so plainly with the output.
 
 ## Rollback
@@ -101,7 +128,7 @@ cd /home/ubuntu/cricBid/cricbid-v0-sql && git reset --hard <previous-sha> \
   && npm run build --workspace frontend && pm2 restart server-sql
 ```
 
-Capture the pre-deploy SHA in step 5 so this is always available. Ask before running.
+Capture the pre-deploy SHA in step 6 so this is always available. Ask before running.
 
 ## Never
 
