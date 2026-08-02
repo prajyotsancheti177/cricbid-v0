@@ -6,7 +6,7 @@ import { Trophy, Users, Calendar, Wallet, ArrowLeft, UserCircle, Shield } from "
 import { Badge } from "@/components/ui/badge";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
-import { trackEvent, trackPageView } from "@/lib/eventTracker";
+import { trackEvent } from "@/lib/eventTracker";
 
 interface Tournament {
   _id: string;
@@ -73,7 +73,6 @@ const TournamentDetail = () => {
     };
 
     fetchTournament();
-    trackPageView(`/tournament/${tournamentId}`, tournamentId);
   }, [tournamentId, navigate]);
 
   const formatDate = (dateString?: string) => {

@@ -20,7 +20,6 @@ import apiConfig from "@/config/apiConfig";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { useToast } from "@/hooks/use-toast";
-import { trackPageView } from "@/lib/eventTracker";
 import { useAuctionSocket } from "@/hooks/useAuctionSocket";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
 import { cn } from "@/lib/utils";
@@ -111,13 +110,6 @@ const Auction = () => {
   // Sound and animation settings
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [animationEnabled, setAnimationEnabled] = useState(true);
-
-  // Fetch tournament data including bid increment slabs
-  useEffect(() => {
-    if (tournamentId) {
-      trackPageView("/auction", tournamentId);
-    }
-  }, [tournamentId]);
 
   // Listener for specific events to trigger animations
   useEffect(() => {

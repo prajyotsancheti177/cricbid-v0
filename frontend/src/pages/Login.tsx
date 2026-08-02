@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
-import { trackEvent, trackPageView } from "@/lib/eventTracker";
+import { trackEvent } from "@/lib/eventTracker";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,9 +24,6 @@ const Login = () => {
 
   // Redirect if already authenticated
   useEffect(() => {
-    // Track page view
-    trackPageView("/login");
-
     const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
     const userStr = localStorage.getItem("user");
 

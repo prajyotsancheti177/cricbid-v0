@@ -1,4 +1,5 @@
 const prisma = require('../db/prisma');
+const { isMobileCarrier } = require('../utils/userAgent');
 
 /**
  * Geo Service
@@ -12,6 +13,26 @@ const RATE_LIMIT_DELAY = 1500; // 1.5 seconds between requests to stay safe
  * Sleep utility for rate limiting
  */
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Tag a location with how much its city-level precision can be trusted.
+ *
+ * IP geolocation resolves to the network's registered location, not the user's.
+ * For Indian mobile carriers that is a CGNAT gateway in a metro, so a Jio user
+ * in Nashik commonly reports as Mumbai. Those results are marked 'low' so the
+ * map can render them at region level instead of as a confident city pin.
+ *
+ * @param {Object} location
+ * @returns {Object} location with `confidence` added
+ */
+const withConfidence = (location) => {
+    if (!location || !location.isValid) return { ...location, confidence: 'none' };
+
+    return {
+        ...location,
+        confidence: isMobileCarrier(location.isp) ? 'low' : 'high'
+    };
+};
 
 /**
  * Fetch geolocation from ip-api.com
@@ -92,15 +113,16 @@ const getLocationFromIP = async (ip) => {
     // Check cache first
     const cached = await prisma.ipGeoCache.findUnique({ where: { ipAddress: normalizedIP } });
     if (cached) {
-        return {
+        return withConfidence({
             city: cached.city,
             region: cached.region,
             country: cached.country,
             countryCode: cached.countryCode,
             lat: cached.lat,
             lon: cached.lon,
+            isp: cached.isp,
             isValid: cached.isValid
-        };
+        });
     }
 
     // Fetch from API
@@ -118,7 +140,7 @@ const getLocationFromIP = async (ip) => {
         }
     }
 
-    return geoData;
+    return withConfidence(geoData);
 };
 
 /**
@@ -142,15 +164,16 @@ const batchGetLocations = async (ips) => {
     });
 
     cached.forEach(doc => {
-        results.set(doc.ipAddress, {
+        results.set(doc.ipAddress, withConfidence({
             city: doc.city,
             region: doc.region,
             country: doc.country,
             countryCode: doc.countryCode,
             lat: doc.lat,
             lon: doc.lon,
+            isp: doc.isp,
             isValid: doc.isValid
-        });
+        }));
     });
 
     // Find IPs not in cache
@@ -163,7 +186,7 @@ const batchGetLocations = async (ips) => {
     // Fetch uncached IPs with rate limiting
     for (const ip of uncachedIPs) {
         const geoData = await fetchGeoFromAPI(ip);
-        results.set(ip, geoData);
+        results.set(ip, withConfidence(geoData));
 
         // Cache the result
         try {
@@ -196,18 +219,24 @@ const aggregateByCity = (locationMap) => {
     locationMap.forEach((location, ip) => {
         if (!location.isValid || !location.city || location.city === 'Local') return;
 
-        const key = `${location.city}|${location.region}|${location.country}`;
-        
+        // Low-confidence (mobile-carrier) IPs are aggregated to their region
+        // rather than pinned to a city they probably aren't in.
+        const isLowConfidence = location.confidence === 'low';
+        const city = isLowConfidence ? `${location.region} (approx.)` : location.city;
+
+        const key = `${city}|${location.region}|${location.country}`;
+
         if (cityMap.has(key)) {
             const existing = cityMap.get(key);
             existing.count++;
         } else {
             cityMap.set(key, {
-                city: location.city,
+                city,
                 region: location.region,
                 country: location.country,
                 lat: location.lat,
                 lon: location.lon,
+                confidence: isLowConfidence ? 'low' : 'high',
                 count: 1
             });
         }
@@ -218,6 +247,7 @@ const aggregateByCity = (locationMap) => {
 };
 
 module.exports = {
+    withConfidence,
     getLocationFromIP,
     batchGetLocations,
     aggregateByCity,

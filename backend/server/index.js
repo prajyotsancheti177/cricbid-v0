@@ -48,6 +48,9 @@ server.listen(config.port, async () => {
   console.log(`Server listening on port ${config.port}`);
   console.log("Socket.io initialized for real-time auction");
 
+  // Sample the live active-user count once a minute for the counter's sparkline
+  require("../services/presenceService").startHistorySampling();
+
   // Run a one-time cleanup to clear any backlog, then schedule the daily job
   await runGeoCleanupOnce();
   scheduleGeoCleanup();

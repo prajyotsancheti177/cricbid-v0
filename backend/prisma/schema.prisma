@@ -365,6 +365,12 @@ model UserEvent {
 
   sessionId String?
 
+  // Persistent per-browser id (localStorage, ~1yr). Unlike sessionId — which
+  // lives in sessionStorage and dies with the tab — this survives tab close and
+  // return visits, so it is what "unique visitor" should be counted on.
+  // Null for every row written before the 2026-08 tracker change.
+  visitorId String?
+
   tournamentId String?
   tournament   Tournament? @relation(fields: [tournamentId], references: [id])
 
@@ -372,8 +378,17 @@ model UserEvent {
   eventData Json?
 
   page      String?
+  referrer  String?
   userAgent String?
   ipAddress String?
+
+  // Client-reported, used to sanity-check IP geolocation (which is unreliable
+  // for Indian mobile carriers — see geoService).
+  timezone String?
+  language String?
+
+  deviceType String? // mobile | tablet | desktop | bot | unknown
+  isBot      Boolean @default(false)
 
   timestamp DateTime @default(now())
 
@@ -383,6 +398,8 @@ model UserEvent {
   @@index([tournamentId, eventType, timestamp])
   @@index([userId, timestamp])
   @@index([sessionId, timestamp])
+  @@index([visitorId, timestamp])
+  @@index([eventType, isBot, timestamp])
   @@map("user_event")
 }
 

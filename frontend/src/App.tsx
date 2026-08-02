@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
+import AnalyticsTracker from "./components/AnalyticsTracker";
 import Home from "./pages/Home";
 import Auction from "./pages/Auction";
 import LiveAuctionLobby from "./pages/LiveAuctionLobby";
@@ -30,7 +31,7 @@ import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection
 import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
-import Analytics from "./pages/Analytics";
+import Analytics from "./pages/analytics/AnalyticsPage";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
@@ -89,6 +90,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AnalyticsTracker />
         <div className="min-h-screen bg-background text-foreground">
           <Routes>
             {/* Standalone pages — no navbar */}

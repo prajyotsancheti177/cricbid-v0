@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
-import { trackPageView } from "@/lib/eventTracker";
 
 const Teams = () => {
   const [teams, setTeams] = useState([]);
@@ -45,8 +44,6 @@ const Teams = () => {
     };
 
     fetchTeams();
-    const tournamentId = getSelectedTournamentId();
-    trackPageView("/teams", tournamentId || undefined);
   }, []);
 
   const containerVariants = {

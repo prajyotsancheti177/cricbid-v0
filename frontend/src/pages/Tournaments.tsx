@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
-import { trackEvent, trackPageView } from "@/lib/eventTracker";
+import { trackEvent } from "@/lib/eventTracker";
 
 interface Tournament {
   _id: string;
@@ -61,8 +61,6 @@ const Tournaments = () => {
     };
 
     fetchTournaments();
-    // Track page view
-    trackPageView("/tournaments");
   }, []);
 
   const handleTournamentClick = (tournamentId: string, tournamentName: string) => {

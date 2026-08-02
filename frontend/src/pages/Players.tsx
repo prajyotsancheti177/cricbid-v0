@@ -9,7 +9,6 @@ import { EyeOff, Users } from "lucide-react";
 import { PlayerStatus, Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
-import { trackPageView } from "@/lib/eventTracker";
 import { isFeatureOn, WorkspaceTournament } from "@/pages/workspace/TournamentWorkspace";
 
 const getAuthUser = () => {
@@ -100,8 +99,6 @@ const Players = () => {
     };
 
     fetchPlayers();
-    const tournamentId = getSelectedTournamentId();
-    trackPageView("/players", tournamentId || undefined);
   }, [isWorkspaceView]);
 
   const categories = Array.from(
