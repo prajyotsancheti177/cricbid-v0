@@ -1,0 +1,189 @@
+/**
+ * Solari / airport split-flap board.
+ *
+ * Each cell is built from four layers, which is what sells the mechanical look:
+ *   .sf-top     static upper half showing the INCOMING glyph (revealed as the leaf falls)
+ *   .sf-bottom  static lower half showing the OUTGOING glyph (covered as the leaf falls)
+ *   .sf-leaf-front  the falling leaf's face — OUTGOING upper half, rotates 0 -> -90deg
+ *   .sf-leaf-back   the leaf's reverse — INCOMING lower half, rotates 90deg -> 0
+ *
+ * The two leaf halves are sequenced so the second starts exactly as the first
+ * finishes, giving one continuous flap rather than two visible movements.
+ */
+
+.sf-board {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+
+    /* Deep charcoal flaps with a subtle two-tone split, as on a real board. */
+    --sf-cell-bg: hsl(220 14% 11%);
+    --sf-top-bg: hsl(220 14% 16%);
+    --sf-bottom-bg: hsl(220 14% 12%);
+    --sf-cell-edge: hsl(220 10% 26% / 0.55);
+    --sf-hinge: hsl(220 14% 6% / 0.9);
+    --sf-text: hsl(45 92% 66%);
+    --sf-duration: 130ms;
+}
+
+/* The board is dark in both themes — a Solari board reading as white-on-light
+   loses the effect entirely — but the surrounding chrome adapts, so light mode
+   gets a slightly lifted panel to avoid a harsh black rectangle. */
+@media (prefers-color-scheme: light) {
+    .sf-board {
+        --sf-cell-bg: hsl(220 12% 17%);
+        --sf-top-bg: hsl(220 12% 22%);
+        --sf-bottom-bg: hsl(220 12% 18%);
+    }
+}
+
+:root[data-theme="dark"] .sf-board {
+    --sf-cell-bg: hsl(220 14% 11%);
+    --sf-top-bg: hsl(220 14% 16%);
+    --sf-bottom-bg: hsl(220 14% 12%);
+}
+
+:root[data-theme="light"] .sf-board {
+    --sf-cell-bg: hsl(220 12% 17%);
+    --sf-top-bg: hsl(220 12% 22%);
+    --sf-bottom-bg: hsl(220 12% 18%);
+}
+
+.sf-cell {
+    position: relative;
+    display: inline-block;
+    width: 0.72em;
+    height: 1.15em;
+    margin: 0 0.045em;
+    perspective: 260px;
+    border-radius: 0.09em;
+    background: var(--sf-cell-bg);
+    box-shadow:
+        inset 0 0 0 1px var(--sf-cell-edge),
+        0 1px 2px rgb(0 0 0 / 0.28);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The hairline where the two halves meet — the most recognisable part of the board. */
+.sf-cell::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--sf-hinge);
+    transform: translateY(-0.5px);
+    z-index: 5;
+    pointer-events: none;
+}
+
+.sf-half {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 50%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    color: var(--sf-text);
+}
+
+/* The glyph is laid out at full cell height in both halves and then clipped, so
+   the two halves line up into one continuous character. */
+.sf-half > span {
+    line-height: 1.15em;
+    height: 1.15em;
+    display: block;
+}
+
+.sf-top {
+    top: 0;
+    align-items: flex-start;
+    border-radius: 0.09em 0.09em 0 0;
+    background: var(--sf-top-bg);
+}
+
+.sf-bottom {
+    bottom: 0;
+    align-items: flex-start;
+    border-radius: 0 0 0.09em 0.09em;
+    background: var(--sf-bottom-bg);
+}
+
+.sf-bottom > span {
+    transform: translateY(-50%);
+}
+
+.sf-leaf {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 50%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    backface-visibility: hidden;
+    transform-style: preserve-3d;
+    color: var(--sf-text);
+    z-index: 4;
+}
+
+.sf-leaf > span {
+    line-height: 1.15em;
+    height: 1.15em;
+    display: block;
+}
+
+.sf-leaf-front {
+    top: 0;
+    align-items: flex-start;
+    transform-origin: 50% 100%;
+    border-radius: 0.09em 0.09em 0 0;
+    background: var(--sf-top-bg);
+    animation: sf-fall var(--sf-duration) cubic-bezier(0.36, 0, 0.66, 0.3) forwards;
+}
+
+.sf-leaf-back {
+    bottom: 0;
+    align-items: flex-start;
+    transform-origin: 50% 0;
+    transform: rotateX(90deg);
+    border-radius: 0 0 0.09em 0.09em;
+    background: var(--sf-bottom-bg);
+    animation: sf-land var(--sf-duration) cubic-bezier(0.3, 0.7, 0.5, 1) forwards;
+}
+
+.sf-leaf-back > span {
+    transform: translateY(-50%);
+}
+
+@keyframes sf-fall {
+    0% {
+        transform: rotateX(0deg);
+    }
+    /* The leaf is edge-on at the midpoint; holding past it would read as a stall. */
+    50%,
+    100% {
+        transform: rotateX(-90deg);
+    }
+}
+
+@keyframes sf-land {
+    0%,
+    50% {
+        transform: rotateX(90deg);
+    }
+    100% {
+        transform: rotateX(0deg);
+    }
+}
+
+/* Respect users who have asked for less motion: the digits still update, they
+   just swap instead of flipping. */
+@media (prefers-reduced-motion: reduce) {
+    .sf-leaf-front,
+    .sf-leaf-back {
+        animation-duration: 1ms;
+    }
+}
