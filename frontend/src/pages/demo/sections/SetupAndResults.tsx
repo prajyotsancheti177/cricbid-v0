@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowRight, FileSpreadsheet, Link2, Settings2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TEAMS, TOP_SALES, TOURNAMENT, formatINR } from "../demoData";
+import { TEAMS, TOP_SALES, TOURNAMENT, formatPts } from "../demoData";
 
 /** Everything that happens before auction day, and the record it leaves behind. */
 
@@ -78,7 +78,7 @@ const SetupAndResults = () => (
                                 >
                                     <span className="font-medium">{category.name}</span>
                                     <span className="tabular-nums text-primary">
-                                        base {formatINR(category.basePrice)}
+                                        base {formatPts(category.basePrice)}
                                     </span>
                                 </li>
                             ))}
@@ -96,8 +96,8 @@ const SetupAndResults = () => (
                                     className="flex items-center justify-between rounded-lg bg-background/50 px-4 py-3"
                                 >
                                     <span className="font-medium tabular-nums">
-                                        {formatINR(slab.from)}
-                                        {slab.to ? ` – ${formatINR(slab.to)}` : " and above"}
+                                        {formatPts(slab.from)}
+                                        {slab.to ? ` – ${formatPts(slab.to)}` : " and above"}
                                     </span>
                                     <span className="tabular-nums text-amber-500">
                                         +{slab.increment.toLocaleString("en-IN")}
@@ -121,15 +121,16 @@ const SetupAndResults = () => (
                         The whole auction, on the record.
                     </h2>
                     <p className="text-base text-muted-foreground md:text-lg">
-                        These are the real totals from the {TOURNAMENT.date} auction — every figure below is
-                        read from the same logs the platform writes as the hammer falls.
+                        The totals from the {TOURNAMENT.date} auction, read from the same logs the
+                        platform writes as the hammer falls. Player counts, bids and timings are exact;
+                        amounts are scaled to match the replay above.
                     </p>
                 </div>
 
                 <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
                     {[
                         { value: TOURNAMENT.playersAuctioned, label: "Players auctioned" },
-                        { value: formatINR(TOURNAMENT.totalSpend), label: "Total spend" },
+                        { value: formatPts(TOURNAMENT.totalSpend), label: "Total spend" },
                         { value: TOURNAMENT.totalBids.toLocaleString("en-IN"), label: "Bids placed" },
                         { value: `${Math.floor(TOURNAMENT.durationMinutes / 60)}h ${TOURNAMENT.durationMinutes % 60}m`, label: "Start to finish" },
                     ].map((stat) => (
@@ -162,7 +163,7 @@ const SetupAndResults = () => (
                                         </span>
                                     </span>
                                     <span className="shrink-0 font-semibold tabular-nums text-emerald-500">
-                                        {formatINR(sale.price)}
+                                        {formatPts(sale.price)}
                                     </span>
                                 </li>
                             ))}

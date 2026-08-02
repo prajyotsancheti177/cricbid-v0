@@ -5,7 +5,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { GitCompare, Loader2 } from "lucide-react";
 import { EmptyState } from "../components/StatCard";
-import { COMPARISON_COLORS, formatCurrency, formatDuration, formatDateTime } from "../shared";
+import { COMPARISON_COLORS, formatPoints, formatDuration, formatDateTime } from "../shared";
 import { fetchAnalyticsJson } from "../useAnalyticsData";
 import type { AuctionComparison, ComparableSession } from "../types";
 
@@ -34,8 +34,8 @@ const STAT_ROWS: StatRow[] = [
     { label: "Sell-through", get: (a) => a.stats.sellThroughPct, format: (v) => `${v}%` },
     { label: "Total bids", get: (a) => a.stats.totalBids, format: (v) => v.toLocaleString() },
     { label: "Avg bids / player", get: (a) => a.stats.avgBidsPerPlayer, format: (v) => v.toFixed(1) },
-    { label: "Money spent", get: (a) => a.stats.moneySpent, format: formatCurrency },
-    { label: "Highest price", get: (a) => a.stats.highestPrice, format: formatCurrency },
+    { label: "Money spent", get: (a) => a.stats.moneySpent, format: formatPoints },
+    { label: "Highest price", get: (a) => a.stats.highestPrice, format: formatPoints },
     { label: "Retention at halfway", get: (a) => a.retention.at50, format: (v) => `${v}%` },
     { label: "Retention at end", get: (a) => a.retention.at100, format: (v) => `${v}%` },
 ];

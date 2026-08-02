@@ -40,11 +40,12 @@ export const formatPageName = (page: string) => {
     return cleanPage.charAt(0).toUpperCase() + cleanPage.slice(1);
 };
 
-/** Indian-format currency, which is what auction prices are quoted in. */
-export const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
-        amount || 0
-    );
+/**
+ * Auction amounts are points, not rupees — every screen in the live auction room
+ * renders them as "N Pts", so the analytics must agree rather than implying these
+ * are currency figures.
+ */
+export const formatPoints = (amount: number) => `${(amount || 0).toLocaleString("en-IN")} Pts`;
 
 export const formatDuration = (minutes: number) => {
     if (!minutes) return "0m";

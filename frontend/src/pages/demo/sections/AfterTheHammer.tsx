@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, CheckCheck, Monitor, Radio } from "lucide-react";
-import { FEATURED_PLAYER, TOURNAMENT, formatINR } from "../demoData";
+import { FEATURED_PLAYER, TOURNAMENT, formatPts } from "../demoData";
 
 /**
  * What happens in the seconds after a player is sold: the WhatsApp that reaches
@@ -19,7 +19,7 @@ const MESSAGES = [
             <>
                 Hi <strong>{FEATURED_PLAYER.name}</strong> 🎉 Congratulations! You have been sold to{" "}
                 <strong className="text-emerald-400">{FEATURED_PLAYER.soldTo}</strong> for{" "}
-                <strong className="text-amber-400">{formatINR(FEATURED_PLAYER.finalPrice)}</strong> in the{" "}
+                <strong className="text-amber-400">{formatPts(FEATURED_PLAYER.finalPrice)}</strong> in the{" "}
                 {TOURNAMENT.name}.
             </>
         ),
@@ -206,7 +206,7 @@ const AfterTheHammer = () => {
                                                     Current bid
                                                 </p>
                                                 <p className="text-2xl font-black text-amber-400 md:text-3xl">
-                                                    {formatINR(FEATURED_PLAYER.finalPrice)}
+                                                    {formatPts(FEATURED_PLAYER.finalPrice)}
                                                 </p>
                                             </div>
                                             <div className="text-right">

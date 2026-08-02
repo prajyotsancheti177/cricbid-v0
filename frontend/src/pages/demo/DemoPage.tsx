@@ -6,7 +6,7 @@ import AuctionReplay from "./sections/AuctionReplay";
 import SoldMoment from "./sections/SoldMoment";
 import AfterTheHammer from "./sections/AfterTheHammer";
 import SetupAndResults from "./sections/SetupAndResults";
-import { FEATURED_PLAYER, TOURNAMENT, formatINR } from "./demoData";
+import { TOURNAMENT } from "./demoData";
 
 /**
  * A guided walkthrough of a real auction, built entirely from production data.
@@ -46,24 +46,24 @@ const DemoPage = () => {
 
                         <h1 className="mb-6 text-4xl font-black leading-tight sm:text-5xl md:text-7xl">
                             <span className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-                                Watch a player go for
+                                See the auction room
                             </span>
                             <br />
                             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                                {formatINR(FEATURED_PLAYER.finalPrice)}
+                                actually running
                             </span>
                         </h1>
 
                         <p className="mb-8 max-w-2xl text-base text-muted-foreground sm:text-lg md:text-xl">
-                            Everything on this page is real. The player, the photo, the eight teams, all{" "}
-                            {FEATURED_PLAYER.totalBids} bids and the final price come from the{" "}
-                            {TOURNAMENT.name} auction run on CricBid on {TOURNAMENT.date}. Scroll through
-                            and you'll see exactly what an auction night looks like.
+                            Not screenshots — the real auction-room screen, live on this page, with a
+                            real player and the real teams from the {TOURNAMENT.name} auction. Watch the
+                            bidding, the budget rules and the hammer, then scroll on for everything
+                            around it.
                         </p>
 
                         <div className="mb-12 flex flex-col gap-3 sm:flex-row">
                             <Button size="lg" onClick={scrollToReplay} className="gap-2 text-base">
-                                Replay the auction
+                                Watch the auction room
                                 <ArrowDown className="h-4 w-4" />
                             </Button>
                         </div>

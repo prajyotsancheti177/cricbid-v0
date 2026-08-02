@@ -4,7 +4,7 @@ import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartToo
 import { Area, AreaChart, CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, ZAxis } from "recharts";
 import { Clock, Eye, Gavel, Loader2, Radio, Users } from "lucide-react";
 import { StatCard, EmptyState } from "../components/StatCard";
-import { auctionRoomChartConfig, formatCurrency, formatDate, formatDateTime, formatDuration } from "../shared";
+import { auctionRoomChartConfig, formatPoints, formatDate, formatDateTime, formatDuration } from "../shared";
 import { fetchAnalyticsJson } from "../useAnalyticsData";
 import type { AuctionRoomAnalytics, AuctionTimeline } from "../types";
 
@@ -75,7 +75,7 @@ const TimelinePanel = ({ sessionId }: { sessionId: string }) => {
                 />
                 <StatCard
                     title="Money spent"
-                    value={formatCurrency(timeline.moneySpent)}
+                    value={formatPoints(timeline.moneySpent)}
                     valueClass="text-emerald-500"
                     hint={`${timeline.session.playersSold} sold`}
                 />
@@ -195,7 +195,7 @@ const TimelinePanel = ({ sessionId }: { sessionId: string }) => {
                                             {formatDuration(sale.elapsedMinutes)} in
                                         </span>
                                         <span className="shrink-0 font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                                            {formatCurrency(sale.finalPrice)}
+                                            {formatPoints(sale.finalPrice)}
                                         </span>
                                     </li>
                                 ))}
