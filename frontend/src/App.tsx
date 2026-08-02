@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation 
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import AnalyticsTracker from "./components/AnalyticsTracker";
+import DemoPage from "./pages/demo/DemoPage";
 import Home from "./pages/Home";
 import Auction from "./pages/Auction";
 import LiveAuctionLobby from "./pages/LiveAuctionLobby";
@@ -98,6 +99,8 @@ const App = () => (
             <Route path="/delete-account" element={<DeleteAccount />} />
             {/* Landing Page - Standalone (No Navbar) */}
             <Route path="/" element={<Home />} />
+            {/* Product demo — marketing page, standalone like the landing page */}
+            <Route path="/demo" element={<DemoPage />} />
             <Route path="/register/:tournamentId" element={<PublicPlayerRegistration />} />
             
             {/* Public Team Registration Page - Standalone */}

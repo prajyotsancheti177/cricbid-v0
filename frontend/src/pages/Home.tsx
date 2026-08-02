@@ -264,6 +264,16 @@ export default function Home() {
                             Take me to CricBid
                             <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
+
+                        {/* Secondary CTA into the walkthrough of a real auction */}
+                        <Button
+                            size="lg"
+                            variant="outline"
+                            className="text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all duration-300"
+                            onClick={() => navigate("/demo")}
+                        >
+                            See a real auction
+                        </Button>
                     </motion.div>
 
                     {/* Contact Info */}
