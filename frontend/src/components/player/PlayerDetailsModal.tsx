@@ -385,8 +385,8 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="pending">Not Auctioned</SelectItem>
-                      <SelectItem value="sold">Sold</SelectItem>
-                      <SelectItem value="unsold">Unsold</SelectItem>
+                      <SelectItem value="sold">Mark as Sold</SelectItem>
+                      <SelectItem value="unsold">Mark as Unsold</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
