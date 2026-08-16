@@ -121,6 +121,11 @@ const updatePlayer = async (playerInput) => {
     }
 
     const updateData = buildPlayerData(playerInput);
+    // A player who is not sold can't belong to a team or carry a sold price
+    if (updateData.sold === false) {
+        updateData.teamId = null;
+        updateData.amtSold = null;
+    }
     const updatedPlayer = await prisma.player.update({
         where: { id: playerInput.playerId },
         data: updateData,

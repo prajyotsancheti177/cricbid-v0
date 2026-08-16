@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +36,11 @@ interface Team {
   _id: string;
   name: string;
 }
+
+type PlayerStatus = "pending" | "sold" | "unsold";
+
+const statusOf = (p: Partial<Player>): PlayerStatus =>
+  p.sold ? "sold" : p.auctionStatus ? "unsold" : "pending";
 
 interface PlayerDetailsModalProps {
   player: Player | null;
@@ -139,6 +143,18 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
     setError("");
   };
 
+  // sold / auctionStatus are two booleans in the DB but only three states are
+  // valid; edit them as one value so "unsold" can't be left with a sold tag.
+  const handleStatusChange = (status: PlayerStatus) => {
+    setEditData(prev => ({
+      ...prev,
+      sold: status === "sold",
+      auctionStatus: status !== "pending",
+      ...(status === "sold" ? {} : { amtSold: 0, teamId: "none" }),
+    }));
+    setError("");
+  };
+
   const handleSave = async () => {
     if (!editData.name?.trim()) {
       setError("Player name is required");
@@ -159,15 +175,18 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
         return;
       }
 
+      const isSold = statusOf(editData) === "sold";
       const payload = {
         playerId: player._id,
         userId,
         name: editData.name?.trim(),
         playerCategory: editData.playerCategory,
-        sold: editData.sold,
-        auctionStatus: editData.auctionStatus,
-        amtSold: editData.amtSold ? parseInt(editData.amtSold.toString()) : undefined,
-        teamId: editData.teamId && editData.teamId !== "none" ? editData.teamId : null
+        sold: isSold,
+        auctionStatus: !!editData.auctionStatus,
+        // clearing these matters: an unsold/not-auctioned player must not keep
+        // its old team or price
+        amtSold: isSold && editData.amtSold ? parseInt(editData.amtSold.toString()) : null,
+        teamId: isSold && editData.teamId && editData.teamId !== "none" ? editData.teamId : null
       };
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/update`, {
@@ -355,19 +374,21 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
             {/* Edit Mode: Auction Status */}
             {isEditing && (
               <div className="space-y-3 border-t pt-4">
-                <div className="flex items-center justify-between">
-                  <Label>Mark as Sold</Label>
-                  <Switch
-                    checked={editData.sold || false}
-                    onCheckedChange={(v) => handleInputChange('sold', v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label>Auctioned</Label>
-                  <Switch
-                    checked={editData.auctionStatus || false}
-                    onCheckedChange={(v) => handleInputChange('auctionStatus', v)}
-                  />
+                <div>
+                  <Label>Auction Status</Label>
+                  <Select
+                    value={statusOf(editData)}
+                    onValueChange={(v) => handleStatusChange(v as PlayerStatus)}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Not Auctioned</SelectItem>
+                      <SelectItem value="sold">Sold</SelectItem>
+                      <SelectItem value="unsold">Unsold</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 {editData.sold && (
                   <>

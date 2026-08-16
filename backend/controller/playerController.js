@@ -364,7 +364,14 @@ const syncToSheet = async (req, res) => {
             throw new Error("Google Sheet Sync is not configured for this tournament");
         }
 
-        const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
+        // Export rows in auction serial-number order (players without one go last)
+        const dbPlayers = await prisma.player.findMany({
+            where: { touranmentId },
+            orderBy: [
+                { auctionSerialNumber: { sort: 'asc', nulls: 'last' } },
+                { name: 'asc' },
+            ],
+        });
         await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
 
         eventService.trackEvent({
