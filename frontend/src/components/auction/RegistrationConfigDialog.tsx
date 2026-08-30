@@ -11,6 +11,7 @@ import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Imag
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
+import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField } from "@/lib/paymentProof";
 
 
 
@@ -61,6 +62,7 @@ interface RegistrationConfig {
   googleSheetId?: string;
   showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
   paymentPanel?: PaymentPanelConfig;
+  paymentProofOptOut?: boolean;   // host turned the payment-screenshot upload off
   posterImage?: string;            // tournament logo/poster shown at the top of the public form (S3 URL)
 }
 
@@ -110,10 +112,18 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
         for (const key of Object.keys(defaultFields)) {
           mergedFields[key] = { ...defaultFields[key as keyof typeof defaultFields], ...(serverFields[key] || {}) };
         }
+        const loadedCustomFields = data.data.registrationFormConfig.customFields || [];
+        const optedOut = data.data.registrationFormConfig.paymentProofOptOut === true;
+        // On by default: tournaments configured before this existed get the
+        // payment-screenshot upload unless their host explicitly removed it.
+        const withProof = (!optedOut && !hasPaymentProofField(loadedCustomFields))
+          ? [...loadedCustomFields, buildPaymentProofField()]
+          : loadedCustomFields;
         setConfig({
           isActive: data.data.registrationFormConfig.isActive || false,
           fields: mergedFields,
-          customFields: data.data.registrationFormConfig.customFields || [],
+          customFields: withProof,
+          paymentProofOptOut: optedOut,
           googleSheetUrl: data.data.registrationFormConfig.googleSheetUrl || '',
           googleSheetId: data.data.registrationFormConfig.googleSheetId || '',
           showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
@@ -121,7 +131,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           posterImage: data.data.registrationFormConfig.posterImage || '',
         });
       } else {
-        setConfig({ isActive: false, fields: defaultFields, customFields: [], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
+        setConfig({ isActive: false, fields: defaultFields, customFields: [buildPaymentProofField()], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
       }
     } catch (error) {
        console.error(error);
@@ -215,6 +225,24 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
   const upiIdEntered = !!(config.paymentPanel?.upiId || '').trim();
   const upiIdValid = isValidUpiId(config.paymentPanel?.upiId);
   const upiIdIsPhone = isPhoneUpiId(config.paymentPanel?.upiId);
+
+  // Keeps each field's real index so update/remove by index stay correct.
+  const editableCustomFields = (config.customFields || [])
+    .map((field, index) => ({ field, index }))
+    .filter(({ field }) => !isPaymentProofField(field));
+
+  const askPaymentProof = hasPaymentProofField(config.customFields);
+
+  const setAskPaymentProof = (on: boolean) => {
+    setConfig(prev => {
+      const others = (prev.customFields || []).filter(f => !isPaymentProofField(f));
+      return {
+        ...prev,
+        paymentProofOptOut: !on,
+        customFields: on ? [...others, buildPaymentProofField()] : others,
+      };
+    });
+  };
 
   const updatePaymentPanel = (patch: Partial<PaymentPanelConfig>) => {
     setConfig(prev => ({
@@ -557,7 +585,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
               </div>
               
               <div className="space-y-4">
-                {(config.customFields?.length || 0) === 0 ? (
+                {editableCustomFields.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded border border-dashed">
                     No custom fields added yet.
                   </p>
@@ -571,7 +599,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                       <span className="text-sm font-medium text-center">Action</span>
                     </div>
 
-                    {config.customFields?.map((field, index) => {
+                    {editableCustomFields.map(({ field, index }) => {
                       const visibilityMode = field.showToPublic !== false ? 'public' : 'hidden';
                       
                       const setVisibility = (mode: string) => {
@@ -871,6 +899,29 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Payment screenshot upload */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Payment proof
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="pr-4">
+                    <h4 className="font-medium">Ask players for a payment screenshot</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Adds a "Payment Screenshot" upload to the registration form. It is optional to
+                      submit, so it never blocks a registration, and the uploaded image comes through
+                      as a column in the Google Sheet export.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={askPaymentProof}
+                    onCheckedChange={setAskPaymentProof}
+                  />
+                </div>
               </div>
             </div>
 

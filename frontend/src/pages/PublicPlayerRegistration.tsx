@@ -12,6 +12,7 @@ import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartph
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
+import { buildPaymentProofField, hasPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
@@ -203,6 +204,15 @@ const PublicPlayerRegistration = () => {
     );
   };
 
+  // The payment-screenshot upload is on unless the host opted out. Seeded here
+  // too, so tournaments configured before it existed show it without the host
+  // having to open and re-save the registration form first.
+  const customFields: any[] = (() => {
+    const configured = config?.customFields || [];
+    if (!config || config.paymentProofOptOut === true || hasPaymentProofField(configured)) return configured;
+    return [...configured, buildPaymentProofField()];
+  })();
+
   const paymentPanel = config?.paymentPanel;
   const paymentMode = resolvePaymentMode(paymentPanel);
   const showQr = !!(paymentPanel?.qrImage) && (paymentMode === 'qr' || paymentMode === 'both');
@@ -284,8 +294,8 @@ const PublicPlayerRegistration = () => {
        return false;
     }
 
-    if (config?.customFields) {
-      for (const cf of config.customFields) {
+    if (customFields.length) {
+      for (const cf of customFields) {
         if (cf.showToPublic === false) continue;
         if (cf.required) {
           const val = formData.customFields[cf.id];
@@ -329,8 +339,8 @@ const PublicPlayerRegistration = () => {
       // Handle Custom fields
       const primitiveCustomFields: any = {};
       
-      if (config?.customFields) {
-         for (const cf of config.customFields) {
+      if (customFields.length) {
+         for (const cf of customFields) {
             const val = formData.customFields[cf.id];
             if (val !== undefined && val !== null) {
                if (cf.type === 'file') {
@@ -599,7 +609,7 @@ const PublicPlayerRegistration = () => {
                 <div className="pt-4 mt-6 border-t">
                   <h3 className="font-medium text-lg mb-4 text-foreground/80">Additional Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(config.customFields as any[]).filter((cf) => cf.type !== 'file').map(renderCustomField)}
+                    {customFields.filter((cf) => cf.type !== 'file').map(renderCustomField)}
                   </div>
                 </div>
               )}
@@ -657,9 +667,9 @@ const PublicPlayerRegistration = () => {
                   )}
 
                   {/* Payment-proof upload(s) — file custom fields, grouped under the QR */}
-                  {(config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
+                  {customFields.some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-primary/20">
-                      {(config.customFields as any[]).filter((cf) => cf.type === 'file').map(renderCustomField)}
+                      {customFields.filter((cf) => cf.type === 'file').map(renderCustomField)}
                     </div>
                   )}
                 </div>
@@ -667,9 +677,9 @@ const PublicPlayerRegistration = () => {
 
               {/* Payment-proof upload(s) when there's no QR panel configured */}
               {!showPaymentPanel &&
-                (config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
+                customFields.some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(config.customFields as any[]).filter((cf) => cf.type === 'file').map(renderCustomField)}
+                  {customFields.filter((cf) => cf.type === 'file').map(renderCustomField)}
                 </div>
               )}
 
