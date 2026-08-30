@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode } from "lucide-react";
+import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
+import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
@@ -29,6 +30,7 @@ const PublicPlayerRegistration = () => {
   const [config, setConfig] = useState<any>(null);
   const [tournamentName, setTournamentName] = useState("");
   const [playerCategories, setPlayerCategories] = useState<string[]>([]);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -199,6 +201,25 @@ const PublicPlayerRegistration = () => {
         )}
       </div>
     );
+  };
+
+  const paymentPanel = config?.paymentPanel;
+  const paymentMode = resolvePaymentMode(paymentPanel);
+  const showQr = !!(paymentPanel?.qrImage) && (paymentMode === 'qr' || paymentMode === 'both');
+  const upiUri = (paymentMode === 'upi' || paymentMode === 'both') && paymentPanel
+    ? buildUpiUri(paymentPanel)
+    : null;
+  // The deep link is inert on desktop, so the UPI id is always shown as text too.
+  const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUri || !!paymentPanel?.text);
+
+  const copyUpiId = async () => {
+    try {
+      await navigator.clipboard.writeText(paymentPanel?.upiId || '');
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    } catch {
+      /* clipboard unavailable — the id is visible as text regardless */
+    }
   };
 
   const isFieldRequired = (field: string) => {
@@ -584,14 +605,14 @@ const PublicPlayerRegistration = () => {
               )}
 
               {/* Payment QR panel (optional, admin-configured) */}
-              {config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text) && (
+              {showPaymentPanel && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-primary font-semibold">
                     <QrCode className="w-5 h-5" />
                     Registration Payment
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 items-start">
-                    {config.paymentPanel.qrImage && (
+                    {showQr && (
                       <img
                         src={config.paymentPanel.qrImage}
                         alt="Payment QR code"
@@ -605,6 +626,36 @@ const PublicPlayerRegistration = () => {
                     )}
                   </div>
 
+                  {upiUri && (
+                    <div className="space-y-2 pt-3 border-t border-primary/20">
+                      <a
+                        href={upiUri}
+                        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                        Pay with any UPI app
+                      </a>
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">UPI ID:</span>
+                        <code className="px-2 py-1 rounded bg-background border font-mono text-foreground break-all">
+                          {paymentPanel.upiId}
+                        </code>
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          className="h-7 px-2"
+                          onClick={copyUpiId}
+                        >
+                          <Copy className="w-3.5 h-3.5 mr-1" />
+                          {copiedUpi ? 'Copied' : 'Copy'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        The button opens your UPI app on a phone. On a computer, copy the UPI ID above
+                        and pay from your phone.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Payment-proof upload(s) — file custom fields, grouped under the QR */}
                   {(config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-primary/20">
@@ -615,7 +666,7 @@ const PublicPlayerRegistration = () => {
               )}
 
               {/* Payment-proof upload(s) when there's no QR panel configured */}
-              {!(config?.paymentPanel?.enabled && (config.paymentPanel.qrImage || config.paymentPanel.text)) &&
+              {!showPaymentPanel &&
                 (config?.customFields || []).some((cf: any) => cf.type === 'file' && cf.showToPublic !== false) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(config.customFields as any[]).filter((cf) => cf.type === 'file').map(renderCustomField)}

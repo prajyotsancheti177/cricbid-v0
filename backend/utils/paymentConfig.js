@@ -77,7 +77,11 @@ const parseAmount = (raw) => {
 const sanitizePaymentPanel = (panel) => {
     if (!panel || typeof panel !== "object") return panel;
 
-    const mode = panel.mode === undefined ? "qr" : String(panel.mode);
+    // A panel saved before the UPI option existed has no mode. Such a panel is
+    // treated as "qr", but its requirements are NOT enforced retroactively —
+    // text-only panels exist in production and must stay editable.
+    const explicitMode = panel.mode !== undefined;
+    const mode = explicitMode ? String(panel.mode) : "qr";
     if (!PAYMENT_MODES.includes(mode)) {
         throw new Error(`Payment mode must be one of: ${PAYMENT_MODES.join(", ")}`);
     }
@@ -104,7 +108,7 @@ const sanitizePaymentPanel = (panel) => {
         sanitized.upiId = "";
     }
 
-    if ((mode === "qr" || mode === "both") && !panel.qrImage) {
+    if (explicitMode && (mode === "qr" || mode === "both") && !panel.qrImage) {
         throw new Error("Upload a QR image to use QR payment mode");
     }
 

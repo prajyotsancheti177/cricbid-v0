@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
+import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
 
 
 
@@ -17,6 +18,11 @@ interface PaymentPanelConfig {
   enabled: boolean;
   qrImage?: string; // base64 data URL
   text?: string;
+  // Absent mode means 'qr' — panels saved before UPI existed keep working.
+  mode?: PaymentMode;
+  upiId?: string;
+  payeeName?: string;
+  amount?: number | string;
 }
 
 interface fieldConfig {
@@ -144,7 +150,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
         toast({ title: "Success", description: "Registration configuration saved." });
         onClose();
       } else {
-        toast({ title: "Error", description: data.message || "Failed to save configuration", variant: "destructive" });
+        toast({ title: "Error", description: data.error || data.message || "Failed to save configuration", variant: "destructive" });
       }
     } catch (error) {
       toast({ title: "Error", description: "An error occurred", variant: "destructive" });
@@ -202,6 +208,13 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     navigator.clipboard.writeText(publicLink);
     toast({ title: "Copied!", description: "Link copied to clipboard" });
   };
+
+  const paymentMode = config.paymentPanel?.mode || 'qr';
+  const showUpiFields = paymentMode === 'upi' || paymentMode === 'both';
+  const showQrField = paymentMode === 'qr' || paymentMode === 'both';
+  const upiIdEntered = !!(config.paymentPanel?.upiId || '').trim();
+  const upiIdValid = isValidUpiId(config.paymentPanel?.upiId);
+  const upiIdIsPhone = isPhoneUpiId(config.paymentPanel?.upiId);
 
   const updatePaymentPanel = (patch: Partial<PaymentPanelConfig>) => {
     setConfig(prev => ({
@@ -724,14 +737,14 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
             {/* Payment QR panel */}
             <div>
               <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
-                <QrCode className="h-4 w-4" /> Payment QR (optional)
+                <QrCode className="h-4 w-4" /> Payment (optional)
               </h4>
               <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="pr-4">
                     <h4 className="font-medium">Show a payment panel on the form</h4>
                     <p className="text-sm text-muted-foreground">
-                      Display a QR code and instructions so players can pay the registration fee while filling the form.
+                      Display a QR code and/or a UPI link so players can pay the registration fee while filling the form.
                     </p>
                   </div>
                   <Switch
@@ -742,6 +755,76 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
 
                 {config.paymentPanel?.enabled && (
                   <div className="space-y-4 pt-2 border-t">
+                    <div className="space-y-2">
+                      <Label>Payment method</Label>
+                      <Select
+                        value={config.paymentPanel?.mode || 'qr'}
+                        onValueChange={(v) => updatePaymentPanel({ mode: v as PaymentMode })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="qr">QR code only</SelectItem>
+                          <SelectItem value="upi">UPI link only</SelectItem>
+                          <SelectItem value="both">QR code and UPI link</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {showUpiFields && (
+                      <div className="space-y-4 p-3 rounded-lg border bg-background/60">
+                        <div className="space-y-2">
+                          <Label>UPI ID</Label>
+                          <Input
+                            placeholder="yourname@okhdfcbank or 10-digit mobile number"
+                            value={config.paymentPanel?.upiId || ''}
+                            onChange={(e) => updatePaymentPanel({ upiId: e.target.value })}
+                          />
+                          {upiIdEntered && !upiIdValid && (
+                            <p className="text-sm text-destructive">
+                              Enter a valid UPI ID (name@bank) or a 10-digit mobile number.
+                            </p>
+                          )}
+                          {upiIdValid && upiIdIsPhone && (
+                            <p className="text-sm text-amber-600 dark:text-amber-500">
+                              Mobile-number UPI IDs only work if the recipient's bank has enabled
+                              NPCI mobile mapping. A full UPI ID (name@bank) is more reliable —
+                              keeping the QR as a fallback is recommended.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Payee name (optional)</Label>
+                          <Input
+                            placeholder="e.g. Rebirth Cricket Club"
+                            maxLength={80}
+                            value={config.paymentPanel?.payeeName || ''}
+                            onChange={(e) => updatePaymentPanel({ payeeName: e.target.value })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Shown in the player's UPI app. Always confirm it matches your account name.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Amount (optional)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={100000}
+                            placeholder="Leave blank to let players enter the amount"
+                            value={config.paymentPanel?.amount ?? ''}
+                            onChange={(e) => updatePaymentPanel({ amount: e.target.value })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Pre-fills the amount, but players can still edit it in their UPI app before paying —
+                            the link does not confirm that money arrived.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {showQrField && (
                     <div className="space-y-2">
                       <Label>QR code image</Label>
                       {config.paymentPanel?.qrImage ? (
@@ -775,6 +858,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                         </label>
                       )}
                     </div>
+                    )}
 
                     <div className="space-y-2">
                       <Label>Payment instructions (optional)</Label>
