@@ -12,7 +12,7 @@ import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartph
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
-import { buildPaymentProofField, hasPaymentProofField } from "@/lib/paymentProof";
+import { buildPaymentProofField, asksForPaymentProof } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
@@ -209,7 +209,9 @@ const PublicPlayerRegistration = () => {
   // having to open and re-save the registration form first.
   const customFields: any[] = (() => {
     const configured = config?.customFields || [];
-    if (!config || config.paymentProofOptOut === true || hasPaymentProofField(configured)) return configured;
+    // asksForPaymentProof also covers a host's own file field, so a tournament
+    // that already collects a screenshot is not asked for a second one.
+    if (!config || config.paymentProofOptOut === true || asksForPaymentProof(configured)) return configured;
     return [...configured, buildPaymentProofField()];
   })();
 

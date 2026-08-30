@@ -11,7 +11,7 @@ import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Imag
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
-import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField } from "@/lib/paymentProof";
+import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField, findHostProofField } from "@/lib/paymentProof";
 
 
 
@@ -116,7 +116,10 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
         const optedOut = data.data.registrationFormConfig.paymentProofOptOut === true;
         // On by default: tournaments configured before this existed get the
         // payment-screenshot upload unless their host explicitly removed it.
-        const withProof = (!optedOut && !hasPaymentProofField(loadedCustomFields))
+        // Not seeded when the host already has their own file upload — that
+        // would ask players for the screenshot twice.
+        const alreadyAsks = hasPaymentProofField(loadedCustomFields) || !!findHostProofField(loadedCustomFields);
+        const withProof = (!optedOut && !alreadyAsks)
           ? [...loadedCustomFields, buildPaymentProofField()]
           : loadedCustomFields;
         setConfig({
@@ -231,7 +234,10 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     .map((field, index) => ({ field, index }))
     .filter(({ field }) => !isPaymentProofField(field));
 
-  const askPaymentProof = hasPaymentProofField(config.customFields);
+  // A host's own file field already collects proof; the toggle then reports
+  // that honestly and stays locked, rather than deleting a field it does not own.
+  const hostProofField = findHostProofField(config.customFields);
+  const askPaymentProof = hasPaymentProofField(config.customFields) || !!hostProofField;
 
   const setAskPaymentProof = (on: boolean) => {
     setConfig(prev => {
@@ -916,9 +922,16 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                       submit, so it never blocks a registration, and the uploaded image comes through
                       as a column in the Google Sheet export.
                     </p>
+                    {hostProofField && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Already handled by your own upload field "{hostProofField.label}", so this is
+                        left off to avoid asking players twice. Delete that field above to use this instead.
+                      </p>
+                    )}
                   </div>
                   <Switch
                     checked={askPaymentProof}
+                    disabled={!!hostProofField}
                     onCheckedChange={setAskPaymentProof}
                   />
                 </div>

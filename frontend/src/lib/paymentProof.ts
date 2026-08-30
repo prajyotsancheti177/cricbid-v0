@@ -41,3 +41,21 @@ export const hasPaymentProofField = (fields?: { id: string }[] | null): boolean 
 
 export const isPaymentProofField = (field: { id: string }): boolean =>
   field.id === PAYMENT_PROOF_FIELD_ID;
+
+/**
+ * A host-created file upload that already serves as payment proof (plenty of
+ * tournaments made one by hand before this was built in). When one exists the
+ * built-in field is NOT seeded, so players are not asked for the screenshot
+ * twice, and the host's own field is left alone.
+ */
+export const findHostProofField = <T extends { id: string; type: string; showToPublic?: boolean }>(
+  fields?: T[] | null,
+): T | undefined =>
+  (fields || []).find(
+    (f) => f.type === "file" && f.showToPublic !== false && !isPaymentProofField(f),
+  );
+
+/** True when the form asks for a payment screenshot at all, by either route. */
+export const asksForPaymentProof = (
+  fields?: { id: string; type: string; showToPublic?: boolean }[] | null,
+): boolean => hasPaymentProofField(fields) || !!findHostProofField(fields);
