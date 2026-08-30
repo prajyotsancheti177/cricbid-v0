@@ -114,8 +114,10 @@ const getRegistrationConfig = async (req, res) => {
 
 const updateRegistrationConfig = async (req, res) => {
     try {
-        const { tournamentId, configData, userId, userRole } = req.body;
-        const config = await tournamentService.updateRegistrationConfig(tournamentId, configData, userId, userRole);
+        // userId comes from authMiddleware; the caller's role is resolved from
+        // the database in the service, never taken from the request body.
+        const { tournamentId, configData } = req.body;
+        const config = await tournamentService.updateRegistrationConfig(tournamentId, configData, req.userId);
         return sendSuccess(res, 200, "Registration config updated successfully", config);
     } catch (error) {
         return sendError(res, 400, "Failed to update registration config", error);

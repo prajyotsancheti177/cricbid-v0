@@ -2,6 +2,7 @@ const prisma = require("../db/prisma");
 const googleService = require("../utils/googleService");
 const { serializeTournament, serializeTeam, serializePlayer } = require("../utils/serialize");
 const eventService = require("./eventService");
+const { sanitizePaymentPanel } = require("../utils/paymentConfig");
 
 // Whitelist of tournament fields writable from request bodies
 const TOURNAMENT_FIELDS = [
@@ -279,24 +280,39 @@ const getRegistrationConfig = async (tournamentId) => {
 /**
  * Update tournament registration config
  */
-const updateRegistrationConfig = async (tournamentId, configData, userId, userRole) => {
+const updateRegistrationConfig = async (tournamentId, configData, userId) => {
     try {
         const existingTournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
         if (!existingTournament) {
             throw new Error("Tournament not found");
         }
 
-        if (userRole === 'tournament_host' && String(existingTournament.tournamentHostId) !== userId) {
+        // This config controls paymentPanel — the QR/UPI details that decide who
+        // receives registration fees — so the caller's role is read from the
+        // database. It was previously taken from the request body, which any
+        // client can set.
+        const actingUser = await prisma.user.findUnique({
+            where: { id: String(userId || "") },
+            select: { id: true, role: true, isActive: true },
+        });
+        if (!actingUser || !actingUser.isActive) {
+            throw new Error("Unauthorized to update this tournament");
+        }
+        const isAdmin = actingUser.role === 'boss' || actingUser.role === 'super_user';
+        const isOwner = String(existingTournament.tournamentHostId) === actingUser.id;
+        if (!isAdmin && !isOwner) {
             throw new Error("Unauthorized to update this tournament");
         }
 
-        if (configData.isActive && configData.googleSheetId) {
-            await googleService.initializeSheetHeaders(configData.googleSheetId, configData);
+        const safeConfig = { ...configData, paymentPanel: sanitizePaymentPanel(configData.paymentPanel) };
+
+        if (safeConfig.isActive && safeConfig.googleSheetId) {
+            await googleService.initializeSheetHeaders(safeConfig.googleSheetId, safeConfig);
         }
 
         const updated = await prisma.tournament.update({
             where: { id: tournamentId },
-            data: { registrationFormConfig: configData },
+            data: { registrationFormConfig: safeConfig },
         });
         return updated.registrationFormConfig;
     } catch (error) {
