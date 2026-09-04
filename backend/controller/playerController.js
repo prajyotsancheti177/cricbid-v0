@@ -231,33 +231,79 @@ const getSyncDiff = async (req, res) => {
         if (sheetData.length < 2) return sendSuccess(res, 200, "No changes detected", []);
         
         const headers = sheetData[0];
-        const playerIdIdx = headers.indexOf('Player ID');
-        if (playerIdIdx === -1) throw new Error("Missing 'Player ID' header in Google Sheet");
+        const idColumns = headers.reduce(
+            (acc, h, i) => (String(h ?? '').replace(/\s+/g, ' ').trim().toLowerCase() === 'player id' ? acc.concat(i) : acc),
+            []);
+        if (idColumns.length === 0) throw new Error("Missing 'Player ID' header in Google Sheet");
 
+        // Headers get hand-edited in the sheet, so compare them loosely: trimmed,
+        // case-insensitive, whitespace collapsed. Without this a header of
+        // "Category" never matched the configured label "Player Category" and
+        // that column was silently dropped from the sync.
+        const norm = (h) => String(h ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+        // Accepted alternatives for the standard fields, for sheets whose headers
+        // were renamed by hand. Only consulted after exact label/key matches, so
+        // a custom field named e.g. "Category" still wins its own column.
+        const FIELD_ALIASES = {
+            playerCategory: ['category', 'player category', 'playercategory'],
+            mobile: ['mobile', 'mobile number', 'phone', 'phone number'],
+            email: ['email', 'email address'],
+            name: ['name', 'player name'],
+            age: ['age'],
+            gender: ['gender'],
+            photo: ['photo', 'photo url'],
+            skill: ['skill', 'skills'],
+            address: ['address'],
+            auctionSerialNumber: ['s.no.', 's.no', 'sno', 'serial', 'serial no', 'serial number'],
+        };
+
+        const standardKeys = Object.keys(config.fields || {});
         const headerMap = {};
         headers.forEach((h, colIdx) => {
-            if (h === 'S.No.') headerMap[colIdx] = { key: 'auctionSerialNumber', type: 'standard' };
-            else if (h === 'Name') headerMap[colIdx] = { key: 'name', type: 'standard' };
-            else if (h === 'Player ID') headerMap[colIdx] = { key: '_id', type: 'system' };
-            else {
-                let found = Object.keys(config.fields || {}).find(k => config.fields[k].label === h || k === h);
-                if (found) {
-                     headerMap[colIdx] = { key: found, type: 'standard' };
-                } else if (config.customFields) {
-                     let cfMatch = config.customFields.find(cf => cf.label === h);
-                     if (cfMatch) headerMap[colIdx] = { key: cfMatch.id, type: 'custom' };
-                }
-            }
+            const n = norm(h);
+            if (!n) return;
+
+            if (n === norm('S.No.')) { headerMap[colIdx] = { key: 'auctionSerialNumber', type: 'standard' }; return; }
+            if (n === norm('Name')) { headerMap[colIdx] = { key: 'name', type: 'standard' }; return; }
+            if (n === norm('Player ID')) { headerMap[colIdx] = { key: '_id', type: 'system' }; return; }
+
+            // 1. exact label or key on a configured standard field
+            let found = standardKeys.find(k => norm(config.fields[k].label) === n || norm(k) === n);
+            if (found) { headerMap[colIdx] = { key: found, type: 'standard' }; return; }
+
+            // 2. exact label on a custom field
+            const cfMatch = (config.customFields || []).find(cf => norm(cf.label) === n);
+            if (cfMatch) { headerMap[colIdx] = { key: cfMatch.id, type: 'custom' }; return; }
+
+            // 3. a known alias for a standard field
+            found = Object.keys(FIELD_ALIASES).find(k => FIELD_ALIASES[k].includes(n));
+            if (found) headerMap[colIdx] = { key: found, type: 'standard' };
         });
 
         const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
         const dbPlayerMap = {};
         dbPlayers.forEach(p => dbPlayerMap[p.id] = p);
 
+        // A sheet can carry more than one column headed 'Player ID' — a custom
+        // field whose label happens to match sits to the left of the real one,
+        // and indexOf() then read that column, matched no player, and silently
+        // reported "no changes" for every row. Pick the column that actually
+        // holds player ids; the exporter always appends the real one last, so
+        // that is the fallback when nothing matches (e.g. an empty sheet).
+        const playerIdIdx = idColumns.length === 1 ? idColumns[0] : (() => {
+            const scored = idColumns.map(idx => ({
+                idx,
+                hits: sheetData.slice(1).filter(r => r && dbPlayerMap[String(r[idx] || '').trim()]).length,
+            }));
+            const best = scored.reduce((a, b) => (b.hits > a.hits ? b : a));
+            return best.hits > 0 ? best.idx : idColumns[idColumns.length - 1];
+        })();
+
         const diffs = [];
         for (let i = 1; i < sheetData.length; i++) {
             const row = sheetData[i];
-            const playerId = row[playerIdIdx];
+            const playerId = String(row[playerIdIdx] || '').trim();
             if (!playerId || !dbPlayerMap[playerId]) continue;
             
             const dbPlayer = dbPlayerMap[playerId];
