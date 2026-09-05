@@ -25,12 +25,16 @@ import {
   Edit3,
   Save,
   X,
-  Trash2
+  Trash2,
+  UploadCloud,
+  ImageOff,
+  Loader2
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { shouldMaskPlayer, maskMobile, useMaskingEligible } from "@/lib/privacyUtils";
 import { cn } from "@/lib/utils";
+import { compressImage } from "@/lib/imageCompressor";
 
 interface Team {
   _id: string;
@@ -60,6 +64,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
   const [playerCategories, setPlayerCategories] = useState<string[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [editData, setEditData] = useState<Partial<Player>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const maskingEligible = useMaskingEligible(player?.touranmentId);
 
   // Check authentication status
@@ -114,12 +119,16 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
 
   if (!player) return null;
 
-  const logoSrc = getDriveThumbnail(player.photo as string);
+  // While editing, show the photo as it will be saved (including a removal).
+  const activePhoto = isEditing ? (editData.photo ?? "") : (player.photo || "");
+  const logoSrc = getDriveThumbnail(activePhoto as string);
+  const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(player.name)}&backgroundColor=6366f1,8b5cf6,ec4899&backgroundType=gradientLinear&fontSize=40&fontWeight=600`;
   const masked = shouldMaskPlayer(player, maskingEligible);
 
   const handleEdit = () => {
     setEditData({
       name: player.name,
+      photo: player.photo || "",
       playerCategory: player.playerCategory || "",
       sold: player.sold,
       auctionStatus: player.auctionStatus,
@@ -142,6 +151,39 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
     setEditData(prev => ({ ...prev, [field]: value }));
     setError("");
   };
+
+  const handlePhotoUpload = async (file?: File) => {
+    if (!file) return;
+    setUploadingPhoto(true);
+    setError("");
+    try {
+      const userStr = localStorage.getItem("user");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const compressed = await compressImage(file, 800, 800, 0.8);
+      const formData = new FormData();
+      formData.append("image", compressed, file.name);
+
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
+        method: "POST",
+        headers: { "x-user-id": user?._id || "" },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok && data.data?.imageUrl) {
+        handleInputChange("photo", data.data.imageUrl);
+      } else {
+        setError(data.error || data.message || "Failed to upload photo");
+      }
+    } catch {
+      setError("Could not upload that photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Empty string, not null: buildPlayerData drops null/undefined keys, so a
+  // removed photo would otherwise leave the old one in place.
+  const handleRemovePhoto = () => handleInputChange("photo", "");
 
   // sold / auctionStatus are two booleans in the DB but only three states are
   // valid; edit them as one value so "unsold" can't be left with a sold tag.
@@ -180,6 +222,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
         playerId: player._id,
         userId,
         name: editData.name?.trim(),
+        photo: editData.photo ?? "",
         playerCategory: editData.playerCategory,
         sold: isSold,
         auctionStatus: !!editData.auctionStatus,
@@ -272,12 +315,10 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
               style={{ backgroundImage: `url(${logoSrc})` }}
             />
             <img
-              src={logoSrc}
+              src={logoSrc || fallbackAvatar}
               alt={player.name}
               className={cn("relative h-full w-full object-contain z-10", masked && "blur-xl scale-110")}
-              onError={(e) => {
-                e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(player.name)}&backgroundColor=6366f1,8b5cf6,ec4899&backgroundType=gradientLinear&fontSize=40&fontWeight=600`;
-              }}
+              onError={(e) => { e.currentTarget.src = fallbackAvatar; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent z-20" />
 
@@ -368,6 +409,57 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Phone className="h-4 w-4" />
                 <span className="text-sm">{masked ? maskMobile(player.mobile) : player.mobile}</span>
+              </div>
+            )}
+
+            {/* Edit Mode: Photo */}
+            {isEditing && (
+              <div className="space-y-2 border-t pt-4">
+                <Label>Photo</Label>
+                <div className="flex items-start gap-3">
+                  <img
+                    src={logoSrc || fallbackAvatar}
+                    alt={player.name}
+                    className="w-20 h-20 rounded-lg border object-cover bg-muted shrink-0"
+                    onError={(e) => { e.currentTarget.src = fallbackAvatar; }}
+                  />
+                  <div className="flex flex-col gap-2">
+                    <label className="inline-flex">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingPhoto}
+                        onChange={(e) => {
+                          handlePhotoUpload(e.target.files?.[0]);
+                          e.target.value = "";  // let the same file be picked again
+                        }}
+                      />
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border cursor-pointer hover:bg-muted",
+                        uploadingPhoto && "opacity-60 pointer-events-none"
+                      )}>
+                        {uploadingPhoto
+                          ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
+                          : <><UploadCloud className="h-4 w-4" /> {editData.photo ? "Change photo" : "Upload photo"}</>}
+                      </span>
+                    </label>
+                    {editData.photo ? (
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        disabled={uploadingPhoto}
+                        className="text-destructive hover:text-destructive justify-start px-2"
+                        onClick={handleRemovePhoto}
+                      >
+                        <ImageOff className="h-4 w-4 mr-1" /> Remove photo
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground max-w-[12rem]">
+                        No photo — a name avatar is shown instead.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
