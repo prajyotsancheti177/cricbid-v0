@@ -114,8 +114,8 @@ function ensureStylesInjected() {
   .pcg-root .card-top{
     display:flex;
     /* Stay top-aligned: a name that wraps to two lines would otherwise drag a
-       centred badge down to the middle of the block. The badge's 18px box
-       matches the name's 17.5px first line, so the two line up as-is. */
+       centred badge down to the middle of the block. The badge box is taller
+       than the name's first line, so nudge the name down to meet it. */
     align-items:flex-start;
     gap:8px;
     min-width:0;
@@ -125,11 +125,15 @@ function ensureStylesInjected() {
     color:#062b14;
     font-size:11px;
     font-weight:800;
-    /* Explicit line box, taller than the glyphs: html2canvas draws text a
-       fraction lower than the browser, and the old 10px/2px-padding box was
-       shorter than the digits, which clipped their bottoms in the PDF. */
-    line-height:16px;
-    padding:1px 8px;
+    /* The pill is deliberately much taller than the digits.
+       html2canvas positions text from font metrics that differ between
+       engines, so the glyphs can land several px lower than they do in
+       Chrome; a box sized snugly to the text clipped their bottoms in the
+       exported PDF. ~7px of slack below the baseline absorbs that drift
+       whatever the export is run from. Do not tighten this to make the pill
+       look neater — that is the bug. */
+    line-height:14px;
+    padding:4px 9px 6px;
     border-radius:4px;
     flex-shrink:0;
     display:inline-block;
@@ -138,6 +142,7 @@ function ensureStylesInjected() {
     margin-top:0;
   }
   .pcg-root .player-name{
+    margin-top:3px;
     font-size:14px;
     font-weight:800;
     color:#fff;
@@ -508,6 +513,18 @@ export async function exportPlayerCardsPdf(
     }
 
     const safeName = (tournamentName || "tournament").replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+
+    // Which bundle produced this file. Invisible in the page, readable from the
+    // PDF's properties — enough to tell a stale export from a current one
+    // without guessing.
+    const bundle = document.querySelector<HTMLScriptElement>('script[src*="/assets/index-"]')
+      ?.src.match(/index-([A-Za-z0-9_-]+)\.js/)?.[1] || "dev";
+    pdf.setProperties({
+      title: `${tournamentName} — player cards`,
+      creator: `CricBid (build ${bundle})`,
+      subject: `Generated ${new Date().toISOString()}`,
+    });
+
     pdf.save(`${safeName}_player_cards.pdf`);
   } finally {
     document.body.removeChild(root);
