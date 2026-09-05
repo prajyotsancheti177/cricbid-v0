@@ -125,21 +125,25 @@ function ensureStylesInjected() {
     color:#062b14;
     font-size:11px;
     font-weight:800;
-    /* The pill is deliberately much taller than the digits.
-       html2canvas positions text from font metrics that differ between
-       engines, so the glyphs can land several px lower than they do in
-       Chrome; a box sized snugly to the text clipped their bottoms in the
-       exported PDF. ~7px of slack below the baseline absorbs that drift
-       whatever the export is run from. Do not tighten this to make the pill
-       look neater — that is the bug. */
+    /* Roomier than the digits need. html2canvas positions text from font
+       metrics that differ between engines: in some the glyphs land ~4.5px
+       lower than in Chrome, which clipped them against a snug box. The slack
+       is the safety net; calibrateBadgeText() below does the centring. Do not
+       tighten this to make the pill look neater — that is the bug. */
     line-height:14px;
-    padding:4px 9px 6px;
+    padding:4px 9px 5px;
     border-radius:4px;
     flex-shrink:0;
     display:inline-block;
     text-align:center;
     font-variant-numeric:tabular-nums;
     margin-top:0;
+  }
+  .pcg-root .badge-num{
+    display:inline-block;
+    /* Set by calibrateBadgeText() from what this browser actually rasterises. */
+    position:relative;
+    top:var(--pcg-num-shift, 0px);
   }
   .pcg-root .player-name{
     margin-top:3px;
@@ -298,7 +302,7 @@ function buildCard(player: RawPlayer, index: number): string {
   return `
   <div class="card">
     <div class="card-top">
-      <span class="badge">#${serialNum}</span>
+      <span class="badge"><span class="badge-num">#${serialNum}</span></span>
       <div class="player-name">${name}</div>
     </div>
     <div class="card-body">
@@ -375,6 +379,73 @@ function waitForImages(container: HTMLElement, timeoutMs = 8000): Promise<void[]
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Works out how far off-centre this browser's html2canvas puts the badge text,
+ * and returns the correction in CSS px (negative moves the number up).
+ *
+ * html2canvas derives text position from font metrics, and engines disagree:
+ * the same markup that centres in Chrome rendered ~4.5px lower elsewhere,
+ * riding the bottom of the pill (and clipping against a tighter one). Rather
+ * than hard-code a nudge that would then be wrong in Chrome, rasterise one
+ * throwaway badge and measure the result.
+ *
+ * Returns 0 on any failure — the pill has enough slack that an uncorrected
+ * badge still renders intact, just low.
+ */
+async function calibrateBadgeText(): Promise<number> {
+  const SCALE = 4;
+  let probe: HTMLElement | null = null;
+  try {
+    probe = document.createElement("div");
+    probe.className = "pcg-root";
+    probe.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;";
+    probe.innerHTML = `<span class="badge"><span class="badge-num">#8</span></span>`;
+    document.body.appendChild(probe);
+
+    const badge = probe.querySelector<HTMLElement>(".badge");
+    if (!badge) return 0;
+
+    const canvas = await html2canvas(badge, { backgroundColor: null, scale: SCALE, logging: false });
+    const { width: w, height: h } = canvas;
+    const data = canvas.getContext("2d")?.getImageData(0, 0, w, h).data;
+    if (!data) return 0;
+
+    // Only look down the middle of the pill, clear of its rounded corners.
+    const xa = Math.floor(w * 0.25);
+    const xb = Math.floor(w * 0.75);
+    let pillTop = Infinity, pillBottom = -1, inkTop = Infinity, inkBottom = -1;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = xa; x < xb; x++) {
+        const p = (y * w + x) * 4;
+        const r = data[p], g = data[p + 1], b = data[p + 2], a = data[p + 3];
+        if (a < 30) continue;
+        if (g > 110 && g > r + 40 && g > b + 40) {
+          if (y < pillTop) pillTop = y;
+          if (y > pillBottom) pillBottom = y;
+        } else if (r < 90 && g < 100 && b < 90) {
+          if (y < inkTop) inkTop = y;
+          if (y > inkBottom) inkBottom = y;
+        }
+      }
+    }
+
+    if (pillBottom < 0 || inkBottom < 0 || inkTop === Infinity) return 0;
+
+    const above = inkTop - pillTop;
+    const below = pillBottom - inkBottom;
+    const shift = ((above - below) / 2) / SCALE; // >0 means the text sits low
+
+    // Cap it: a wild reading means the scan misfired, not that the text is 20px out.
+    if (!Number.isFinite(shift) || Math.abs(shift) > 10) return 0;
+    return -shift;
+  } catch {
+    return 0;
+  } finally {
+    if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+  }
+}
 
 /** Group heading for players who have not been sold yet. */
 const UNASSIGNED_GROUP = "Available Players";
@@ -460,6 +531,7 @@ export async function exportPlayerCardsPdf(
   }
 
   ensureStylesInjected();
+  const badgeShift = await calibrateBadgeText();
 
   let pagesHtml = "";
   for (const team of groupedTeams) {
@@ -471,6 +543,7 @@ export async function exportPlayerCardsPdf(
 
   const root = document.createElement("div");
   root.className = "pcg-root";
+  root.style.setProperty("--pcg-num-shift", `${badgeShift.toFixed(2)}px`);
   root.style.position = "fixed";
   root.style.top = "0";
   root.style.left = "-10000px";
@@ -522,7 +595,7 @@ export async function exportPlayerCardsPdf(
     pdf.setProperties({
       title: `${tournamentName} — player cards`,
       creator: `CricBid (build ${bundle})`,
-      subject: `Generated ${new Date().toISOString()}`,
+      subject: `Generated ${new Date().toISOString()} · badge shift ${badgeShift.toFixed(2)}px`,
     });
 
     pdf.save(`${safeName}_player_cards.pdf`);
