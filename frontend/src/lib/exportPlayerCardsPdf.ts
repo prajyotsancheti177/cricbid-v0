@@ -113,6 +113,9 @@ function ensureStylesInjected() {
   }
   .pcg-root .card-top{
     display:flex;
+    /* Stay top-aligned: a name that wraps to two lines would otherwise drag a
+       centred badge down to the middle of the block. The badge's 18px box
+       matches the name's 17.5px first line, so the two line up as-is. */
     align-items:flex-start;
     gap:8px;
     min-width:0;
@@ -120,12 +123,19 @@ function ensureStylesInjected() {
   .pcg-root .badge{
     background:linear-gradient(135deg,#2ecc71,#1ca557);
     color:#062b14;
-    font-size:10px;
+    font-size:11px;
     font-weight:800;
-    padding:2px 7px;
+    /* Explicit line box, taller than the glyphs: html2canvas draws text a
+       fraction lower than the browser, and the old 10px/2px-padding box was
+       shorter than the digits, which clipped their bottoms in the PDF. */
+    line-height:16px;
+    padding:1px 8px;
     border-radius:4px;
     flex-shrink:0;
-    margin-top:1px;
+    display:inline-block;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+    margin-top:0;
   }
   .pcg-root .player-name{
     font-size:14px;
