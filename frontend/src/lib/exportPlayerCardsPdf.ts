@@ -13,11 +13,8 @@ interface RawPlayer {
   amtSold?: number;
   sold?: boolean;
   auctionSerialNumber?: number;
-}
-
-interface RawTeam {
-  name?: string;
-  players?: RawPlayer[];
+  teamName?: string;
+  basePrice?: number;
 }
 
 const CARDS_PER_PAGE_DEFAULT = 12;
@@ -270,6 +267,13 @@ function buildCard(player: RawPlayer, index: number): string {
   const age = player.age !== null && player.age !== undefined && player.age !== "" ? escapeHtml(player.age) : "—";
   const role = escapeHtml(player.skill || "—");
   const amtSold = player.amtSold ?? 0;
+  // Before the auction nobody has a sale price, so the card shows the base
+  // price instead — that is what team owners need when reviewing the list.
+  const basePrice = player.basePrice ?? 0;
+  const priceLabel = player.sold ? "SOLD" : "BASE";
+  const priceValue = player.sold
+    ? `₹${escapeHtml(amtSold)}`
+    : (basePrice > 0 ? `₹${escapeHtml(basePrice)}` : "—");
   const serialNum = player.auctionSerialNumber != null ? escapeHtml(player.auctionSerialNumber) : index + 1;
 
   const photoHtml = player.photo
@@ -302,8 +306,8 @@ function buildCard(player: RawPlayer, index: number): string {
           <span class="info-value" title="${role}">${role}</span>
         </div>
         <div class="info-row">
-          <span class="info-label">SOLD</span>
-          <span class="info-value sold-value">₹${escapeHtml(amtSold)}</span>
+          <span class="info-label">${priceLabel}</span>
+          <span class="info-value sold-value">${priceValue}</span>
         </div>
       </div>
     </div>
@@ -357,9 +361,18 @@ function waitForImages(container: HTMLElement, timeoutMs = 8000): Promise<void[]
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Group heading for players who have not been sold yet. */
+const UNASSIGNED_GROUP = "Available Players";
+/** Sold, but with no team on record — older tournaments carry data like this. */
+const SOLD_NO_TEAM_GROUP = "Sold Players";
+
 /**
- * Fetches sold players for a tournament, groups them by team, and generates
- * a "player card" style PDF (one card per player, grouped/paginated by team).
+ * Fetches every player in a tournament, groups them by team, and generates a
+ * "player card" style PDF (one card per player, grouped/paginated by team).
+ *
+ * Players who have not been sold are grouped under "Available Players", so the
+ * export is useful before the auction — sharing the full player list with team
+ * owners is the main reason it gets run.
  */
 export async function exportPlayerCardsPdf(
   tournamentName: string,
@@ -371,30 +384,50 @@ export async function exportPlayerCardsPdf(
     throw new Error("No tournament selected");
   }
 
-  const teamsRes = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
+  // Read the player list rather than team rosters: an unsold player belongs to
+  // no team, so team rosters cannot see them at all.
+  const playersRes = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ touranmentId: tournamentId }),
   });
 
-  if (!teamsRes.ok) {
+  if (!playersRes.ok) {
     throw new Error("Failed to fetch data for PDF export");
   }
 
-  const teamsData = await teamsRes.json();
-  const teams: RawTeam[] = teamsData.data?.[0]?.teams ?? [];
+  const playersData = await playersRes.json();
+  const allPlayersRaw: RawPlayer[] = playersData.data ?? [];
 
-  const groupedTeams = teams
-    .map((t) => ({
-      name: t.name || "Unknown Team",
-      players: (t.players ?? [])
-        .filter((p) => p.sold === true)
-        .sort((a, b) => (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999)),
-    }))
-    .filter((t) => t.players.length > 0);
+  const groupOrder: string[] = [];
+  const byGroup = new Map<string, RawPlayer[]>();
+  for (const player of allPlayersRaw) {
+    const key = player.sold
+      ? (player.teamName || SOLD_NO_TEAM_GROUP)
+      : UNASSIGNED_GROUP;
+    if (!byGroup.has(key)) {
+      byGroup.set(key, []);
+      groupOrder.push(key);
+    }
+    byGroup.get(key)!.push(player);
+  }
+
+  const toGroup = (name: string) => ({
+    name,
+    players: (byGroup.get(name) ?? []).sort(
+      (a, b) => (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999)
+    ),
+  });
+
+  // Teams first, then the two catch-all groups.
+  const trailing = [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
+  const groupedTeams = [
+    ...groupOrder.filter((n) => !trailing.includes(n)).map(toGroup),
+    ...trailing.filter((n) => byGroup.has(n)).map(toGroup),
+  ].filter((t) => t.players.length > 0);
 
   if (groupedTeams.length === 0) {
-    throw new Error("No sold players found for this tournament");
+    throw new Error("No players found for this tournament");
   }
 
   // Convert remote photo URLs to base64 up-front so html2canvas can render them cross-origin.

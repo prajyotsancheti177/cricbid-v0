@@ -187,7 +187,7 @@ const TournamentDataSection = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Player cards PDF</CardTitle>
-          <CardDescription>Export sold players as photo cards, grouped and paginated by team — ready to print and hand out.</CardDescription>
+          <CardDescription>Export every player as a photo card, grouped and paginated by team, with players not yet sold listed under "Available Players". Works before the auction — share the full list with team owners.</CardDescription>
         </CardHeader>
         <CardContent>
           {isFeatureOn(tournament, "dataExport") ? (
