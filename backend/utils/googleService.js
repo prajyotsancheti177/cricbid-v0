@@ -3,6 +3,12 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+const {
+    buildColumnPlan,
+    readPlayerValue,
+    columnLetter,
+} = require('./sheetColumns');
+
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'];
 
 const getAuthClient = async () => {
@@ -40,22 +46,8 @@ const initializeSheetHeaders = async (spreadsheetId, config) => {
         const auth = await getAuthClient();
         const sheets = google.sheets({ version: 'v4', auth });
 
-        // Initialize Headers
-        const headers = ['S.No.', 'Name'];
-        
-        const possibleFields = ['age', 'gender', 'photo', 'mobile', 'email', 'skill', 'address', 'playerCategory'];
-        possibleFields.forEach(f => {
-            if (config.fields && config.fields[f] && config.fields[f].enabled) {
-                headers.push(config.fields[f].label || f);
-            }
-        });
-
-        if (config.customFields) {
-            config.customFields.forEach(cf => headers.push(cf.label));
-        }
-
-        // Add Player Database ID for Reverse Syncing
-        headers.push('Player ID');
+        // Same column plan the exporter writes, so headers and data always agree.
+        const headers = buildColumnPlan(config).map(col => col.header);
 
         await sheets.spreadsheets.values.update({
             spreadsheetId,
@@ -113,51 +105,61 @@ const getSheetData = async (sheetId) => {
     }
 };
 
+/**
+ * Rewrites a sheet's player data from the database.
+ *
+ * The header row and the data rows are built from one column plan and written
+ * together, so they can never disagree — a disabled field used to shorten the
+ * data rows but not the headers, shifting every later value one column left and
+ * writing it under someone else's heading.
+ *
+ * The export owns columns A..<last planned column> and rewrites them in full,
+ * including any rows left behind by deleted players. Anything to the RIGHT of
+ * that is the host's own space and is never read, written or cleared — which is
+ * where their manual columns must live.
+ */
 const updateEntireSheetWithPlayers = async (spreadsheetId, config, players) => {
     try {
-        if (!hasRealCredentials()) return;
+        if (!hasRealCredentials()) return null;
         const auth = await getAuthClient();
         const sheets = google.sheets({ version: 'v4', auth });
 
-        // Calculate mapped rows
-        const rows = players.map((player) => {
-            const rowData = [player.auctionSerialNumber || '', player.name || ''];
-            const possibleFields = ['age', 'gender', 'photo', 'mobile', 'email', 'skill', 'address', 'playerCategory'];
-            possibleFields.forEach(f => {
-                if (config.fields && config.fields[f] && config.fields[f].enabled) {
-                    rowData.push(player[f] !== undefined ? player[f] : '');
-                }
-            });
+        const plan = buildColumnPlan(config);
+        const lastCol = columnLetter(plan.length - 1);
 
-            if (config.customFields) {
-                config.customFields.forEach(cf => {
-                    const cv = player.customFields;
-                    // support both Mongoose Map and Prisma plain-object JSON
-                    const val = cv ? (typeof cv.get === 'function' ? cv.get(cf.id) : cv[cf.id]) : undefined;
-                    rowData.push(val !== undefined ? val : '');
-                });
-            }
+        const existing = await getSheetData(spreadsheetId);
+        const previousRowCount = Math.max(0, existing.length - 1);
 
-            rowData.push(player._id ? player._id.toString() : (player.id || ''));
-            return rowData;
-        });
+        const values = [
+            plan.map((col) => col.header),
+            ...players.map((player) => plan.map((col) => readPlayerValue(player, col))),
+        ];
 
-        // Clear existing data rows (excluding row 1 header)
-        await sheets.spreadsheets.values.clear({
+        await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Sheet1!A2:Z',
+            range: `Sheet1!A1:${lastCol}${values.length}`,
+            valueInputOption: 'RAW',
+            resource: { values },
         });
 
-        if (rows.length > 0) {
-            await sheets.spreadsheets.values.update({
+        // Rows left behind by players deleted since the last export. Cleared only
+        // across the owned columns — never the old A2:Z, which wiped whatever the
+        // host kept to the right of the export.
+        if (previousRowCount > players.length) {
+            await sheets.spreadsheets.values.batchClear({
                 spreadsheetId,
-                range: 'Sheet1!A2',
-                valueInputOption: 'RAW',
                 resource: {
-                    values: rows
-                }
+                    ranges: [`Sheet1!A${players.length + 2}:${lastCol}${previousRowCount + 1}`],
+                },
             });
         }
+
+        return {
+            rowsWritten: players.length,
+            columnsWritten: plan.length,
+            lastColumn: lastCol,
+            staleRowsCleared: Math.max(0, previousRowCount - players.length),
+        };
     } catch (e) {
         console.error("Failed to sync entire sheet:", e);
         throw e;

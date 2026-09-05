@@ -5,6 +5,7 @@ const tournamentService = require('../services/tournamentService');
 const googleService = require('../utils/googleService');
 const playerProfileService = require('../services/playerProfileService');
 const { sendSuccess, sendError } = require("../utils");
+const { buildHeaderMap, resolveIdColumn, buildColumnPlan, readPlayerValue } = require("../utils/sheetColumns");
 const eventService = require("../services/eventService");
 
 
@@ -107,23 +108,16 @@ const registerPlayerPublic = async (req, res) => {
 
         try {
             if (config && config.googleSheetId) {
-                const rowData = [player.auctionSerialNumber || '', name];
-                const possibleFields = ['age', 'gender', 'photo', 'mobile', 'email', 'skill', 'address', 'playerCategory'];
-                
-                possibleFields.forEach(f => {
-                    if (config.fields?.[f]?.enabled) {
-                        rowData.push(safePayload[f] !== undefined ? safePayload[f] : '');
-                    }
-                });
+                // Same column plan the full export uses, so an appended row
+                // lands under the same headers as everything else.
+                const rowData = buildColumnPlan(config).map(col => readPlayerValue({
+                    ...safePayload,
+                    auctionSerialNumber: player.auctionSerialNumber,
+                    customFields,
+                    _id: player._id,
+                    id: player.id,
+                }, col));
 
-                if (config.customFields) {
-                    config.customFields.forEach(cf => {
-                        rowData.push(customFields[cf.id] !== undefined ? customFields[cf.id] : '');
-                    });
-                }
-                
-                rowData.push(player._id ? player._id.toString() : '');
-                
                 await googleService.appendPlayerRow(config.googleSheetId, rowData);
             }
         } catch (syncErr) {
@@ -228,77 +222,19 @@ const getSyncDiff = async (req, res) => {
         }
 
         const sheetData = await googleService.getSheetData(config.googleSheetId);
-        if (sheetData.length < 2) return sendSuccess(res, 200, "No changes detected", []);
+        if (sheetData.length < 2) {
+            return sendSuccess(res, 200, "No changes detected", { updates: [], deletions: [], matchedRows: 0, sheetRows: 0 });
+        }
         
         const headers = sheetData[0];
-        const idColumns = headers.reduce(
-            (acc, h, i) => (String(h ?? '').replace(/\s+/g, ' ').trim().toLowerCase() === 'player id' ? acc.concat(i) : acc),
-            []);
-        if (idColumns.length === 0) throw new Error("Missing 'Player ID' header in Google Sheet");
-
-        // Headers get hand-edited in the sheet, so compare them loosely: trimmed,
-        // case-insensitive, whitespace collapsed. Without this a header of
-        // "Category" never matched the configured label "Player Category" and
-        // that column was silently dropped from the sync.
-        const norm = (h) => String(h ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-
-        // Accepted alternatives for the standard fields, for sheets whose headers
-        // were renamed by hand. Only consulted after exact label/key matches, so
-        // a custom field named e.g. "Category" still wins its own column.
-        const FIELD_ALIASES = {
-            playerCategory: ['category', 'player category', 'playercategory'],
-            mobile: ['mobile', 'mobile number', 'phone', 'phone number'],
-            email: ['email', 'email address'],
-            name: ['name', 'player name'],
-            age: ['age'],
-            gender: ['gender'],
-            photo: ['photo', 'photo url'],
-            skill: ['skill', 'skills'],
-            address: ['address'],
-            auctionSerialNumber: ['s.no.', 's.no', 'sno', 'serial', 'serial no', 'serial number'],
-        };
-
-        const standardKeys = Object.keys(config.fields || {});
-        const headerMap = {};
-        headers.forEach((h, colIdx) => {
-            const n = norm(h);
-            if (!n) return;
-
-            if (n === norm('S.No.')) { headerMap[colIdx] = { key: 'auctionSerialNumber', type: 'standard' }; return; }
-            if (n === norm('Name')) { headerMap[colIdx] = { key: 'name', type: 'standard' }; return; }
-            if (n === norm('Player ID')) { headerMap[colIdx] = { key: '_id', type: 'system' }; return; }
-
-            // 1. exact label or key on a configured standard field
-            let found = standardKeys.find(k => norm(config.fields[k].label) === n || norm(k) === n);
-            if (found) { headerMap[colIdx] = { key: found, type: 'standard' }; return; }
-
-            // 2. exact label on a custom field
-            const cfMatch = (config.customFields || []).find(cf => norm(cf.label) === n);
-            if (cfMatch) { headerMap[colIdx] = { key: cfMatch.id, type: 'custom' }; return; }
-
-            // 3. a known alias for a standard field
-            found = Object.keys(FIELD_ALIASES).find(k => FIELD_ALIASES[k].includes(n));
-            if (found) headerMap[colIdx] = { key: found, type: 'standard' };
-        });
+        const headerMap = buildHeaderMap(headers, config);
 
         const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
         const dbPlayerMap = {};
         dbPlayers.forEach(p => dbPlayerMap[p.id] = p);
 
-        // A sheet can carry more than one column headed 'Player ID' — a custom
-        // field whose label happens to match sits to the left of the real one,
-        // and indexOf() then read that column, matched no player, and silently
-        // reported "no changes" for every row. Pick the column that actually
-        // holds player ids; the exporter always appends the real one last, so
-        // that is the fallback when nothing matches (e.g. an empty sheet).
-        const playerIdIdx = idColumns.length === 1 ? idColumns[0] : (() => {
-            const scored = idColumns.map(idx => ({
-                idx,
-                hits: sheetData.slice(1).filter(r => r && dbPlayerMap[String(r[idx] || '').trim()]).length,
-            }));
-            const best = scored.reduce((a, b) => (b.hits > a.hits ? b : a));
-            return best.hits > 0 ? best.idx : idColumns[idColumns.length - 1];
-        })();
+        const playerIdIdx = resolveIdColumn(headers, sheetData.slice(1), (id) => !!dbPlayerMap[id]);
+        if (playerIdIdx === -1) throw new Error("Missing 'Player ID' header in Google Sheet");
 
         const diffs = [];
         for (let i = 1; i < sheetData.length; i++) {
@@ -342,8 +278,32 @@ const getSyncDiff = async (req, res) => {
                  });
             }
         }
-        
-        return sendSuccess(res, 200, "Diff computed successfully", diffs);
+
+        // Players the host removed from the sheet are removed from the database
+        // too. Guarded: if not one row matched a player the sheet is unrelated
+        // to this tournament (wrong id column, wrong sheet, header-only export)
+        // and proposing to delete the entire squad would be catastrophic.
+        const sheetIds = new Set(
+            sheetData.slice(1)
+                .map(r => String((r || [])[playerIdIdx] || '').trim())
+                .filter(Boolean)
+        );
+        const matchedCount = dbPlayers.filter(p => sheetIds.has(p.id)).length;
+        const deletions = matchedCount === 0 ? [] : dbPlayers
+            .filter(p => !sheetIds.has(p.id))
+            .map(p => ({
+                playerId: p.id,
+                playerName: p.name,
+                auctionSerialNumber: p.auctionSerialNumber,
+                sold: !!p.sold,
+            }));
+
+        return sendSuccess(res, 200, "Diff computed successfully", {
+            updates: diffs,
+            deletions,
+            matchedRows: matchedCount,
+            sheetRows: sheetIds.size,
+        });
     } catch(err) {
         return sendError(res, 400, "Failed to compute sync diff", err);
     }
@@ -351,12 +311,18 @@ const getSyncDiff = async (req, res) => {
 
 const applySync = async (req, res) => {
     try {
-        const { diffs } = req.body;
+        const { touranmentId } = req.body;
+        const diffs = req.body.diffs || req.body.updates || [];
+        const deletions = req.body.deletions || [];
+        if (!touranmentId) throw new Error("Tournament ID is required");
+
         const intFields = new Set(['age', 'amtSold', 'auctionSerialNumber']);
         const boolFields = new Set(['sold', 'auctionStatus']);
         for (const diff of diffs) {
             const player = await prisma.player.findUnique({ where: { id: diff.playerId } });
-            if (!player) continue;
+            // The ids come from the client, so confirm each one really belongs
+            // to the tournament being synced before writing to it.
+            if (!player || player.touranmentId !== touranmentId) continue;
 
             const data = {};
             const customFields = (player.customFields && typeof player.customFields === 'object')
@@ -386,15 +352,31 @@ const applySync = async (req, res) => {
             await prisma.player.update({ where: { id: diff.playerId }, data });
         }
 
+        // Deleting is scoped to this tournament, so a forged id cannot reach a
+        // player in someone else's.
+        let deleted = 0;
+        if (deletions.length > 0) {
+            const result = await prisma.player.deleteMany({
+                where: {
+                    touranmentId,
+                    id: { in: deletions.map(d => d.playerId).filter(Boolean) },
+                },
+            });
+            deleted = result.count;
+        }
+
         eventService.trackEvent({
             userId: req.body.userId || null,
             tournamentId: req.body.touranmentId || null,
             eventType: "sheets_sync_applied",
             page: "/players",
-            eventData: { tournamentId: req.body.touranmentId || null, changesApplied: diffs.length },
+            eventData: { tournamentId: touranmentId || null, changesApplied: diffs.length, playersDeleted: deleted },
         }).catch(() => {});
 
-        return sendSuccess(res, 200, "Sync applied successfully");
+        const message = deleted > 0
+            ? `Sync applied: ${diffs.length} player(s) updated, ${deleted} removed`
+            : "Sync applied successfully";
+        return sendSuccess(res, 200, message, { updated: diffs.length, deleted });
     } catch(err) {
         return sendError(res, 400, "Failed to apply sync", err);
     }
@@ -418,7 +400,7 @@ const syncToSheet = async (req, res) => {
                 { name: 'asc' },
             ],
         });
-        await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
+        const summary = await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
 
         eventService.trackEvent({
             userId: req.body.userId || null,
@@ -428,7 +410,13 @@ const syncToSheet = async (req, res) => {
             eventData: { tournamentId: touranmentId },
         }).catch(() => {});
 
-        return sendSuccess(res, 200, "Successfully exported database to Google Sheet");
+        // Tell the host when a field had no column to go in, rather than
+        // silently leaving it out of the sheet.
+        const skipped = summary?.skippedFields || [];
+        const message = skipped.length
+            ? `Exported ${summary.rowsWritten} players. No column found for: ${skipped.join(', ')} — add a header with that name to include it.`
+            : "Successfully exported database to Google Sheet";
+        return sendSuccess(res, 200, message, summary || undefined);
     } catch(err) {
         return sendError(res, 400, "Failed to sync to sheet", err);
     }
