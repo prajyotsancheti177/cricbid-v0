@@ -243,7 +243,7 @@ const FullscreenOverlay = () => {
           >
             {/* Player Name */}
             <div>
-              {currentPlayer.auctionSerialNumber && (
+              {currentPlayer.auctionSerialNumber != null && (
                 <span
                   style={{
                     fontSize: 28,

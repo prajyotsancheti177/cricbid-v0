@@ -464,7 +464,7 @@ const Auction = () => {
               <img src={logo} alt="Logo" className="h-8 md:h-12 w-auto object-contain scale-[1.35]" />
             </div>
             <span className="text-sm md:text-xl font-bold text-foreground">
-              Player #{currentPlayer?.auctionSerialNumber || playerNumber}
+              Player #{currentPlayer?.auctionSerialNumber ?? playerNumber}
             </span>
             {auctionState?.selectedCategory && auctionState.selectedCategory !== "All" && (
               <span className="text-xs md:text-sm px-2 py-0.5 rounded-full bg-secondary/20 text-secondary border border-secondary/30">

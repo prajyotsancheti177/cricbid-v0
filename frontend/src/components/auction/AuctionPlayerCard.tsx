@@ -98,7 +98,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
           </div>
 
           {/* Serial Number Badge */}
-          {player.auctionSerialNumber && (
+          {player.auctionSerialNumber != null && (
             <div className="absolute top-16 right-4">
               <Badge variant="outline" className="text-sm font-bold shadow-lg bg-background/50 backdrop-blur-md border-primary/50 text-foreground">
                 #{player.auctionSerialNumber}
@@ -141,7 +141,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
           {currentBid !== undefined && (
             <div className="text-center flex-shrink-0">
               <h3 className="text-base sm:text-xl md:text-4xl font-black text-foreground mb-0.5 md:mb-2 truncate">
-                {player.auctionSerialNumber && (
+                {player.auctionSerialNumber != null && (
                   <span className="text-secondary mr-1 sm:mr-2 md:mr-3">
                     #{player.auctionSerialNumber}
                   </span>
@@ -205,7 +205,7 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
             </div>
 
             <div className="max-w-[70%] text-right flex gap-1 justify-end">
-              {player.auctionSerialNumber && (
+              {player.auctionSerialNumber != null && (
                 <Badge variant="outline" className="text-xs font-bold shadow-sm whitespace-nowrap bg-background/50 border-primary/50">
                   #{player.auctionSerialNumber}
                 </Badge>

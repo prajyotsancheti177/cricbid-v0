@@ -241,7 +241,7 @@ const SplitScreenOverlay = () => {
                 }}
               />
               <div style={{ minWidth: 0, flex: 1 }}>
-                {currentPlayer.auctionSerialNumber && (
+                {currentPlayer.auctionSerialNumber != null && (
                   <span
                     style={{
                       fontSize: 18,

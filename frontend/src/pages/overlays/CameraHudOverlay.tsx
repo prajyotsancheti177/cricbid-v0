@@ -268,7 +268,7 @@ const CameraHudOverlay = () => {
           <div className="overlay-intro-bg" />
           <div className="overlay-intro-content">
             <img src={getPlayerPhotoUrl(currentPlayer)} className="overlay-intro-photo" style={overlayPhotoStyle(currentPlayer, maskingEligible)} onError={(e) => e.currentTarget.src = getFallbackAvatar(currentPlayer.name)} />
-            {currentPlayer.auctionSerialNumber && (
+            {currentPlayer.auctionSerialNumber != null && (
               <div className="overlay-intro-serial">#{currentPlayer.auctionSerialNumber}</div>
             )}
             <div className="overlay-intro-name">{currentPlayer.name}</div>
@@ -332,7 +332,7 @@ const CameraHudOverlay = () => {
                     wordWrap: "break-word",
                   }}
                 >
-                  {currentPlayer.auctionSerialNumber && (
+                  {currentPlayer.auctionSerialNumber != null && (
                     <span style={{ color: "rgba(255,255,255,0.4)", marginRight: 12 }}>
                       #{currentPlayer.auctionSerialNumber}
                     </span>

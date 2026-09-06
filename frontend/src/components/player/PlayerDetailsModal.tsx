@@ -336,7 +336,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
             </div>
 
             {/* Serial number */}
-            {player.auctionSerialNumber && (
+            {player.auctionSerialNumber != null && (
               <div className="absolute bottom-3 left-3 z-30">
                 <Badge variant="outline" className="bg-background/80 backdrop-blur-sm">
                   #{player.auctionSerialNumber}

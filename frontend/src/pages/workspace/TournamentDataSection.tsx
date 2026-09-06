@@ -73,7 +73,7 @@ const TournamentDataSection = () => {
       const playersCSV = [
         "Serial Number,Player Name,Age,Photo URL,Category,Skill,Phone Number,Team (Sold To),Sold,Amount Sold",
         ...(data.players || []).map((p: { auctionSerialNumber: number | string; name: string; age: string; photo: string; playerCategory: string; skill: string; mobile: string; teamName: string; sold: string; amtSold: number }) =>
-          `"${p.auctionSerialNumber || ''}","${p.name || ''}","${p.age || ''}","${p.photo || ''}","${p.playerCategory || ''}","${p.skill || ''}","${p.mobile || ''}","${p.teamName || ''}","${p.sold || ''}","${p.amtSold || 0}"`
+          `"${p.auctionSerialNumber ?? ''}","${p.name || ''}","${p.age || ''}","${p.photo || ''}","${p.playerCategory || ''}","${p.skill || ''}","${p.mobile || ''}","${p.teamName || ''}","${p.sold || ''}","${p.amtSold || 0}"`
         ),
       ].join("\n");
 

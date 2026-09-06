@@ -105,7 +105,7 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
               );
             })()}
           </div>
-          {player.auctionSerialNumber && (
+          {player.auctionSerialNumber != null && (
             <Badge variant="outline" className="text-[10px] sm:text-xs font-bold shadow-lg bg-background/50 backdrop-blur-md border-primary/50 text-foreground px-1.5 py-0.5 sm:px-2 sm:py-1">
               #{player.auctionSerialNumber}
             </Badge>
