@@ -419,8 +419,16 @@ module.exports = (io) => {
             if (p) player.basePrice = p.basePrice;
           }
         } else {
-          // Next player in category or serial-number order
-          player = await auctionService.nextAuctionPlayer(tournamentId, category, auctionRaw.auctionMode === 'serial' ? 'serial' : 'random');
+          // Next player in category or serial-number order. The player already
+          // on the block is passed through so "Next" actually advances past
+          // them — selecting does not mark anyone auctioned.
+          const onBlock = auctionRaw && auctionRaw.currentPlayer ? auctionRaw.currentPlayer : null;
+          player = await auctionService.nextAuctionPlayer(
+            tournamentId,
+            category,
+            auctionRaw.auctionMode === 'serial' ? 'serial' : 'random',
+            onBlock ? { id: onBlock._id || onBlock.id, serial: onBlock.auctionSerialNumber } : {}
+          );
         }
 
         const selResult = auctionStateManager.selectPlayer(tournamentId, player, bidIncrementSlabs);

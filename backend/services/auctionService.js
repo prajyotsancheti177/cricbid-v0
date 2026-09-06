@@ -17,7 +17,14 @@ const playerCategories = async (tournamentId) => {
  * identically in both modes — only the pick strategy within the filtered
  * pool changes.
  */
-const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'random') => {
+/**
+ * Picks the next player to put on the block.
+ *
+ * `current` is the player already on the block, if any: { id, serial }.
+ * Selecting a player does not mark them auctioned, so without this the serial
+ * order kept returning the same lowest-serial player and "Next" appeared dead.
+ */
+const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'random', current = {}) => {
     if (!touranmentId) {
         throw new Error("touranmentId is required");
     }
@@ -42,24 +49,49 @@ const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'rand
         };
     }
 
+    // Serial 0 is a real serial number, so test for null rather than falsiness.
+    const currentSerial = (current && current.serial !== undefined && current.serial !== null)
+        ? current.serial : null;
+    const currentId = (current && current.id) ? String(current.id) : null;
+    const notCurrent = currentId ? { NOT: { id: currentId } } : {};
+
     let candidate;
     if (orderMode === 'serial') {
-        [candidate] = await prisma.player.findMany({
-            where,
-            orderBy: { auctionSerialNumber: 'asc' },
-            take: 1,
-        });
+        // Advance past whoever is on the block.
+        if (currentSerial !== null) {
+            [candidate] = await prisma.player.findMany({
+                where: { ...where, auctionSerialNumber: { gt: currentSerial } },
+                orderBy: { auctionSerialNumber: 'asc' },
+                take: 1,
+            });
+        }
+        // Nothing further along: wrap to the lowest remaining, so players
+        // skipped earlier in the list can still be reached.
+        if (!candidate) {
+            [candidate] = await prisma.player.findMany({
+                where: { ...where, ...notCurrent },
+                orderBy: { auctionSerialNumber: 'asc' },
+                take: 1,
+            });
+        }
         if (!candidate) {
             throw new Error("No more players available for auction.");
         }
     } else {
-        // Random selection (replaces $sample): pick a random matching candidate
-        const count = await prisma.player.count({ where });
+        // Random selection (replaces $sample): pick a random matching candidate,
+        // never handing back the player already on the block.
+        const randomWhere = { ...where, ...notCurrent };
+        let count = await prisma.player.count({ where: randomWhere });
         if (count === 0) {
-            throw new Error("No more players available for auction.");
+            // only the current player is left — fall back to the plain filter
+            count = await prisma.player.count({ where });
+            if (count === 0) throw new Error("No more players available for auction.");
+            const skipOnly = Math.floor(Math.random() * count);
+            [candidate] = await prisma.player.findMany({ where, skip: skipOnly, take: 1 });
+        } else {
+            const skip = Math.floor(Math.random() * count);
+            [candidate] = await prisma.player.findMany({ where: randomWhere, skip, take: 1 });
         }
-        const skip = Math.floor(Math.random() * count);
-        [candidate] = await prisma.player.findMany({ where, skip, take: 1 });
     }
 
     const nextPlayer = serializePlayer(candidate);
