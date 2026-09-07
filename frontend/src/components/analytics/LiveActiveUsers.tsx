@@ -8,6 +8,8 @@ const POLL_INTERVAL_MS = 10000;
 
 interface ActivePage {
     page: string;
+    /** Tournament/team name resolved from the ids in the path, when there are any. */
+    label?: string | null;
     count: number;
 }
 
@@ -112,10 +114,15 @@ const LiveActiveUsers = () => {
                             <p className="text-sm text-slate-500">Nobody on the site right now.</p>
                         ) : (
                             <ul className="space-y-2">
-                                {topPages.map(({ page, count }) => (
+                                {topPages.map(({ page, label, count }) => (
                                     <li key={page} className="flex items-center justify-between gap-4 text-sm">
-                                        <span className="truncate font-mono text-xs text-slate-300" title={page}>
-                                            {page}
+                                        {/* Named pages read as prose; static routes stay monospaced
+                                            paths. The raw route is always in the tooltip. */}
+                                        <span
+                                            className={`truncate text-xs text-slate-300 ${label ? "" : "font-mono"}`}
+                                            title={label ? `${label} — ${page}` : page}
+                                        >
+                                            {label || page}
                                         </span>
                                         <span className="flex items-center gap-1.5 tabular-nums text-slate-400">
                                             <Radio className="h-3 w-3 text-emerald-400" />

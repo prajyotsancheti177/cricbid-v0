@@ -1,6 +1,7 @@
 const eventService = require("../services/eventService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
 const geoService = require("../services/geoService");
+const { withPageLabels } = require("../utils/pageLabel");
 const presenceService = require("../services/presenceService");
 const { classifyUserAgent } = require("../utils/userAgent");
 const { sendSuccess, sendError } = require("../utils");
@@ -232,7 +233,11 @@ const recordHeartbeat = async (req, res) => {
  */
 const getActiveUsers = async (req, res) => {
     try {
-        sendSuccess(res, 200, "Active users retrieved successfully", presenceService.getSnapshot());
+        const snapshot = presenceService.getSnapshot();
+        // Presence is tracked by route, so resolve the ids to tournament and
+        // team names for the "where they are" board.
+        const byPage = await withPageLabels(snapshot.byPage || [], "page");
+        sendSuccess(res, 200, "Active users retrieved successfully", { ...snapshot, byPage });
     } catch (error) {
         console.error("Error getting active users:", error);
         sendError(res, 500, "Failed to get active users", error);
