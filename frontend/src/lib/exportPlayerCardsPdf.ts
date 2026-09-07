@@ -524,15 +524,13 @@ function isAuctionComplete(
   return [...soldPerTeam.values()].every((n) => n >= MIN_SOLD_PER_TEAM);
 }
 
-const bySerial = (a: RawPlayer, b: RawPlayer) =>
-  (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999);
-
 /**
  * Fetches every player in a tournament and generates a "player card" style PDF.
  *
  * Grouping:
- *  - "team"     one section per team, unsold players under "Available Players",
- *               so the export is useful before the auction too.
+ *  - "team"     one section per team, ordered by what each player went for,
+ *               with unsold players under "Available Players" so the export is
+ *               useful before the auction too.
  *  - "category" one section per player category, each showing its top N.
  *  - "overall"  a single section with the tournament's top N.
  */
@@ -610,11 +608,11 @@ export async function exportPlayerCardsPdf(
   const isTopMode = grouping === "category" || grouping === "overall";
 
   const toGroup = (name: string) => {
-    const players = [...(byGroup.get(name) ?? [])];
-    // Top-N sections are ranked and trimmed; team sections keep squad order.
-    return isTopMode
-      ? { name, players: players.sort(byRank).slice(0, topN) }
-      : { name, players: players.sort(bySerial) };
+    const players = [...(byGroup.get(name) ?? [])].sort(byRank);
+    // Every section is ranked by what the player went for; only the top-N
+    // sections are trimmed. In the unsold sections nobody has a price, so the
+    // ranking falls through to serial order there.
+    return isTopMode ? { name, players: players.slice(0, topN) } : { name, players };
   };
 
   let groupedTeams: { name: string; players: RawPlayer[] }[];
