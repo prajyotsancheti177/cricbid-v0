@@ -183,6 +183,11 @@ const TournamentDataSection = () => {
         </CardContent>
       </Card>
 
+      {/* Teams-roster PDF export — hidden on request (2026-09-07): nobody was
+          using it, and the player-cards export below covers the same ground.
+          Left in place rather than deleted so it can be switched back on by
+          removing this comment wrapper; handleExportPdf, the pdfBusy state and
+          the exportTeamsPdf import are all still wired up.
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">PDF export</CardTitle>
@@ -197,6 +202,7 @@ const TournamentDataSection = () => {
           ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>
       </Card>
+      */}
 
       <Card>
         <CardHeader>
