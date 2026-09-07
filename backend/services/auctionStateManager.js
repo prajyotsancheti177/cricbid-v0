@@ -4,8 +4,125 @@
  * Each tournament can have one active auction session
  */
 
+const prisma = require("../db/prisma");
+
 // Store active auctions by tournamentId
 const activeAuctions = new Map();
+
+/*
+ * The map above is the source of truth while the process lives. A restart,
+ * deploy or crash would otherwise lose whichever lot is on the block, so every
+ * change is mirrored to auction_live_state and read back at boot.
+ */
+
+// Writes are coalesced per tournament: a burst of bids becomes one row update.
+const PERSIST_DEBOUNCE_MS = 250;
+const pendingWrites = new Map();
+
+/** Fields worth surviving a restart. Socket ids and viewer sets are not. */
+const snapshotOf = (auction) => ({
+  isActive: auction.isActive,
+  auctionMode: auction.auctionMode,
+  selectedCategory: auction.selectedCategory,
+  currentPlayer: auction.currentPlayer,
+  currentBid: auction.currentBid,
+  leadingTeam: auction.leadingTeam,
+  bidHistory: auction.bidHistory,
+  teamBids: auction.teamBids,
+  teams: auction.teams,
+  playerNumber: auction.playerNumber,
+  bidPrice: auction.bidPrice,
+  auctioneerUserId: auction.auctioneerUserId,
+  bidIncrementSlabs: auction.bidIncrementSlabs,
+});
+
+/**
+ * Mirror an auction to the database. Fire-and-forget on purpose: the live room
+ * must never wait on, or fail because of, the backup write.
+ */
+const persist = (tournamentId) => {
+  if (pendingWrites.has(tournamentId)) clearTimeout(pendingWrites.get(tournamentId));
+  pendingWrites.set(tournamentId, setTimeout(async () => {
+    pendingWrites.delete(tournamentId);
+    const auction = activeAuctions.get(tournamentId);
+    if (!auction) return;
+    try {
+      const snapshot = snapshotOf(auction);
+      await prisma.auctionLiveState.upsert({
+        where: { tournamentId },
+        create: { tournamentId, snapshot },
+        update: { snapshot },
+      });
+    } catch (err) {
+      console.error("[auction] could not persist live state:", err.message);
+    }
+  }, PERSIST_DEBOUNCE_MS));
+};
+
+/** Drop the mirror when an auction ends or is cleared. */
+const forget = async (tournamentId) => {
+  if (pendingWrites.has(tournamentId)) {
+    clearTimeout(pendingWrites.get(tournamentId));
+    pendingWrites.delete(tournamentId);
+  }
+  try {
+    await prisma.auctionLiveState.deleteMany({ where: { tournamentId } });
+  } catch (err) {
+    console.error("[auction] could not clear live state:", err.message);
+  }
+};
+
+/**
+ * Reload auctions that were live when the process stopped.
+ *
+ * The auctioneer's socket is gone, so auctioneerSocketId starts null and the
+ * first claim re-attaches them (setAuctioneer already recognises the same
+ * auctioneerUserId reconnecting). Rows older than the cutoff are stale — an
+ * auction nobody ended days ago — and are dropped rather than resurrected.
+ */
+const restoreFromDatabase = async ({ maxAgeHours = 12 } = {}) => {
+  try {
+    const rows = await prisma.auctionLiveState.findMany();
+    const cutoff = Date.now() - maxAgeHours * 3600 * 1000;
+    let restored = 0, dropped = 0;
+
+    for (const row of rows) {
+      if (new Date(row.updatedAt).getTime() < cutoff) {
+        await prisma.auctionLiveState.deleteMany({ where: { tournamentId: row.tournamentId } });
+        dropped++;
+        continue;
+      }
+      const snap = row.snapshot || {};
+      activeAuctions.set(row.tournamentId, {
+        tournamentId: row.tournamentId,
+        isActive: snap.isActive ?? false,
+        auctionMode: snap.auctionMode ?? null,
+        selectedCategory: snap.selectedCategory ?? null,
+        currentPlayer: snap.currentPlayer ?? null,
+        currentBid: snap.currentBid ?? 0,
+        leadingTeam: snap.leadingTeam ?? null,
+        bidHistory: snap.bidHistory ?? [],
+        teamBids: snap.teamBids ?? {},
+        teams: snap.teams ?? [],
+        playerNumber: snap.playerNumber ?? 1,
+        bidPrice: snap.bidPrice ?? 0,
+        auctioneerSocketId: null,
+        auctioneerUserId: snap.auctioneerUserId ?? null,
+        bidIncrementSlabs: snap.bidIncrementSlabs ?? [],
+        connectedViewers: new Set(),
+      });
+      restored++;
+    }
+
+    if (restored || dropped) {
+      console.log(`[auction] restored ${restored} live auction(s); dropped ${dropped} stale`);
+    }
+    return { restored, dropped };
+  } catch (err) {
+    console.error("[auction] could not restore live state:", err.message);
+    return { restored: 0, dropped: 0 };
+  }
+};
 
 /**
  * Create or get an auction session for a tournament
@@ -69,6 +186,7 @@ const setAuctioneer = (tournamentId, socketId, userId) => {
     if (userId && auction.auctioneerUserId === userId) {
       // Reconnecting same user
       auction.auctioneerSocketId = socketId;
+      persist(tournamentId);
       return { success: true };
     }
     return { success: false, error: "Another user is already conducting this auction" };
@@ -77,6 +195,7 @@ const setAuctioneer = (tournamentId, socketId, userId) => {
   auction.auctioneerSocketId = socketId;
   auction.auctioneerUserId = userId;
   auction.isActive = true;
+  persist(tournamentId);
   return { success: true };
 };
 
@@ -128,6 +247,7 @@ const startAuction = (tournamentId, { mode, category, teams, bidIncrementSlabs }
   auction.teams = teams || [];
   auction.bidIncrementSlabs = bidIncrementSlabs || [];
   auction.playerNumber = 1;
+  persist(tournamentId);
   return auction;
 };
 
@@ -156,6 +276,7 @@ const selectPlayer = (tournamentId, player, bidIncrementSlabs) => {
     auction.bidPrice = 100;
   }
 
+  persist(tournamentId);
   return { success: true, state: getAuctionState(tournamentId) };
 };
 
@@ -222,6 +343,7 @@ const placeBid = (tournamentId, teamId, teams) => {
   // Calculate next increment
   auction.bidPrice = getCurrentBidIncrement(tournamentId, newBid);
 
+  persist(tournamentId);
   return {
     success: true,
     state: getAuctionState(tournamentId),
@@ -262,6 +384,7 @@ const undoBid = (tournamentId) => {
     auction.bidPrice = getCurrentBidIncrement(tournamentId, auction.currentBid);
   }
 
+  persist(tournamentId);
   return {
     success: true,
     state: getAuctionState(tournamentId)
@@ -303,6 +426,7 @@ const markSold = (tournamentId) => {
   auction.teamBids = {};
   auction.bidHistory = [];
 
+  persist(tournamentId);
   return result;
 };
 
@@ -331,6 +455,7 @@ const markUnsold = (tournamentId) => {
   auction.teamBids = {};
   auction.bidHistory = [];
 
+  persist(tournamentId);
   return result;
 };
 
@@ -341,6 +466,7 @@ const updateTeams = (tournamentId, teams) => {
   const auction = activeAuctions.get(tournamentId);
   if (auction) {
     auction.teams = teams;
+    persist(tournamentId);
   }
 };
 
@@ -358,6 +484,7 @@ const updateBidIncrementSlabs = (tournamentId, slabs) => {
     auction.bidPrice = getCurrentBidIncrement(tournamentId, auction.currentBid);
   }
 
+  persist(tournamentId);
   return { success: true, state: getAuctionState(tournamentId) };
 };
 
@@ -365,6 +492,7 @@ const updateBidIncrementSlabs = (tournamentId, slabs) => {
  * End auction session
  */
 const endAuction = (tournamentId) => {
+  forget(tournamentId);
   const auction = activeAuctions.get(tournamentId);
   if (auction) {
     auction.isActive = false;
@@ -376,6 +504,7 @@ const endAuction = (tournamentId) => {
  * Clean up auction (remove from memory)
  */
 const cleanupAuction = (tournamentId) => {
+  forget(tournamentId);
   activeAuctions.delete(tournamentId);
 };
 
@@ -400,6 +529,7 @@ const getAllActiveAuctions = () => {
 };
 
 module.exports = {
+  restoreFromDatabase,
   getOrCreateAuction,
   getAuctionState,
   setAuctioneer,

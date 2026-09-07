@@ -48,6 +48,15 @@ server.listen(config.port, async () => {
   console.log(`Server listening on port ${config.port}`);
   console.log("Socket.io initialized for real-time auction");
 
+  // Bring back any auction that was mid-lot when this process last stopped, so
+  // a restart, deploy or crash does not lose the player on the block.
+  try {
+    const auctionStateManager = require("../services/auctionStateManager");
+    await auctionStateManager.restoreFromDatabase();
+  } catch (err) {
+    console.error("[auction] restore on boot failed:", err.message);
+  }
+
   // Sample the live active-user count once a minute for the counter's sparkline
   require("../services/presenceService").startHistorySampling();
 

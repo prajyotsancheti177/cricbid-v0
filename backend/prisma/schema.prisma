@@ -110,6 +110,7 @@ model Tournament {
   teams               Team[]
   auctionLogs         AuctionLog[]
   auctionRoomSessions AuctionRoomSession[]
+  auctionLiveState    AuctionLiveState?
   userEvents          UserEvent[]
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
@@ -317,6 +318,21 @@ model AuctionLogBid {
 // ---------------------------------------------------------------------------
 // Live auction room session analytics (write-side migrated; reads deferred)
 // ---------------------------------------------------------------------------
+
+/// The lot currently on the block, so a restart or crash does not lose it.
+///
+/// auctionStateManager keeps live auctions in memory; this is that state
+/// mirrored to disk after every change and read back at boot. One row per
+/// tournament, deleted when the auction ends.
+model AuctionLiveState {
+  tournamentId String     @id
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  snapshot  Json
+  updatedAt DateTime @updatedAt
+
+  @@map("auction_live_state")
+}
 
 model AuctionRoomSession {
   id String @id @default(cuid())
