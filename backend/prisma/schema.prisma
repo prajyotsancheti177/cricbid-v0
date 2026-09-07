@@ -214,6 +214,10 @@ model Player {
 
   sold                Boolean?
   auctionStatus       Boolean?
+  // A publicly-registered player is held out of the auction until the host
+  // verifies their payment. Defaults false so a new registration is always
+  // pending; players added by the host directly are set true at creation.
+  paymentVerified     Boolean @default(false)
   amtSold             Int?
   playerCategory      String?
   auctionSerialNumber Int?

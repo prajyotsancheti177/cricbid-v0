@@ -30,10 +30,13 @@ const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'rand
     }
 
     // Build the candidate filter (mirrors the old $match)
+    // paymentVerified gates entry to the auction: a player who registered but
+    // has not been verified by the host is not callable for bidding.
     let where = {
         touranmentId,
         sold: false,
         auctionStatus: false,
+        paymentVerified: true,
     };
     if (playerCategory && playerCategory !== "All" && playerCategory !== "Regular") {
         where.playerCategory = playerCategory;
@@ -42,6 +45,7 @@ const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'rand
         where = {
             touranmentId,
             sold: false,
+            paymentVerified: true,
             OR: [
                 { auctionStatus: false, playerCategory: "Regular" },
                 { auctionStatus: true, playerCategory: "Icon" },

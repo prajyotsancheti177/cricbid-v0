@@ -5,7 +5,7 @@ const tournamentService = require('../services/tournamentService');
 const googleService = require('../utils/googleService');
 const playerProfileService = require('../services/playerProfileService');
 const { sendSuccess, sendError } = require("../utils");
-const { buildHeaderMap, resolveIdColumn, buildColumnPlan, readPlayerValue } = require("../utils/sheetColumns");
+const { buildColumnPlan, readPlayerValue } = require("../utils/sheetColumns");
 const eventService = require("../services/eventService");
 
 
@@ -92,7 +92,11 @@ const registerPlayerPublic = async (req, res) => {
         const safePayload = {
             name, age, gender, mobile, email, address, skill, playerCategory, photo: photoUrl, touranmentId, customFields,
             sold: false,
-            auctionStatus: false
+            auctionStatus: false,
+            // Registering does not put a player in the auction — the host has to
+            // verify their payment first.
+            paymentVerified: false,
+            isPublic: true,
         };
 
         const player = await playersService.registerPlayer(safePayload);
@@ -211,177 +215,6 @@ const bulkUpdatePlayers = async (req, res) => {
     }
 };
 
-const getSyncDiff = async (req, res) => {
-    try {
-        const { touranmentId } = req.body;
-        const tournamentData = await tournamentService.getRegistrationConfig(touranmentId);
-        const config = tournamentData?.registrationFormConfig;
-        
-        if (!config || !config.googleSheetId) {
-            throw new Error("Google Sheet Sync is not configured for this tournament");
-        }
-
-        const sheetData = await googleService.getSheetData(config.googleSheetId);
-        if (sheetData.length < 2) {
-            return sendSuccess(res, 200, "No changes detected", { updates: [], deletions: [], matchedRows: 0, sheetRows: 0 });
-        }
-        
-        const headers = sheetData[0];
-        const headerMap = buildHeaderMap(headers, config);
-
-        const dbPlayers = await prisma.player.findMany({ where: { touranmentId } });
-        const dbPlayerMap = {};
-        dbPlayers.forEach(p => dbPlayerMap[p.id] = p);
-
-        const playerIdIdx = resolveIdColumn(headers, sheetData.slice(1), (id) => !!dbPlayerMap[id]);
-        if (playerIdIdx === -1) throw new Error("Missing 'Player ID' header in Google Sheet");
-
-        const diffs = [];
-        for (let i = 1; i < sheetData.length; i++) {
-            const row = sheetData[i];
-            const playerId = String(row[playerIdIdx] || '').trim();
-            if (!playerId || !dbPlayerMap[playerId]) continue;
-            
-            const dbPlayer = dbPlayerMap[playerId];
-            const changes = [];
-
-            row.forEach((cellVal, colIdx) => {
-                const map = headerMap[colIdx];
-                if (!map || map.type === 'system') return;
-                
-                let dbVal = '';
-                if (map.type === 'standard') {
-                     dbVal = dbPlayer[map.key] || '';
-                } else if (map.type === 'custom') {
-                     dbVal = (dbPlayer.customFields && dbPlayer.customFields[map.key]) || '';
-                }
-                
-                const cleanCell = String(cellVal || '').trim();
-                const cleanDb = String(dbVal || '').trim();
-                
-                if (cleanDb !== cleanCell) {
-                     changes.push({
-                         field: headers[colIdx],
-                         dbKey: map.key,
-                         dbType: map.type,
-                         old: cleanDb,
-                         new: cleanCell
-                     });
-                }
-            });
-
-            if (changes.length > 0) {
-                 diffs.push({
-                     playerId,
-                     playerName: dbPlayer.name,
-                     changes
-                 });
-            }
-        }
-
-        // Players the host removed from the sheet are removed from the database
-        // too. Guarded: if not one row matched a player the sheet is unrelated
-        // to this tournament (wrong id column, wrong sheet, header-only export)
-        // and proposing to delete the entire squad would be catastrophic.
-        const sheetIds = new Set(
-            sheetData.slice(1)
-                .map(r => String((r || [])[playerIdIdx] || '').trim())
-                .filter(Boolean)
-        );
-        const matchedCount = dbPlayers.filter(p => sheetIds.has(p.id)).length;
-        const deletions = matchedCount === 0 ? [] : dbPlayers
-            .filter(p => !sheetIds.has(p.id))
-            .map(p => ({
-                playerId: p.id,
-                playerName: p.name,
-                auctionSerialNumber: p.auctionSerialNumber,
-                sold: !!p.sold,
-            }));
-
-        return sendSuccess(res, 200, "Diff computed successfully", {
-            updates: diffs,
-            deletions,
-            matchedRows: matchedCount,
-            sheetRows: sheetIds.size,
-        });
-    } catch(err) {
-        return sendError(res, 400, "Failed to compute sync diff", err);
-    }
-};
-
-const applySync = async (req, res) => {
-    try {
-        const { touranmentId } = req.body;
-        const diffs = req.body.diffs || req.body.updates || [];
-        const deletions = req.body.deletions || [];
-        if (!touranmentId) throw new Error("Tournament ID is required");
-
-        const intFields = new Set(['age', 'amtSold', 'auctionSerialNumber']);
-        const boolFields = new Set(['sold', 'auctionStatus']);
-        for (const diff of diffs) {
-            const player = await prisma.player.findUnique({ where: { id: diff.playerId } });
-            // The ids come from the client, so confirm each one really belongs
-            // to the tournament being synced before writing to it.
-            if (!player || player.touranmentId !== touranmentId) continue;
-
-            const data = {};
-            const customFields = (player.customFields && typeof player.customFields === 'object')
-                ? { ...player.customFields } : {};
-            let customTouched = false;
-
-            diff.changes.forEach(c => {
-                if (c.dbType === 'standard') {
-                    if (intFields.has(c.dbKey)) {
-                        const n = Number(c.new);
-                        data[c.dbKey] = Number.isFinite(n) ? Math.trunc(n) : null;
-                    } else if (boolFields.has(c.dbKey)) {
-                        const v = String(c.new).trim().toLowerCase();
-                        data[c.dbKey] = v === 'yes' || v === 'true';
-                    } else if (c.dbKey === 'mobile') {
-                        data[c.dbKey] = c.new === '' ? null : String(c.new);
-                    } else {
-                        data[c.dbKey] = c.new;
-                    }
-                } else if (c.dbType === 'custom') {
-                    customFields[c.dbKey] = c.new;
-                    customTouched = true;
-                }
-            });
-            if (customTouched) data.customFields = customFields;
-
-            await prisma.player.update({ where: { id: diff.playerId }, data });
-        }
-
-        // Deleting is scoped to this tournament, so a forged id cannot reach a
-        // player in someone else's.
-        let deleted = 0;
-        if (deletions.length > 0) {
-            const result = await prisma.player.deleteMany({
-                where: {
-                    touranmentId,
-                    id: { in: deletions.map(d => d.playerId).filter(Boolean) },
-                },
-            });
-            deleted = result.count;
-        }
-
-        eventService.trackEvent({
-            userId: req.body.userId || null,
-            tournamentId: req.body.touranmentId || null,
-            eventType: "sheets_sync_applied",
-            page: "/players",
-            eventData: { tournamentId: touranmentId || null, changesApplied: diffs.length, playersDeleted: deleted },
-        }).catch(() => {});
-
-        const message = deleted > 0
-            ? `Sync applied: ${diffs.length} player(s) updated, ${deleted} removed`
-            : "Sync applied successfully";
-        return sendSuccess(res, 200, message, { updated: diffs.length, deleted });
-    } catch(err) {
-        return sendError(res, 400, "Failed to apply sync", err);
-    }
-};
-
 const syncToSheet = async (req, res) => {
     try {
         const { touranmentId } = req.body;
@@ -422,6 +255,27 @@ const syncToSheet = async (req, res) => {
     }
 };
 
+/**
+ * Verify (or un-verify) payment for a set of players, or for every pending
+ * player in the tournament when `all` is set.
+ */
+const verifyPayments = async (req, res) => {
+    try {
+        const { touranmentId, playerIds, verified, all } = req.body;
+        if (!touranmentId) throw new Error("Tournament ID is required");
+
+        const shouldVerify = verified !== false;
+        const result = all === true
+            ? await playersService.verifyAllPending(touranmentId)
+            : await playersService.setPaymentVerified(touranmentId, playerIds, shouldVerify);
+
+        const verb = shouldVerify ? "verified" : "moved back to pending";
+        return sendSuccess(res, 200, `${result.count} player(s) ${verb}`, { count: result.count });
+    } catch (error) {
+        return sendError(res, 400, "Failed to update payment verification", error);
+    }
+};
+
 const getOverlayStats = async (req, res) => {
     try {
         const { touranmentId, tournamentId } = req.body;
@@ -448,8 +302,7 @@ module.exports = {
     resetUnsoldPlayers,
     deleteAllPlayers,
     bulkUpdatePlayers,
-    getSyncDiff,
-    applySync,
     syncToSheet,
-    getOverlayStats
+    getOverlayStats,
+    verifyPayments
 };

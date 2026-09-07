@@ -411,6 +411,11 @@ module.exports = (io) => {
           // Manual selection
           player = await playerService.getPlayerDetail(playerId);
           if (!player) throw new Error("Player not found");
+          // The same gate the automatic pick applies: an unverified player is
+          // not in the auction, however they were reached.
+          if (player.paymentVerified === false) {
+            throw new Error(`${player.name} has not had their payment verified yet`);
+          }
 
           // Ensure base price is set
           if (!player.basePrice && player.basePrice !== 0) {

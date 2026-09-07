@@ -33,6 +33,7 @@ const buildPlayerData = (input) => {
     if (input.teamId !== undefined) d.teamId = input.teamId ? toStr(input.teamId) : null;
     if (input.sold !== undefined) d.sold = toBool(input.sold);
     if (input.auctionStatus !== undefined) d.auctionStatus = toBool(input.auctionStatus);
+    if (input.paymentVerified !== undefined) d.paymentVerified = toBool(input.paymentVerified);
     if (input.amtSold !== undefined) d.amtSold = toInt(input.amtSold) ?? null;
     if (input.playerCategory !== undefined) d.playerCategory = toStr(input.playerCategory);
     if (input.auctionSerialNumber !== undefined) d.auctionSerialNumber = toInt(input.auctionSerialNumber) ?? null;
@@ -75,6 +76,11 @@ const registerPlayer = async (playerInput) => {
 
     const data = buildPlayerData({ ...playerInput, name });
     data.auctionSerialNumber = finalSerialNumber;
+    // A player the host enters themselves is already accounted for; only a
+    // public self-registration has to wait for payment verification.
+    data.paymentVerified = playerInput.paymentVerified !== undefined
+        ? !!playerInput.paymentVerified
+        : true;
     const saved = await prisma.player.create({ data });
 
     eventService.trackEvent({
@@ -198,6 +204,50 @@ const updatePlayer = async (playerInput) => {
     }).catch(() => {});
 
     return serializePlayer(updatedPlayer);
+};
+
+/**
+ * Marks payment verified (or not) for players in one tournament.
+ *
+ * Scoped by tournament so an id from elsewhere cannot be flipped, and returns
+ * the count actually changed rather than the count requested.
+ */
+const setPaymentVerified = async (touranmentId, playerIds, verified) => {
+    if (!touranmentId) throw new Error("Tournament ID is required");
+    const ids = (playerIds || []).filter(Boolean);
+    if (ids.length === 0) return { count: 0 };
+
+    const result = await prisma.player.updateMany({
+        where: { touranmentId, id: { in: ids } },
+        data: { paymentVerified: !!verified },
+    });
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId,
+        eventType: verified ? "players_payment_verified" : "players_payment_unverified",
+        page: "/players",
+        eventData: { tournamentId: touranmentId, count: result.count },
+    }).catch(() => {});
+
+    return result;
+};
+
+/** Every unverified player in the tournament, for "verify all". */
+const verifyAllPending = async (touranmentId) => {
+    if (!touranmentId) throw new Error("Tournament ID is required");
+    const result = await prisma.player.updateMany({
+        where: { touranmentId, paymentVerified: false },
+        data: { paymentVerified: true },
+    });
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId,
+        eventType: "players_payment_verified",
+        page: "/players",
+        eventData: { tournamentId: touranmentId, count: result.count, bulk: "all" },
+    }).catch(() => {});
+    return result;
 };
 
 const deletePlayer = async (playerId) => {
@@ -329,7 +379,11 @@ const bulkCreatePlayers = async (playersData, touranmentId) => {
 
     let createdCount = 0;
     if (newPlayers.length > 0) {
-        const res = await prisma.player.createMany({ data: newPlayers });
+        // A CSV upload is the host entering players themselves, so those are
+        // verified on arrival like any other host-created player.
+        const res = await prisma.player.createMany({
+            data: newPlayers.map(p => ({ paymentVerified: true, ...p })),
+        });
         createdCount = res.count;
     }
 
@@ -489,6 +543,8 @@ const getOverlayStats = async (touranmentId) => {
 };
 
 module.exports = {
+    setPaymentVerified,
+    verifyAllPending,
     registerPlayer,
     allPlayerDetails,
     getPlayerDetail,

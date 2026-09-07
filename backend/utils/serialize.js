@@ -26,6 +26,7 @@ const serializePlayer = (p) => {
         teamId,
         sold: p.sold,
         auctionStatus: p.auctionStatus,
+        paymentVerified: p.paymentVerified,
         amtSold: p.amtSold,
         playerCategory: p.playerCategory,
         auctionSerialNumber: p.auctionSerialNumber,

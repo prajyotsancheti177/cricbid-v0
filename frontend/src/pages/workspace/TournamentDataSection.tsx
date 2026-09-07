@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole, Trophy, IdCard } from "lucide-react";
+import { Download, FileDown, Upload, Loader2, LockKeyhole, Trophy, IdCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { exportAuctionReport } from "@/lib/exportAuctionReport";
@@ -10,7 +10,6 @@ import { exportPlayerCardsPdf, type CardsGrouping } from "@/lib/exportPlayerCard
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
-import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
 
@@ -55,7 +54,6 @@ const TournamentDataSection = () => {
   const [cardsTopN, setCardsTopN] = useState("5");
   const [reportBusy, setReportBusy] = useState(false);
   const [syncingToSheet, setSyncingToSheet] = useState(false);
-  const [syncFromSheetOpen, setSyncFromSheetOpen] = useState(false);
 
   const handleDownloadCSV = async () => {
     setCsvBusy(true);
@@ -291,7 +289,7 @@ const TournamentDataSection = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Google Sheets sync</CardTitle>
-          <CardDescription>Keep your Google Sheet in sync with the database.</CardDescription>
+          <CardDescription>Push the database out to your Google Sheet. Editing players happens in the player sheet, not in Google Sheets.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           {isFeatureOn(tournament, "googleSheetsSync") ? (
@@ -300,20 +298,10 @@ const TournamentDataSection = () => {
                 {syncingToSheet ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Sync database → sheet
               </Button>
-              <Button onClick={() => setSyncFromSheetOpen(true)} variant="outline" className="gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Sync sheet → database
-              </Button>
             </>
           ) : <FeatureDisabled label="Google Sheets sync" navigate={navigate} />}
         </CardContent>
       </Card>
-
-      <SyncPreviewDialog
-        isOpen={syncFromSheetOpen}
-        onClose={() => setSyncFromSheetOpen(false)}
-        tournamentId={tournament._id}
-      />
     </div>
   );
 };

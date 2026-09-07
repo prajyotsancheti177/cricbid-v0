@@ -309,7 +309,9 @@ const sendCategoryStartingNotification = async ({ tournamentId, category }) => {
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   const tournamentName = tournament?.name || 'Tournament';
   const players = await prisma.player.findMany({
-    where: { touranmentId: tournamentId, playerCategory: category, mobile: { not: null }, sold: false },
+    // Unverified players are not in the auction, so they are not told it is
+    // their category's turn.
+    where: { touranmentId: tournamentId, playerCategory: category, mobile: { not: null }, sold: false, paymentVerified: true },
     select: { id: true, name: true, mobile: true },
   });
   for (const player of players) {

@@ -37,11 +37,13 @@ playerRouter.post("/bulk-update", authMiddleware, playerController.bulkUpdatePla
 // Delete All Players for a Tournament - Protected
 playerRouter.post("/delete-all", authMiddleware, playerController.deleteAllPlayers);
 
-// Get Sheet Delta - Protected
-playerRouter.post("/sync-diff", authMiddleware, playerController.getSyncDiff);
+// Payment verification — gates a registered player's entry into the auction
+playerRouter.post("/verify-payments", authMiddleware, playerController.verifyPayments);
 
-// Apply Sheet Delta - Protected
-playerRouter.post("/sync-apply", authMiddleware, playerController.applySync);
+// NOTE: sheet -> database sync was removed on 2026-09-08. Matching sheet rows
+// back to players proved unreliable (duplicate headers, renamed columns, ids
+// that drifted) and it silently overwrote good data. The player sheet in Manage
+// Tournament is the editing surface now. The export below is unaffected.
 
 // Push DB to Sheet - Protected
 playerRouter.post("/sync-to-sheet", authMiddleware, playerController.syncToSheet);
