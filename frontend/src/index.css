@@ -58,6 +58,19 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  /* Number inputs: drop the spinner. In a narrow grid cell the up/down arrows
+     sit on top of the value and hide it, and every number here (age, serial,
+     amount) is typed rather than nudged. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   body {
     @apply bg-background text-foreground;
   }
