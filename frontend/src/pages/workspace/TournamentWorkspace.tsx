@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, useNavigate, useOutletContext } from "react-router-dom";
 import {
   LayoutDashboard, Users, Shield, UserPlus, Upload, Link as LinkIcon,
-  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History, MessageSquare, CalendarDays, Wallet,
-} from "lucide-react";
+  Gavel, Settings, ChevronLeft, Loader2, Trophy, Database, History, MessageSquare, CalendarDays, Wallet, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
@@ -32,6 +31,7 @@ export interface WorkspaceTournament {
   createdAt?: string;
   auctionDate?: string | null;
   [key: string]: unknown;
+  playerSheetConfig?: { visibleColumns?: string[]; noteLabels?: Record<string, string> };
 }
 
 /** Returns true if the feature is enabled (missing/null treated as enabled for backward compat). */
@@ -44,6 +44,7 @@ export const isFeatureOn = (tournament: WorkspaceTournament, key: keyof Tourname
 const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?: boolean; ownerOnly?: boolean }[] = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
   { to: "players", label: "Players", icon: Users },
+  { to: "sheet", label: "Player sheet", icon: Table2, adminOnly: true },
   { to: "teams", label: "Teams", icon: Shield },
   { to: "add-player", label: "Add player", icon: UserPlus, ownerOnly: true },
   { to: "bulk-upload", label: "Bulk upload", icon: Upload, ownerOnly: true },

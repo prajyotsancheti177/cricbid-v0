@@ -8,7 +8,7 @@ const { sanitizePaymentPanel } = require("../utils/paymentConfig");
 const TOURNAMENT_FIELDS = [
     'name', 'tournamentHostId', 'noOfTeams', 'maxPlayersPerTeam', 'minPlayersPerTeam',
     'totalBudget', 'auctionDate', 'playerCategories', 'categoryBasePrices', 'bidIncrementSlabs',
-    'registrationFormConfig', 'features',
+    'registrationFormConfig', 'features', 'playerSheetConfig',
 ];
 const pickTournament = (data) => {
     const out = {};

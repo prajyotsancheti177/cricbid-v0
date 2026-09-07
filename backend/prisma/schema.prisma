@@ -97,7 +97,11 @@ model Tournament {
   playerCategories     String[] // Postgres text[]
   categoryBasePrices   Json?    // Map<string, number>
   bidIncrementSlabs    Json?    // [{ minBid, maxBid, increment }]
-  registrationFormConfig Json?  // deeply nested config blob
+  registrationFormConfig Json?
+  // Player-sheet settings: which columns the host shows and the labels of
+  // their own note columns. Separate from registrationFormConfig — this is
+  // about the host's view, not about what a player is asked to fill in.
+  playerSheetConfig      Json?  // deeply nested config blob
   features               Json?  // { whatsappNotifications, obsOverlays, publicPlayerRegistration, publicTeamRegistration, googleSheetsSync, dataExport }
   whatsappConfig         Json?  // per-tournament WhatsApp template toggles — see WhatsApp config schema docs
 

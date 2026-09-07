@@ -67,6 +67,7 @@ const serializeTournament = (t) => {
         categoryBasePrices: t.categoryBasePrices ?? undefined,
         bidIncrementSlabs: t.bidIncrementSlabs ?? undefined,
         registrationFormConfig: t.registrationFormConfig ?? undefined,
+        playerSheetConfig: t.playerSheetConfig ?? undefined,
         features: t.features ?? undefined,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,

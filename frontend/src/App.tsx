@@ -28,6 +28,7 @@ import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSecti
 import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSection";
 import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
 import TournamentDataSection from "./pages/workspace/TournamentDataSection";
+import TournamentPlayerSheetSection from "./pages/workspace/TournamentPlayerSheetSection";
 import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection";
 import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
 import UserManagement from "./pages/UserManagement";
@@ -146,6 +147,7 @@ const App = () => (
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<TournamentOverview />} />
                 <Route path="players" element={<Players />} />
+                <Route path="sheet" element={<TournamentPlayerSheetSection />} />
                 <Route path="teams" element={<Teams />} />
                 <Route path="add-player" element={<AddPlayer />} />
                 <Route path="bulk-upload" element={<BulkUpload />} />

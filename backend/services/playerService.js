@@ -127,6 +127,15 @@ const updatePlayer = async (playerInput) => {
     }
 
     const updateData = buildPlayerData(playerInput);
+
+    // customFieldPatch merges into what is stored rather than replacing it, so
+    // a grid saving one note cannot wipe a payment-proof upload it never saw.
+    if (playerInput.customFieldPatch && typeof playerInput.customFieldPatch === 'object') {
+        const current = (existingPlayer.customFields && typeof existingPlayer.customFields === 'object')
+            ? existingPlayer.customFields : {};
+        updateData.customFields = { ...current, ...playerInput.customFieldPatch };
+    }
+
     // A player who is not sold can't belong to a team or carry a sold price
     if (updateData.sold === false) {
         updateData.teamId = null;
