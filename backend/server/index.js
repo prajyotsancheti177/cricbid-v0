@@ -36,6 +36,9 @@ initAuctionSockets(io);
 // Import and initialize ip_geo_cache TTL cleanup job
 const { runOnce: runGeoCleanupOnce, scheduleGeoCleanup } = require("../jobs/geoCleanup");
 
+// Import and initialize the daily activity summary email job
+const { scheduleDailyActivitySummaryEmail } = require("../jobs/dailyActivityEmail");
+
 // Use server.listen instead of app.listen for Socket.io
 server.listen(config.port, async () => {
   console.log(`Server listening on port ${config.port}`);
@@ -44,5 +47,7 @@ server.listen(config.port, async () => {
   // Run a one-time cleanup to clear any backlog, then schedule the daily job
   await runGeoCleanupOnce();
   scheduleGeoCleanup();
+
+  scheduleDailyActivitySummaryEmail();
 });
 
