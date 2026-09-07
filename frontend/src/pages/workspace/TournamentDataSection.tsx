@@ -9,7 +9,7 @@ import { exportAuctionReport } from "@/lib/exportAuctionReport";
 import { exportPlayerCardsPdf, type CardsGrouping } from "@/lib/exportPlayerCardsPdf";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";

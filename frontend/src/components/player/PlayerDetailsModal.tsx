@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectRecentlyInteracted } from "@/components/form/select";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -301,10 +301,23 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
     return <Badge variant="outline" className="text-muted-foreground">PENDING</Badge>;
   };
 
+  // A dropdown renders in a portal outside this dialog, so the click that
+  // dismisses it — or a rapid second click just after it closes — can look like
+  // a click outside the dialog and close the whole thing. Ignore outside
+  // interactions that belong to a dropdown.
+  const ignoreOutside = (e: any): boolean => {
+    const t = (e?.detail?.originalEvent?.target ?? e?.target) as HTMLElement | undefined;
+    return !!t?.closest?.('[data-radix-popper-content-wrapper]') || selectRecentlyInteracted();
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-2 border-border rounded-2xl max-h-[90vh] flex flex-col">
+        <DialogContent
+          className="max-w-md p-0 overflow-hidden bg-card border-2 border-border rounded-2xl max-h-[90vh] flex flex-col"
+          onPointerDownOutside={(e) => { if (ignoreOutside(e)) e.preventDefault(); }}
+          onInteractOutside={(e) => { if (ignoreOutside(e)) e.preventDefault(); }}
+        >
           <DialogTitle className="sr-only">{player.name} Details</DialogTitle>
           {/* Scrollable wrapper for everything */}
           <div className="overflow-y-auto flex-1">

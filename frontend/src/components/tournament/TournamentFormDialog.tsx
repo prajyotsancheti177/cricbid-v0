@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectRecentlyInteracted } from "@/components/form/select";
 import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
@@ -184,9 +183,22 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
     }
   };
 
+  // A dropdown renders in a portal outside this dialog, so the click that
+  // dismisses it — or a rapid second click just after it closes — can look like
+  // a click outside the dialog and close the whole thing. Ignore outside
+  // interactions that belong to a dropdown.
+  const ignoreOutside = (e: any): boolean => {
+    const t = (e?.detail?.originalEvent?.target ?? e?.target) as HTMLElement | undefined;
+    return !!t?.closest?.('[data-radix-popper-content-wrapper]') || selectRecentlyInteracted();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => { if (ignoreOutside(e)) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (ignoreOutside(e)) e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Tournament" : "Create New Tournament"}</DialogTitle>
           <DialogDescription>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectRecentlyInteracted } from "@/components/form/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon } from "lucide-react";
@@ -331,12 +331,20 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
     return !!t?.closest?.('[data-radix-popper-content-wrapper]');
   };
 
+  // The check above only catches clicks that land ON an open dropdown. Click a
+  // dropdown twice quickly and the second click arrives after the popper has
+  // gone, so its target is the overlay and the dialog dismisses itself. Treat
+  // an outside interaction that lands just after a dropdown opened or closed as
+  // part of that interaction rather than as a click away from the form.
+  const shouldIgnoreOutside = (e: any): boolean =>
+    isInsidePopper(e) || selectRecentlyInteracted();
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="max-w-4xl max-h-[90vh] overflow-y-auto"
-        onPointerDownOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
-        onInteractOutside={(e) => { if (isInsidePopper(e)) e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (shouldIgnoreOutside(e)) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (shouldIgnoreOutside(e)) e.preventDefault(); }}
       >
         <DialogHeader>
           <DialogTitle>Customize Registration Form - {tournamentName}</DialogTitle>
