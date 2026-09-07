@@ -14,6 +14,8 @@ interface RawPlayer {
   sold?: boolean;
   auctionSerialNumber?: number;
   teamName?: string;
+  /** The API returns this either as an id or as a populated { _id, name }. */
+  teamId?: string | { _id?: string };
   basePrice?: number;
 }
 
@@ -450,6 +452,14 @@ async function calibrateBadgeText(): Promise<number> {
 
 /** Group heading for players who have not been sold yet. */
 const UNASSIGNED_GROUP = "Available Players";
+
+/**
+ * A team is considered done once it has this many players. When every team has
+ * reached it the auction is treated as finished, and the team-wise export drops
+ * the "Available Players" section — at that point the leftovers are not on offer
+ * any more, so printing them alongside the squads is misleading.
+ */
+const MIN_SOLD_PER_TEAM = 4;
 /** Sold, but with no team on record — older tournaments carry data like this. */
 const SOLD_NO_TEAM_GROUP = "Sold Players";
 
@@ -478,6 +488,41 @@ const byRank = (a: RawPlayer, b: RawPlayer) => {
   if (base !== 0) return base;
   return (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999);
 };
+
+/**
+ * Every team has at least MIN_SOLD_PER_TEAM players sold to it.
+ *
+ * Counted against the real team list, not the players: a team that has bought
+ * nobody yet appears nowhere in the player data, and inferring the teams from
+ * the players would silently skip it and call an unfinished auction complete.
+ * With no teams at all (nothing has been set up yet) this is false, never
+ * vacuously true.
+ */
+function isAuctionComplete(
+  teams: { _id: string; name?: string }[],
+  players: RawPlayer[]
+): boolean {
+  if (!teams.length) return false;
+
+  const soldPerTeam = new Map<string, number>(teams.map((t) => [String(t._id), 0]));
+  // Fall back to matching on name: teamId is populated for players fetched via
+  // /api/player/all but not everywhere, and a squad miscounted as empty would
+  // wrongly report the auction as unfinished.
+  const idByName = new Map<string, string>(
+    teams.filter((t) => t.name).map((t) => [t.name!.trim().toLowerCase(), String(t._id)])
+  );
+
+  for (const p of players) {
+    if (!p.sold) continue;
+    const rawId = typeof p.teamId === "object" && p.teamId !== null ? p.teamId._id : p.teamId;
+    const id = rawId
+      ? String(rawId)
+      : idByName.get((p.teamName || "").trim().toLowerCase()) || "";
+    if (soldPerTeam.has(id)) soldPerTeam.set(id, (soldPerTeam.get(id) ?? 0) + 1);
+  }
+
+  return [...soldPerTeam.values()].every((n) => n >= MIN_SOLD_PER_TEAM);
+}
 
 const bySerial = (a: RawPlayer, b: RawPlayer) =>
   (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999);
@@ -520,6 +565,27 @@ export async function exportPlayerCardsPdf(
   const playersData = await playersRes.json();
   const allPlayersRaw: RawPlayer[] = playersData.data ?? [];
 
+  // Only the team-wise export needs to know whether the auction has finished.
+  // If the team list can't be read, fall through as "not complete" so the
+  // available players are still printed rather than silently dropped.
+  let auctionComplete = false;
+  if (grouping === "team") {
+    try {
+      const teamsRes = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ touranmentId: tournamentId }),
+      });
+      if (teamsRes.ok) {
+        const teamsData = await teamsRes.json();
+        const teams = teamsData.data?.[0]?.teams ?? [];
+        auctionComplete = isAuctionComplete(teams, allPlayersRaw);
+      }
+    } catch {
+      /* leave auctionComplete false */
+    }
+  }
+
   // Bucket the players into sections according to the chosen grouping.
   const groupOrder: string[] = [];
   const byGroup = new Map<string, RawPlayer[]>();
@@ -553,10 +619,13 @@ export async function exportPlayerCardsPdf(
 
   let groupedTeams: { name: string; players: RawPlayer[] }[];
   if (grouping === "team") {
-    // Teams first, then the two catch-all groups.
-    const trailing = [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
+    // Teams first, then the catch-all groups. Once every squad is filled the
+    // unsold players are no longer "available", so that section is dropped;
+    // sold players with no team on record still belong in the document.
+    const trailing = auctionComplete ? [SOLD_NO_TEAM_GROUP] : [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
+    const excluded = auctionComplete ? [UNASSIGNED_GROUP] : [];
     groupedTeams = [
-      ...groupOrder.filter((n) => !trailing.includes(n)).map(toGroup),
+      ...groupOrder.filter((n) => !trailing.includes(n) && !excluded.includes(n)).map(toGroup),
       ...trailing.filter((n) => byGroup.has(n)).map(toGroup),
     ];
   } else {
