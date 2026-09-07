@@ -12,7 +12,7 @@ import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartph
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
-import { buildPaymentProofField, asksForPaymentProof } from "@/lib/paymentProof";
+import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
@@ -209,10 +209,21 @@ const PublicPlayerRegistration = () => {
   // having to open and re-save the registration form first.
   const customFields: any[] = (() => {
     const configured = config?.customFields || [];
+    if (!config || config.paymentProofOptOut === true) return configured;
+
+    // The built-in field's `required` follows the host's toggle rather than
+    // whatever was persisted, so the compulsory-by-default setting applies to
+    // tournaments configured before the toggle existed. A host's own upload
+    // field is left exactly as they set it.
+    const required = isPaymentProofRequired(config);
+    const normalised = configured.map((f: any) =>
+      isPaymentProofField(f) ? { ...f, required } : f);
+
     // asksForPaymentProof also covers a host's own file field, so a tournament
     // that already collects a screenshot is not asked for a second one.
-    if (!config || config.paymentProofOptOut === true || asksForPaymentProof(configured)) return configured;
-    return [...configured, buildPaymentProofField()];
+    return asksForPaymentProof(normalised)
+      ? normalised
+      : [...normalised, buildPaymentProofField(required)];
   })();
 
   const paymentPanel = config?.paymentPanel;

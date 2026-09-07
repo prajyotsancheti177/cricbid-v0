@@ -11,7 +11,7 @@ import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Imag
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
-import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField, findHostProofField } from "@/lib/paymentProof";
+import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField, findHostProofField, isPaymentProofRequired } from "@/lib/paymentProof";
 
 
 
@@ -63,6 +63,7 @@ interface RegistrationConfig {
   showProfileLogin?: boolean;      // show the "CricBid profile login" panel on the public form (default true)
   paymentPanel?: PaymentPanelConfig;
   paymentProofOptOut?: boolean;   // host turned the payment-screenshot upload off
+  paymentProofRequired?: boolean; // must the screenshot be uploaded to submit? (absent = yes)
   posterImage?: string;            // tournament logo/poster shown at the top of the public form (S3 URL)
 }
 
@@ -119,14 +120,20 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
         // Not seeded when the host already has their own file upload — that
         // would ask players for the screenshot twice.
         const alreadyAsks = hasPaymentProofField(loadedCustomFields) || !!findHostProofField(loadedCustomFields);
-        const withProof = (!optedOut && !alreadyAsks)
-          ? [...loadedCustomFields, buildPaymentProofField()]
+        const proofRequired = isPaymentProofRequired(data.data.registrationFormConfig);
+        const seeded = (!optedOut && !alreadyAsks)
+          ? [...loadedCustomFields, buildPaymentProofField(proofRequired)]
           : loadedCustomFields;
+        // Keep the built-in field's `required` in step with the toggle, which is
+        // where the host's choice actually lives.
+        const withProof = seeded.map((f: CustomFieldConfig) =>
+          isPaymentProofField(f) ? { ...f, required: proofRequired } : f);
         setConfig({
           isActive: data.data.registrationFormConfig.isActive || false,
           fields: mergedFields,
           customFields: withProof,
           paymentProofOptOut: optedOut,
+          paymentProofRequired: proofRequired,
           googleSheetUrl: data.data.registrationFormConfig.googleSheetUrl || '',
           googleSheetId: data.data.registrationFormConfig.googleSheetId || '',
           showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
@@ -134,7 +141,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           posterImage: data.data.registrationFormConfig.posterImage || '',
         });
       } else {
-        setConfig({ isActive: false, fields: defaultFields, customFields: [buildPaymentProofField()], showProfileLogin: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
+        setConfig({ isActive: false, fields: defaultFields, customFields: [buildPaymentProofField(true)], showProfileLogin: true, paymentProofRequired: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
       }
     } catch (error) {
        console.error(error);
@@ -239,15 +246,28 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
   const hostProofField = findHostProofField(config.customFields);
   const askPaymentProof = hasPaymentProofField(config.customFields) || !!hostProofField;
 
+  const paymentProofRequired = isPaymentProofRequired(config);
+
   const setAskPaymentProof = (on: boolean) => {
     setConfig(prev => {
       const others = (prev.customFields || []).filter(f => !isPaymentProofField(f));
       return {
         ...prev,
         paymentProofOptOut: !on,
-        customFields: on ? [...others, buildPaymentProofField()] : others,
+        customFields: on
+          ? [...others, buildPaymentProofField(isPaymentProofRequired(prev))]
+          : others,
       };
     });
+  };
+
+  const setPaymentProofRequired = (required: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      paymentProofRequired: required,
+      customFields: (prev.customFields || []).map(f =>
+        isPaymentProofField(f) ? { ...f, required } : f),
+    }));
   };
 
   const updatePaymentPanel = (patch: Partial<PaymentPanelConfig>) => {
@@ -918,9 +938,8 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                   <div className="pr-4">
                     <h4 className="font-medium">Ask players for a payment screenshot</h4>
                     <p className="text-sm text-muted-foreground">
-                      Adds a "Payment Screenshot" upload to the registration form. It is optional to
-                      submit, so it never blocks a registration, and the uploaded image comes through
-                      as a column in the Google Sheet export.
+                      Adds a "Payment Screenshot" upload to the registration form. The uploaded
+                      image comes through as a column in the Google Sheet export.
                     </p>
                     {hostProofField && (
                       <p className="text-sm text-muted-foreground mt-1">
@@ -935,6 +954,23 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                     onCheckedChange={setAskPaymentProof}
                   />
                 </div>
+
+                {askPaymentProof && !hostProofField && (
+                  <div className="flex items-center justify-between border-t pt-4 mt-4">
+                    <div className="pr-4">
+                      <h4 className="font-medium">Make the screenshot compulsory</h4>
+                      <p className="text-sm text-muted-foreground">
+                        On: players cannot submit the form without uploading proof of payment.
+                        Off: the upload is still shown, but they can register without it — turn
+                        this off if the tournament charges no fee.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={paymentProofRequired}
+                      onCheckedChange={setPaymentProofRequired}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

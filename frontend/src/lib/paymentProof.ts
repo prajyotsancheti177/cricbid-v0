@@ -24,13 +24,20 @@ export interface CustomFieldLike {
   options: string[];
 }
 
-export const buildPaymentProofField = (): CustomFieldLike => ({
+/**
+ * Whether the screenshot must be uploaded to submit the form.
+ *
+ * `paymentProofRequired` is the host's explicit choice; absent means compulsory,
+ * which is the default. Hosts running a free tournament can switch it off.
+ */
+export const isPaymentProofRequired = (config?: { paymentProofRequired?: boolean } | null): boolean =>
+  config?.paymentProofRequired !== false;
+
+export const buildPaymentProofField = (required = true): CustomFieldLike => ({
   id: PAYMENT_PROOF_FIELD_ID,
   label: "Payment Screenshot",
   type: "file",
-  // Optional on purpose: this is on by default for every tournament, including
-  // ones that charge no fee, so it must never block a registration.
-  required: false,
+  required,
   showToPublic: true,
   defaultValue: "",
   options: [],
