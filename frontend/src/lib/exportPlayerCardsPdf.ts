@@ -338,7 +338,8 @@ function buildPage(
   startIndex: number,
   totalCount: number,
   champName: string,
-  teamName: string
+  teamName: string,
+  rangeNoun: string = "Team Players"
 ): string {
   const rangeStart = startIndex + 1;
   const rangeEnd = startIndex + players.length;
@@ -347,7 +348,7 @@ function buildPage(
   return `
   <div class="page">
     <div class="page-header">
-      <div class="player-range">Team Players ${rangeStart} - ${rangeEnd} of ${totalCount}</div>
+      <div class="player-range">${rangeNoun} ${rangeStart} - ${rangeEnd} of ${totalCount}</div>
       <div class="main-title">${escapeHtml(champName)}</div>
       <div class="team-title-wrapper">
         <div class="team-title">${escapeHtml(teamName)}</div>
@@ -452,19 +453,53 @@ const UNASSIGNED_GROUP = "Available Players";
 /** Sold, but with no team on record — older tournaments carry data like this. */
 const SOLD_NO_TEAM_GROUP = "Sold Players";
 
+export type CardsGrouping = "team" | "category" | "overall";
+
+export interface PlayerCardsOptions {
+  /** How the cards are grouped into sections, one section per page run. */
+  grouping?: CardsGrouping;
+  /** Cards on a single page. Raising it keeps a large squad on one page. */
+  cardsPerPage?: number;
+  /** For "category" and "overall": how many players each section shows. */
+  topN?: number;
+}
+
 /**
- * Fetches every player in a tournament, groups them by team, and generates a
- * "player card" style PDF (one card per player, grouped/paginated by team).
+ * Ranking used by the "top N" groupings.
  *
- * Players who have not been sold are grouped under "Available Players", so the
- * export is useful before the auction — sharing the full player list with team
- * owners is the main reason it gets run.
+ * Sold price first, so after an auction the most expensive players lead. Base
+ * price breaks ties, and serial number is the final fallback — which is what
+ * decides the order before an auction has happened, when every amount is 0.
+ */
+const byRank = (a: RawPlayer, b: RawPlayer) => {
+  const amt = (Number(b.amtSold) || 0) - (Number(a.amtSold) || 0);
+  if (amt !== 0) return amt;
+  const base = (Number(b.basePrice) || 0) - (Number(a.basePrice) || 0);
+  if (base !== 0) return base;
+  return (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999);
+};
+
+const bySerial = (a: RawPlayer, b: RawPlayer) =>
+  (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999);
+
+/**
+ * Fetches every player in a tournament and generates a "player card" style PDF.
+ *
+ * Grouping:
+ *  - "team"     one section per team, unsold players under "Available Players",
+ *               so the export is useful before the auction too.
+ *  - "category" one section per player category, each showing its top N.
+ *  - "overall"  a single section with the tournament's top N.
  */
 export async function exportPlayerCardsPdf(
   tournamentName: string,
   overrideTournamentId?: string,
-  cardsPerPage: number = CARDS_PER_PAGE_DEFAULT
+  options: PlayerCardsOptions = {}
 ): Promise<void> {
+  const grouping: CardsGrouping = options.grouping || "team";
+  const topN = Math.max(1, Number(options.topN) || 5);
+  const cardsPerPage = Math.max(1, Number(options.cardsPerPage) || CARDS_PER_PAGE_DEFAULT);
+
   const tournamentId = overrideTournamentId || getSelectedTournamentId();
   if (!tournamentId) {
     throw new Error("No tournament selected");
@@ -485,32 +520,52 @@ export async function exportPlayerCardsPdf(
   const playersData = await playersRes.json();
   const allPlayersRaw: RawPlayer[] = playersData.data ?? [];
 
+  // Bucket the players into sections according to the chosen grouping.
   const groupOrder: string[] = [];
   const byGroup = new Map<string, RawPlayer[]>();
-  for (const player of allPlayersRaw) {
-    const key = player.sold
-      ? (player.teamName || SOLD_NO_TEAM_GROUP)
-      : UNASSIGNED_GROUP;
+  const push = (key: string, player: RawPlayer) => {
     if (!byGroup.has(key)) {
       byGroup.set(key, []);
       groupOrder.push(key);
     }
     byGroup.get(key)!.push(player);
+  };
+
+  if (grouping === "overall") {
+    allPlayersRaw.forEach((p) => push(`Top ${topN} Players`, p));
+  } else if (grouping === "category") {
+    allPlayersRaw.forEach((p) => push(p.playerCategory?.trim() || "Uncategorised", p));
+  } else {
+    allPlayersRaw.forEach((p) =>
+      push(p.sold ? p.teamName || SOLD_NO_TEAM_GROUP : UNASSIGNED_GROUP, p)
+    );
   }
 
-  const toGroup = (name: string) => ({
-    name,
-    players: (byGroup.get(name) ?? []).sort(
-      (a, b) => (a.auctionSerialNumber ?? 999999) - (b.auctionSerialNumber ?? 999999)
-    ),
-  });
+  const isTopMode = grouping === "category" || grouping === "overall";
 
-  // Teams first, then the two catch-all groups.
-  const trailing = [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
-  const groupedTeams = [
-    ...groupOrder.filter((n) => !trailing.includes(n)).map(toGroup),
-    ...trailing.filter((n) => byGroup.has(n)).map(toGroup),
-  ].filter((t) => t.players.length > 0);
+  const toGroup = (name: string) => {
+    const players = [...(byGroup.get(name) ?? [])];
+    // Top-N sections are ranked and trimmed; team sections keep squad order.
+    return isTopMode
+      ? { name, players: players.sort(byRank).slice(0, topN) }
+      : { name, players: players.sort(bySerial) };
+  };
+
+  let groupedTeams: { name: string; players: RawPlayer[] }[];
+  if (grouping === "team") {
+    // Teams first, then the two catch-all groups.
+    const trailing = [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
+    groupedTeams = [
+      ...groupOrder.filter((n) => !trailing.includes(n)).map(toGroup),
+      ...trailing.filter((n) => byGroup.has(n)).map(toGroup),
+    ];
+  } else {
+    // Biggest category first, so the headline section leads the document.
+    groupedTeams = [...groupOrder]
+      .sort((a, b) => (byGroup.get(b)?.length ?? 0) - (byGroup.get(a)?.length ?? 0))
+      .map(toGroup);
+  }
+  groupedTeams = groupedTeams.filter((t) => t.players.length > 0);
 
   if (groupedTeams.length === 0) {
     throw new Error("No players found for this tournament");
@@ -537,7 +592,10 @@ export async function exportPlayerCardsPdf(
   for (const team of groupedTeams) {
     for (let i = 0; i < team.players.length; i += cardsPerPage) {
       const chunk = team.players.slice(i, i + cardsPerPage);
-      pagesHtml += buildPage(chunk, i, team.players.length, tournamentName, team.name);
+      pagesHtml += buildPage(
+        chunk, i, team.players.length, tournamentName, team.name,
+        grouping === "team" ? "Team Players" : "Players"
+      );
     }
   }
 

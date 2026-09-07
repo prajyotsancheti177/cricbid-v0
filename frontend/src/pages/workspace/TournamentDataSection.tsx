@@ -6,7 +6,10 @@ import { Download, FileDown, RefreshCw, Upload, Loader2, LockKeyhole, Trophy, Id
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { exportAuctionReport } from "@/lib/exportAuctionReport";
-import { exportPlayerCardsPdf } from "@/lib/exportPlayerCardsPdf";
+import { exportPlayerCardsPdf, type CardsGrouping } from "@/lib/exportPlayerCardsPdf";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SyncPreviewDialog } from "@/components/auction/SyncPreviewDialog";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
@@ -45,6 +48,11 @@ const TournamentDataSection = () => {
   const [csvBusy, setCsvBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [cardsBusy, setCardsBusy] = useState(false);
+  // Player-cards layout options. Per-page matters for team sections (a squad
+  // split across two pages is the thing to avoid); top-N for the ranked ones.
+  const [cardsGrouping, setCardsGrouping] = useState<CardsGrouping>("team");
+  const [cardsPerPage, setCardsPerPage] = useState("12");
+  const [cardsTopN, setCardsTopN] = useState("5");
   const [reportBusy, setReportBusy] = useState(false);
   const [syncingToSheet, setSyncingToSheet] = useState(false);
   const [syncFromSheetOpen, setSyncFromSheetOpen] = useState(false);
@@ -104,7 +112,13 @@ const TournamentDataSection = () => {
   const handleExportPlayerCards = async () => {
     setCardsBusy(true);
     try {
-      await exportPlayerCardsPdf(tournament.name || "Tournament", tournament._id);
+      const perPage = Math.min(Math.max(parseInt(cardsPerPage, 10) || 12, 1), 30);
+      const topN = Math.min(Math.max(parseInt(cardsTopN, 10) || 5, 1), 50);
+      await exportPlayerCardsPdf(tournament.name || "Tournament", tournament._id, {
+        grouping: cardsGrouping,
+        cardsPerPage: cardsGrouping === "team" ? perPage : Math.min(topN, 15),
+        topN,
+      });
       toast({ title: "Downloaded", description: "Player cards PDF exported successfully" });
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to export player cards", variant: "destructive" });
@@ -187,14 +201,66 @@ const TournamentDataSection = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Player cards PDF</CardTitle>
-          <CardDescription>Export every player as a photo card, grouped and paginated by team, with players not yet sold listed under "Available Players". Works before the auction — share the full list with team owners.</CardDescription>
+          <CardDescription>Export players as photo cards — by team, or as the top N in each category or across the tournament. Unsold players appear under "Available Players", so it works before the auction too.</CardDescription>
         </CardHeader>
         <CardContent>
           {isFeatureOn(tournament, "dataExport") ? (
-            <Button onClick={handleExportPlayerCards} disabled={cardsBusy} variant="outline" className="gap-2">
-              {cardsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <IdCard className="h-4 w-4" />}
-              Export player cards
-            </Button>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:max-w-xl">
+                <div className="space-y-2">
+                  <Label>Group players by</Label>
+                  <Select value={cardsGrouping} onValueChange={(v) => setCardsGrouping(v as CardsGrouping)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="team">Team-wise — one section per team</SelectItem>
+                      <SelectItem value="category">Category-wise — top players in each category</SelectItem>
+                      <SelectItem value="overall">Overall — top players in the tournament</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {cardsGrouping === "team" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardsPerPage">Players per page</Label>
+                    <Input
+                      id="cardsPerPage"
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={cardsPerPage}
+                      onChange={(e) => setCardsPerPage(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cards sit 3 to a row. Set this to your largest squad size so no team is
+                      split across two pages — 12 fills an A4 page exactly, higher makes it taller.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardsTopN">
+                      {cardsGrouping === "category" ? "Top players per category" : "Top players overall"}
+                    </Label>
+                    <Input
+                      id="cardsTopN"
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={cardsTopN}
+                      onChange={(e) => setCardsTopN(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Ranked by sold amount, then base price, then serial number — so before the
+                      auction this is simply the first N in serial order.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={handleExportPlayerCards} disabled={cardsBusy} variant="outline" className="gap-2">
+                {cardsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <IdCard className="h-4 w-4" />}
+                Export player cards
+              </Button>
+            </div>
           ) : <FeatureDisabled label="Data export" navigate={navigate} />}
         </CardContent>
       </Card>
