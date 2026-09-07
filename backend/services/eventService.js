@@ -1,4 +1,5 @@
 const prisma = require("../db/prisma");
+const { withPageLabels } = require("../utils/pageLabel");
 
 /**
  * Analytics counts real visitors only. Applied to every read query so bot
@@ -288,7 +289,8 @@ const getPageTrafficBreakdown = async (startDate, endDate, options = {}) => {
         options.tournamentId || null
     );
 
-    return rows;
+    // Resolve tournament/team ids in the paths to names, for display only.
+    return await withPageLabels(rows, "page");
 };
 
 /**
@@ -362,7 +364,7 @@ const getBreakdown = async (startDate, endDate, dimension) => {
         throw new Error(`Unsupported breakdown dimension: ${dimension}`);
     }
 
-    return await prisma.$queryRawUnsafe(
+    const rows = await prisma.$queryRawUnsafe(
         `SELECT COALESCE(${column}, 'unknown') AS value,
                 COUNT(*)::int AS "pageViews",
                 COUNT(DISTINCT ${VISITOR_EXPR})::int AS "uniqueVisitors"
@@ -376,6 +378,9 @@ const getBreakdown = async (startDate, endDate, dimension) => {
         new Date(startDate),
         new Date(endDate)
     );
+
+    // The page dimension holds routes with ids in them; name them too.
+    return dimension === "page" ? await withPageLabels(rows, "value") : rows;
 };
 
 /**

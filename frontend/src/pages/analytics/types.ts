@@ -14,6 +14,8 @@ export interface MonthlyPoint extends SeriesPoint {
 
 export interface PageTrafficData {
     page: string;
+    /** Human name resolved from the ids in the path; null for static routes. */
+    label?: string | null;
     pageViews: number;
     uniqueVisitors: number;
 }

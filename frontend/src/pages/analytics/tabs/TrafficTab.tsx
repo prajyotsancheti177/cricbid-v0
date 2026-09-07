@@ -3,7 +3,7 @@ import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartToo
 import { Area, AreaChart, Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Activity, BarChart, Eye, LineChart, TrendingUp, Users } from "lucide-react";
 import { StatCard, DeltaBadge, EmptyState } from "../components/StatCard";
-import { dailyChartConfig, formatBucket, formatMonth, formatPageName, monthlyChartConfig, pageChartConfig } from "../shared";
+import { dailyChartConfig, formatBucket, formatMonth, monthlyChartConfig, pageChartConfig, pageDisplayName, truncateLabel } from "../shared";
 import type { AnalyticsData } from "../types";
 
 const TrafficTab = ({ data }: { data: AnalyticsData | null }) => {
@@ -18,7 +18,11 @@ const TrafficTab = ({ data }: { data: AnalyticsData | null }) => {
 
     const monthlyData = data.monthly.map((point) => ({ ...point, month: formatMonth(point.date) }));
 
-    const pageData = data.pageTraffic.map((point) => ({ ...point, pageName: formatPageName(point.page) }));
+    // fullName is what the tooltip shows; pageName is trimmed to fit the axis.
+    const pageData = data.pageTraffic.map((point) => {
+        const fullName = pageDisplayName(point);
+        return { ...point, fullName, pageName: truncateLabel(fullName) };
+    });
 
     return (
         <div className="space-y-8">
@@ -144,7 +148,7 @@ const TrafficTab = ({ data }: { data: AnalyticsData | null }) => {
                             <LineChart className="h-5 w-5 text-rose-500" />
                             <CardTitle>Traffic by Page</CardTitle>
                         </div>
-                        <CardDescription>Top pages by views</CardDescription>
+                        <CardDescription>Top pages by views — tournament and team pages shown by name</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {pageData.length > 0 ? (
@@ -152,7 +156,7 @@ const TrafficTab = ({ data }: { data: AnalyticsData | null }) => {
                                 <RechartsBarChart
                                     data={pageData.slice(0, 10)}
                                     layout="vertical"
-                                    margin={{ top: 10, right: 30, left: 80, bottom: 0 }}
+                                    margin={{ top: 10, right: 30, left: 140, bottom: 0 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                                     <XAxis type="number" tickLine={false} axisLine={false} className="text-xs" />
@@ -162,9 +166,17 @@ const TrafficTab = ({ data }: { data: AnalyticsData | null }) => {
                                         tickLine={false}
                                         axisLine={false}
                                         className="text-xs"
-                                        width={75}
+                                        width={135}
                                     />
-                                    <ChartTooltip content={<ChartTooltipContent />} />
+                                    <ChartTooltip
+                                        content={
+                                            <ChartTooltipContent
+                                                labelFormatter={(_, payload) =>
+                                                    payload?.[0]?.payload?.fullName ?? ""
+                                                }
+                                            />
+                                        }
+                                    />
                                     <Bar dataKey="pageViews" fill="hsl(346, 77%, 49%)" radius={[0, 4, 4, 0]} />
                                 </RechartsBarChart>
                             </ChartContainer>

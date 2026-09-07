@@ -41,6 +41,22 @@ export const formatPageName = (page: string) => {
 };
 
 /**
+ * What to show for a page row. The backend resolves tournament and team ids in
+ * the path to their names; fall back to the prettified path for static routes
+ * and for ids that no longer resolve.
+ */
+export const pageDisplayName = (row: { page?: string; label?: string | null }) =>
+    row.label || formatPageName(row.page || "");
+
+/**
+ * Tournament names run long ("IPCL Imran Patel Cricket league @ Aam khaas
+ * Ground"), so the chart axis gets a trimmed version while the tooltip keeps
+ * the full one.
+ */
+export const truncateLabel = (value: string, max = 28) =>
+    value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
+
+/**
  * Auction amounts are points, not rupees — every screen in the live auction room
  * renders them as "N Pts", so the analytics must agree rather than implying these
  * are currency figures.
