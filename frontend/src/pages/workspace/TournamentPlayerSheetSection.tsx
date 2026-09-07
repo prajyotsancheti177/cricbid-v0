@@ -90,6 +90,8 @@ const TournamentPlayerSheetSection = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ id: string; key: string } | null>(null);
   const [draft, setDraft] = useState("");
+  /** The focused cell when not editing — what arrow keys move around. */
+  const [cursor, setCursor] = useState<{ id: string; key: string } | null>(null);
   const [photoOf, setPhotoOf] = useState<SheetPlayer | null>(null);
   const [verifying, setVerifying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -328,7 +330,72 @@ const TournamentPlayerSheetSection = () => {
     persistSheetConfig({ noteLabels: next });
   };
 
+  /* ---------------------------------------------------------- navigation */
+
+  const editableKeys = shown.filter(c => c.kind !== "readonly" && c.kind !== "file").map(c => c.key);
+
+  /** Move the cursor by rows/columns, skipping columns that cannot be edited. */
+  const moveCursor = (from: { id: string; key: string }, dRow: number, dCol: number) => {
+    const rowIndex = rows.findIndex(r => r._id === from.id);
+    const colIndex = editableKeys.indexOf(from.key);
+    if (rowIndex < 0) return;
+
+    const nextRow = Math.min(Math.max(rowIndex + dRow, 0), rows.length - 1);
+    let nextCol = colIndex;
+    if (dCol) {
+      nextCol = colIndex + dCol;
+      // Tab past the last column wraps to the start of the next row, as in Sheets
+      if (nextCol >= editableKeys.length) { nextCol = 0; }
+      else if (nextCol < 0) { nextCol = editableKeys.length - 1; }
+    }
+    const target = { id: rows[nextRow]._id, key: editableKeys[Math.max(0, nextCol)] };
+    setCursor(target);
+    setEditing(null);
+  };
+
+  /**
+   * Keys on the grid. Typing straight into a focused cell starts an edit with
+   * that character, which is the behaviour anyone coming from Sheets expects.
+   */
+  const onGridKeyDown = (e: React.KeyboardEvent) => {
+    if (!cursor || editing) return;
+    const player = rows.find(r => r._id === cursor.id);
+    const col = shown.find(c => c.key === cursor.key);
+    if (!player || !col) return;
+
+    const startEditing = (initial?: string) => {
+      setDraft(initial ?? valueOf(player, col));
+      setEditing({ id: player._id, key: col.key });
+    };
+
+    switch (e.key) {
+      case "ArrowDown":  e.preventDefault(); moveCursor(cursor, 1, 0); return;
+      case "ArrowUp":    e.preventDefault(); moveCursor(cursor, -1, 0); return;
+      case "ArrowRight": e.preventDefault(); moveCursor(cursor, 0, 1); return;
+      case "ArrowLeft":  e.preventDefault(); moveCursor(cursor, 0, -1); return;
+      case "Tab":        e.preventDefault(); moveCursor(cursor, 0, e.shiftKey ? -1 : 1); return;
+      case "Enter":      e.preventDefault(); startEditing(); return;
+      case "F2":         e.preventDefault(); startEditing(); return;
+      case "Backspace":
+      case "Delete":     e.preventDefault(); saveCell(player, col, ""); return;
+      default:
+        // a printable character replaces the cell, like typing over a selection
+        if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          startEditing(e.key);
+        }
+    }
+  };
+
+  /** After an edit, Enter goes down and Tab goes right — never just stops. */
+  const commitAndMove = (player: SheetPlayer, col: ColumnDef, value: string, dRow: number, dCol: number) => {
+    saveCell(player, col, value);
+    moveCursor({ id: player._id, key: col.key }, dRow, dCol);
+  };
+
   /* --------------------------------------------------------------- cells */
+
+  const isCellEditing = (id: string, key: string) => editing?.id === id && editing?.key === key;
 
   const renderCell = (p: SheetPlayer, col: ColumnDef) => {
     const isEditing = editing?.id === p._id && editing?.key === col.key;
@@ -347,10 +414,14 @@ const TournamentPlayerSheetSection = () => {
               : initials(p.name)}
           </button>
           {isEditing
-            ? <input ref={inputRef} className="h-[26px] w-full bg-background border-2 border-primary rounded-sm px-1.5 text-[13px] outline-none"
+            ? <input ref={inputRef} autoFocus className="h-[26px] w-full bg-background border-2 border-primary rounded-sm px-1.5 text-[13px] outline-none"
                      value={draft} onChange={e => setDraft(e.target.value)}
                      onBlur={() => saveCell(p, col, draft)}
-                     onKeyDown={e => { if (e.key === "Enter") saveCell(p, col, draft); if (e.key === "Escape") setEditing(null); }} />
+                     onKeyDown={e => {
+                       if (e.key === "Enter") { e.preventDefault(); commitAndMove(p, col, draft, 1, 0); }
+                       if (e.key === "Tab") { e.preventDefault(); commitAndMove(p, col, draft, 0, e.shiftKey ? -1 : 1); }
+                       if (e.key === "Escape") { setEditing(null); setCursor({ id: p._id, key: col.key }); }
+                     }} />
             : <span className="truncate font-medium">{p.name}</span>}
         </div>
       );
@@ -410,12 +481,16 @@ const TournamentPlayerSheetSection = () => {
         );
       }
       return (
-        <input ref={inputRef}
+        <input ref={inputRef} autoFocus
           type={col.kind === "number" ? "number" : "text"}
           className="h-[26px] w-full bg-background border-2 border-primary rounded-sm px-1.5 text-[13px] outline-none"
           value={draft} onChange={e => setDraft(e.target.value)}
           onBlur={() => saveCell(p, col, draft)}
-          onKeyDown={e => { if (e.key === "Enter") saveCell(p, col, draft); if (e.key === "Escape") setEditing(null); }} />
+          onKeyDown={e => {
+            if (e.key === "Enter") { e.preventDefault(); commitAndMove(p, col, draft, 1, 0); }
+            if (e.key === "Tab") { e.preventDefault(); commitAndMove(p, col, draft, 0, e.shiftKey ? -1 : 1); }
+            if (e.key === "Escape") { setEditing(null); setCursor({ id: p._id, key: col.key }); }
+          }} />
       );
     }
 
@@ -451,7 +526,8 @@ const TournamentPlayerSheetSection = () => {
         <div>
           <h1 className="text-2xl font-bold">Player sheet</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Click any cell to edit. Changes save on their own — auction results stay read-only.
+            Click a cell to edit, or use the arrow keys · Enter edits and moves down · Tab moves right ·
+            Esc cancels. Changes save on their own; auction results stay read-only.
           </p>
         </div>
         {saving && <span className="text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> saving…</span>}
@@ -584,7 +660,11 @@ const TournamentPlayerSheetSection = () => {
           {players.length === 0 ? "No players registered yet." : "No players match these filters."}
         </div>
       ) : (
-        <div className="border border-border rounded-xl overflow-auto bg-card max-h-[calc(100vh-330px)]">
+        <div
+          className="border border-border rounded-xl overflow-auto bg-card max-h-[calc(100vh-330px)] focus:outline-none"
+          tabIndex={0}
+          onKeyDown={onGridKeyDown}
+        >
           <div style={{ display: "grid", gridTemplateColumns: gridTemplate, minWidth: "fit-content" }}>
             {/* header */}
             <div className="sticky top-0 z-20 bg-muted/70 backdrop-blur border-b border-r border-border h-9 grid place-items-center">
@@ -619,13 +699,16 @@ const TournamentPlayerSheetSection = () => {
                       <div key={col.key}
                         onClick={() => {
                           if (!editable) return;
+                          setCursor({ id: p._id, key: col.key });
                           setDraft(valueOf(p, col));
                           setEditing({ id: p._id, key: col.key });
                         }}
-                        className={cn("border-b border-r border-border/60 h-9 flex items-center px-2.5 text-[13px] min-w-0",
+                        className={cn("border-b border-r border-border/60 h-9 flex items-center px-2.5 text-[13px] min-w-0 relative",
                           editable && "cursor-text hover:bg-muted/40",
                           pending && "bg-orange-500/[0.06]",
-                          selected.has(p._id) && "bg-primary/10")}>
+                          selected.has(p._id) && "bg-primary/10",
+                          cursor?.id === p._id && cursor?.key === col.key && !isCellEditing(p._id, col.key) &&
+                            "ring-2 ring-inset ring-primary z-10")}>
                         {renderCell(p, col)}
                       </div>
                     );
