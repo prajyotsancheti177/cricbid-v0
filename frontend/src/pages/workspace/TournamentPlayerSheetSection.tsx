@@ -54,7 +54,9 @@ interface ColumnDef {
 const NOTE_IDS = ["cf_note_1", "cf_note_2", "cf_note_3"];
 const MAX_NOTES = NOTE_IDS.length;
 
-/* Always visible, never editable — the two anchors a host scans by. */
+/* Always visible — the two anchors a host scans by. Both are editable: the
+   serial number is what gets printed and handed to team owners, so it has to
+   be correctable from here. */
 const LOCKED = ["auctionSerialNumber", "name"];
 
 const getUser = () => {
@@ -175,7 +177,7 @@ const TournamentPlayerSheetSection = () => {
   const columns: ColumnDef[] = useMemo(() => {
     const skills = [...new Set(players.map(p => p.skill).filter(Boolean))] as string[];
     return [
-      { key: "auctionSerialNumber", label: "S.No", group: "Player", kind: "readonly", width: 62, align: "right" },
+      { key: "auctionSerialNumber", label: "S.No", group: "Player", kind: "number", width: 62, align: "right" },
       { key: "name", label: "Player", group: "Player", kind: "text", width: 200 },
       { key: "mobile", label: "Mobile", group: "Registration", kind: "text", width: 124 },
       { key: "playerCategory", label: "Category", group: "Registration", kind: "select", width: 128, options: categories },
@@ -268,6 +270,18 @@ const TournamentPlayerSheetSection = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "Save failed");
+
+      // Serial numbers are printed and handed out, so a duplicate is worth
+      // saying out loud — but it is the host's call, so the save still stands.
+      if (col.key === "auctionSerialNumber" && raw !== "") {
+        const clash = players.find(o => o._id !== player._id && String(o.auctionSerialNumber ?? "") === raw);
+        if (clash) {
+          toast({
+            title: `Serial ${raw} is now used twice`,
+            description: `${player.name} and ${clash.name} both have #${raw}.`,
+          });
+        }
+      }
     } catch (e) {
       // put the old value back rather than leaving a lie on screen
       setPlayers(prev => prev.map(p => {
