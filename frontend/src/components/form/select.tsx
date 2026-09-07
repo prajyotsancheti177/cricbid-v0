@@ -72,11 +72,14 @@ const SelectTrigger = React.forwardRef<
       onPointerDown={(event) => {
         const now = Date.now();
         if (now - lastPointerDown.current < REPEAT_CLICK_MS) {
-          // Radix composes handlers and skips its own once the default is
-          // prevented, so this swallows the toggle-close. Deliberately closing
-          // by clicking the trigger again still works after the window, as do
-          // Escape, clicking away, and picking an item.
+          // preventDefault stops Radix's own trigger handler (it composes with
+          // checkForDefaultPrevented); stopPropagation keeps the event from
+          // reaching the dismissable layer's document listener, which is what
+          // actually closes an open menu. Deliberately closing by clicking the
+          // trigger again still works after the window, as do Escape, clicking
+          // away, and picking an item.
           event.preventDefault();
+          event.stopPropagation();
           return;
         }
         lastPointerDown.current = now;
