@@ -18,16 +18,34 @@ module.exports = (io) => {
   // Auto-advance to the next player after a SOLD/UNSOLD result, when the
   // auction is running in 'category' or 'serial' mode ('manual' mode instead
   // returns to the selection screen — handled by the caller before this runs).
+  const RESULT_ANIMATION_MS = 3000;
+
   const autoAdvanceNextPlayer = (tournamentId, socket, auctionRaw) => {
+    const category = auctionRaw.selectedCategory || 'All';
+    const orderMode = auctionRaw.auctionMode === 'serial' ? 'serial' : 'random';
+
+    // Look the next player up WHILE the sold/unsold animation is playing rather
+    // than after it. The queries take 0.3-1.3s against the live database, and
+    // running them after the wait left that much dead air between players.
+    const lookahead = (async () => {
+      const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category, orderMode);
+      const t = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { bidIncrementSlabs: true },
+      });
+      return { nextPlayer, slabs: t ? (t.bidIncrementSlabs || []) : [] };
+    })().catch((err) => {
+      console.error("Error pre-fetching next player:", err);
+      return null;
+    });
+
     setTimeout(async () => {
       try {
-        const category = auctionRaw.selectedCategory || 'All';
-        const orderMode = auctionRaw.auctionMode === 'serial' ? 'serial' : 'random';
-        const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category, orderMode);
+        const ready = await lookahead;
+        const nextPlayer = ready ? ready.nextPlayer : null;
 
         if (nextPlayer) {
-          const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-          const slabs = t ? (t.bidIncrementSlabs || []) : [];
+          const slabs = ready.slabs;
           // basePrice is already attached by nextAuctionPlayer via the
           // tournament's categoryBasePrices map (no need to re-derive it here).
 
@@ -46,7 +64,7 @@ module.exports = (io) => {
       } catch (err) {
         console.error("Error auto-fetching next player:", err);
       }
-    }, 3000);
+    }, RESULT_ANIMATION_MS);
   };
 
   auctionNamespace.on("connection", (socket) => {

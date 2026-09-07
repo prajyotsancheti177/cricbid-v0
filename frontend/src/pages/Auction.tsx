@@ -24,6 +24,36 @@ import { useAuctionSocket } from "@/hooks/useAuctionSocket";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
 import { cn } from "@/lib/utils";
 
+/**
+ * Auctioneer room preferences (sound, animations), kept in localStorage.
+ *
+ * Both default to on for a first-time room, and both survive a refresh — an
+ * auctioneer who turns animations off mid-auction should not have them come
+ * back when the page reloads.
+ */
+const ROOM_PREF_KEY = "cricbid_auction_prefs";
+
+const readRoomPref = (key: "sound" | "animation"): boolean => {
+  try {
+    const raw = localStorage.getItem(ROOM_PREF_KEY);
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    return parsed?.[key] !== false;
+  } catch {
+    return true;
+  }
+};
+
+const writeRoomPref = (key: "sound" | "animation", value: boolean) => {
+  try {
+    const raw = localStorage.getItem(ROOM_PREF_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(ROOM_PREF_KEY, JSON.stringify({ ...parsed, [key]: value }));
+  } catch {
+    /* a browser refusing storage should not break the auction room */
+  }
+};
+
 const Auction = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -108,8 +138,14 @@ const Auction = () => {
   const [resetting, setResetting] = useState(false);
 
   // Sound and animation settings
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [animationEnabled, setAnimationEnabled] = useState(true);
+  // Sound and animation are the auctioneer's own preference for the room, so
+  // they outlive a refresh and a remount. Plain useState reset them to on every
+  // time the page reloaded mid-auction.
+  const [soundEnabled, setSoundEnabled] = useState(() => readRoomPref("sound"));
+  const [animationEnabled, setAnimationEnabled] = useState(() => readRoomPref("animation"));
+
+  useEffect(() => { writeRoomPref("sound", soundEnabled); }, [soundEnabled]);
+  useEffect(() => { writeRoomPref("animation", animationEnabled); }, [animationEnabled]);
 
   // Listener for specific events to trigger animations
   useEffect(() => {
