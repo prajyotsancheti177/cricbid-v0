@@ -7,6 +7,11 @@ description: Push local CricBid commits to GitHub, then sync them to the product
 
 Push work to GitHub, pull it on the EC2 box, rebuild, restart PM2, verify.
 
+This skill is the runbook for a deploy. For everything around one — read-only
+probes against production, the ship → dry-run → `--confirm` rule for database
+writes, snapshots and data rollback, and the traps in this codebase — use the
+`cricbid` skill.
+
 ## Config
 
 Load `.claude/deploy.env` (gitignored). Values were verified on the server on
@@ -125,7 +130,12 @@ intended here" gates. Everything else proceeds unattended.
    git fetch origin
    git reset --hard origin/sql-migration
    npm install --workspace backend
-   npx prisma migrate deploy --schema backend/prisma/schema.prisma   # only if migrations changed
+   # Migrations run from backend/ — Prisma only loads .env from its working
+   # directory, and DATABASE_URL lives in backend/.env. From the repo root this
+   # fails with "Environment variable not found: DATABASE_URL".
+   (cd backend \
+     && npx prisma migrate deploy --schema prisma/schema.prisma \
+     && npx prisma generate --schema prisma/schema.prisma)   # only if migrations changed
    npm install --workspace frontend && npm run build --workspace frontend
    # scoring is NOT in the npm workspace — separate install, only if scoring/ changed:
    cd scoring && npm install && npm run build && cd ..
@@ -137,6 +147,9 @@ intended here" gates. Everything else proceeds unattended.
      fine — don't add `git clean`, it would delete `backend/uploads/`.
    - Skip the prisma and scoring steps when nothing in those paths changed, and
      say in the report that you skipped them and why.
+   - A data migration (one that rewrites existing rows, not just adds a column)
+     needs a read-only pre-flight first and a snapshot — see the `cricbid` skill,
+     `references/production.md`.
    - Node on the box is v20.19.6, npm 10.8.2.
 
 7. **Verify** — never claim success from an exit code alone:

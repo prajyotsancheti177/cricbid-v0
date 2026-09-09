@@ -35,13 +35,13 @@ system. A bad deploy is not an inconvenience, it loses money in the room.
 1. **Check claims against the live database before acting on them.** Almost every
    assumption in this codebase has turned out subtly wrong — duplicate sheet
    headers, populated-vs-string ids, players sharing a phone number. Read-only
-   probes are cheap: see `references/deployment.md` for how to run one on the box.
+   probes are cheap: see `references/production.md` for how to run one on the box.
 
 2. **Never put a database write in the same command that ships the script.**
    Interrupting a Bash tool call kills the local ssh client, *not* the remote
    process — a rejected call has still committed a transaction here before. Ship
    the script, run it once as a dry run, then run it again with `--confirm`.
-   Details and the exact pattern: `references/deployment.md`.
+   Details and the exact pattern: `references/production.md`.
 
 3. **Snapshot before any bulk write**, to `/home/ubuntu/cricBid/backups/`. There
    are **no `TournamentBackup` rows in production** — the in-app backup feature has
@@ -51,9 +51,10 @@ system. A bad deploy is not an inconvenience, it loses money in the room.
    Diff against a dump taken before the change. A script reporting success while a
    transaction was still open has misled us before.
 
-5. **Deploy with the `cricbid-deploy` skill**, which encodes the whole sequence.
-   `references/deployment.md` carries the parts that skill assumes you know —
-   migrations, verification, rollback.
+5. **Deploy with the `cricbid-deploy` skill.** It is the single runbook for a
+   deploy — branch check, build, restart, verification, rollback. Do not restate
+   its steps elsewhere; `references/production.md` covers only what surrounds a
+   deploy.
 
 ## Where things live
 
@@ -92,9 +93,11 @@ Frequently touched, easy to lose:
 
 Read the one you need — they are detailed and not worth loading up front.
 
-- **`references/deployment.md`** — the deploy sequence, running Prisma migrations
-  (they fail from the repo root), read-only probes, snapshots, rollback, and where
-  the SSH key and config live. Read before any deploy or migration.
+- **`references/production.md`** — reaching the server, read-only probes, the
+  ship → dry-run → `--confirm` rule for database writes, snapshots and data
+  rollback, writing a data migration, and where the SSH key and config live. Read
+  before touching production data. *The deploy sequence itself lives in the
+  `cricbid-deploy` skill — use that to deploy.*
 - **`references/gotchas.md`** — the specific traps: falsy-zero serials, `teamId`
   arriving as an object, S3 uploads served as `octet-stream`, hand-edited sheet
   headers, Radix dropdowns dismissing dialogs, html2canvas text drift. Read before
