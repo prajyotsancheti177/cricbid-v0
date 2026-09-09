@@ -43,6 +43,10 @@ playerRouter.post("/verify-payments", authMiddleware, playerController.verifyPay
 // Close gaps in the auction serial numbers (pass preview:true to dry-run)
 playerRouter.post("/resequence-serials", authMiddleware, playerController.resequenceSerials);
 
+// Edit history and undo
+playerRouter.post("/history", authMiddleware, playerController.getPlayerHistory);
+playerRouter.post("/undo", authMiddleware, playerController.undoPlayerChanges);
+
 // NOTE: sheet -> database sync was removed on 2026-09-08. Matching sheet rows
 // back to players proved unreliable (duplicate headers, renamed columns, ids
 // that drifted) and it silently overwrote good data. The player sheet in Manage

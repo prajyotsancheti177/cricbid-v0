@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered,
+  Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered, History, Undo2,
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
@@ -49,6 +49,17 @@ interface ColumnDef {
   custom?: boolean;
   options?: string[];
   align?: "right";
+}
+
+interface HistoryBatch {
+  batchId: string;
+  label: string;
+  at: string;
+  actor: string | null;
+  isUndo: boolean;
+  changeCount: number;
+  playerCount: number;
+  sample: { playerName: string | null; field: string; oldValue: string | null; newValue: string | null }[];
 }
 
 const NOTE_IDS = ["cf_note_1", "cf_note_2", "cf_note_3"];
@@ -96,6 +107,9 @@ const TournamentPlayerSheetSection = () => {
   const [verifying, setVerifying] = useState(false);
   const [resequence, setResequence] = useState<{ changes: { id: string; name: string; from: number | null; to: number }[]; total: number } | null>(null);
   const [resequencing, setResequencing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyBatches, setHistoryBatches] = useState<HistoryBatch[] | null>(null);
+  const [undoing, setUndoing] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /* ---------------------------------------------------------- data loading */
@@ -362,6 +376,57 @@ const TournamentPlayerSheetSection = () => {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Could not renumber", variant: "destructive" });
     } finally {
       setResequencing(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryBatches(null);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        body: JSON.stringify({ touranmentId: tournament._id, userId: user._id, limit: 40 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not load history");
+      setHistoryBatches(data.data || []);
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not load history", variant: "destructive" });
+      setHistoryBatches([]);
+    }
+  };
+
+  /** Undo one action, or everything after it. */
+  const undo = async (batch: HistoryBatch, mode: "one" | "since") => {
+    setUndoing(batch.batchId);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/undo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        body: JSON.stringify({
+          touranmentId: tournament._id,
+          userId: user._id,
+          ...(mode === "one" ? { batchId: batch.batchId } : { until: batch.at }),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not undo");
+
+      // the grid is now stale — reload rather than guess at the reverted values
+      const fresh = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ touranmentId: tournament._id }),
+      });
+      const freshData = await fresh.json();
+      if (fresh.ok) setPlayers(freshData.data || []);
+
+      toast({ title: "Undone", description: data.message });
+      loadHistory();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not undo", variant: "destructive" });
+    } finally {
+      setUndoing(null);
     }
   };
 
@@ -662,6 +727,11 @@ const TournamentPlayerSheetSection = () => {
             </Button>
           )}
 
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={loadHistory} title="See and undo recent changes">
+            <History className="h-3.5 w-3.5" />
+            History
+          </Button>
+
           <Button variant="outline" size="sm" className="h-9 gap-1.5" disabled={resequencing}
                   onClick={askResequence} title="Close gaps left by deleted players">
             {resequencing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListOrdered className="h-3.5 w-3.5" />}
@@ -788,6 +858,69 @@ const TournamentPlayerSheetSection = () => {
       <p className="text-xs text-muted-foreground">
         Showing {rows.length} of {players.length} players{pendingCount > 0 && ` · ${pendingCount} awaiting payment`}
       </p>
+
+      {/* history — every action, newest first, each undoable */}
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogTitle>Change history</DialogTitle>
+          <p className="text-sm text-muted-foreground -mt-2">
+            Every edit, verification and renumber, newest first. Undo one on its own, or roll everything
+            back to just before it.
+          </p>
+
+          <div className="flex-1 overflow-y-auto -mx-1 px-1">
+            {historyBatches === null ? (
+              <div className="h-40 grid place-items-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : historyBatches.length === 0 ? (
+              <div className="h-40 grid place-items-center text-sm text-muted-foreground text-center px-8">
+                Nothing recorded yet. Changes made from here on will appear, ready to undo.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {historyBatches.map(b => (
+                  <div key={b.batchId} className="border border-border rounded-lg p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium flex items-center gap-2">
+                          {b.isUndo && <Undo2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                          <span className="truncate">{b.label}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(b.at).toLocaleString("en-IN")}
+                          {b.actor && ` · ${b.actor}`}
+                          {` · ${b.playerCount} player${b.playerCount === 1 ? "" : "s"}`}
+                        </p>
+                        <div className="mt-1.5 space-y-0.5">
+                          {b.sample.map((c, i) => (
+                            <p key={i} className="text-xs text-muted-foreground/80 truncate">
+                              <span className="text-foreground/70">{c.playerName}</span>{" "}
+                              {c.field}: <span className="line-through">{c.oldValue ?? "empty"}</span> → {c.newValue ?? "empty"}
+                            </p>
+                          ))}
+                          {b.changeCount > b.sample.length && (
+                            <p className="text-xs text-muted-foreground/60">+ {b.changeCount - b.sample.length} more</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                                disabled={!!undoing} onClick={() => undo(b, "one")}>
+                          {undoing === b.batchId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                          Undo this
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground"
+                                disabled={!!undoing} onClick={() => undo(b, "since")}>
+                          Back to here
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* renumbering asks first, and shows exactly what moves */}
       <Dialog open={!!resequence} onOpenChange={() => setResequence(null)}>

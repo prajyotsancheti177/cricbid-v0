@@ -7,6 +7,7 @@ const playerProfileService = require('../services/playerProfileService');
 const { sendSuccess, sendError } = require("../utils");
 const { buildColumnPlan, readPlayerValue } = require("../utils/sheetColumns");
 const eventService = require("../services/eventService");
+const playerHistoryService = require("../services/playerHistoryService");
 
 
 const registerPlayer = async (req, res) => {
@@ -266,8 +267,8 @@ const verifyPayments = async (req, res) => {
 
         const shouldVerify = verified !== false;
         const result = all === true
-            ? await playersService.verifyAllPending(touranmentId)
-            : await playersService.setPaymentVerified(touranmentId, playerIds, shouldVerify);
+            ? await playersService.verifyAllPending(touranmentId, req.userId || null)
+            : await playersService.setPaymentVerified(touranmentId, playerIds, shouldVerify, req.userId || null);
 
         const verb = shouldVerify ? "verified" : "moved back to pending";
         return sendSuccess(res, 200, `${result.count} player(s) ${verb}`, { count: result.count });
@@ -280,13 +281,42 @@ const verifyPayments = async (req, res) => {
 const resequenceSerials = async (req, res) => {
     try {
         const { touranmentId, preview } = req.body;
-        const result = await playersService.resequenceSerials(touranmentId, { preview: preview === true });
+        const result = await playersService.resequenceSerials(touranmentId, {
+            preview: preview === true,
+            actorUserId: req.userId || null,
+        });
         const message = preview === true
             ? `${result.changes.length} of ${result.total} players would be renumbered`
             : `${result.applied} of ${result.total} players renumbered`;
         return sendSuccess(res, 200, message, result);
     } catch (error) {
         return sendError(res, 400, "Failed to renumber players", error);
+    }
+};
+
+/** Recent actions on this tournament's players, newest first. */
+const getPlayerHistory = async (req, res) => {
+    try {
+        const { touranmentId, limit } = req.body;
+        if (!touranmentId) throw new Error("Tournament ID is required");
+        const batches = await playerHistoryService.listBatches(touranmentId, { limit: Number(limit) || 40 });
+        return sendSuccess(res, 200, `${batches.length} recent action(s)`, batches);
+    } catch (error) {
+        return sendError(res, 400, "Failed to load history", error);
+    }
+};
+
+/** Undo one action, or everything after a point in time. */
+const undoPlayerChanges = async (req, res) => {
+    try {
+        const { touranmentId, batchId, until } = req.body;
+        const result = await playersService.undoChanges(touranmentId, {
+            batchId, until, actorUserId: req.userId || null,
+        });
+        const skipped = result.skipped ? `, ${result.skipped} skipped (player deleted since)` : "";
+        return sendSuccess(res, 200, `${result.reverted} player(s) restored${skipped}`, result);
+    } catch (error) {
+        return sendError(res, 400, "Failed to undo", error);
     }
 };
 
@@ -319,5 +349,7 @@ module.exports = {
     syncToSheet,
     getOverlayStats,
     verifyPayments,
-    resequenceSerials
+    resequenceSerials,
+    getPlayerHistory,
+    undoPlayerChanges
 };

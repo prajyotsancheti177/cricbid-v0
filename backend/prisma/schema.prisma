@@ -111,6 +111,7 @@ model Tournament {
   auctionLogs         AuctionLog[]
   auctionRoomSessions AuctionRoomSession[]
   auctionLiveState    AuctionLiveState?
+  playerChanges       PlayerChange[]
   userEvents          UserEvent[]
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
@@ -318,6 +319,39 @@ model AuctionLogBid {
 // ---------------------------------------------------------------------------
 // Live auction room session analytics (write-side migrated; reads deferred)
 // ---------------------------------------------------------------------------
+
+/// Field-level history of player edits, so any change can be undone.
+///
+/// One row per field changed. Rows made by a single action share a batchId —
+/// an edit, a bulk verification, a renumber — so undo works on the action a
+/// host recognises rather than on 149 separate rows.
+model PlayerChange {
+  id String @id @default(cuid())
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  playerId   String
+  playerName String?
+
+  field    String
+  oldValue String?
+  newValue String?
+
+  batchId    String
+  batchLabel String
+  actorUserId String?
+
+  /// Set when this row was produced by undoing something, so an undo of an
+  /// undo reads correctly rather than looking like a fresh edit.
+  undoOfBatchId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tournamentId, createdAt])
+  @@index([batchId])
+  @@map("player_change")
+}
 
 /// The lot currently on the block, so a restart or crash does not lose it.
 ///

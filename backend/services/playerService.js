@@ -2,6 +2,7 @@ const prisma = require("../db/prisma");
 const whatsappService = require("./whatsappService");
 const { serializePlayer } = require("../utils/serialize");
 const eventService = require("./eventService");
+const history = require("./playerHistoryService");
 
 // ---- coercion helpers (Postgres typing) ----------------------------------
 const toInt = (v) => {
@@ -147,6 +148,17 @@ const updatePlayer = async (playerInput) => {
         include: { team: { select: { id: true, name: true } } },
     });
 
+    // Field-level history, so this edit can be undone later.
+    const fieldChanges = history.diff(existingPlayer, updatedPlayer);
+    if (fieldChanges.length) {
+        history.record({
+            tournamentId: updatedPlayer.touranmentId,
+            label: fieldChanges.length === 1 ? `Edited ${fieldChanges[0].field}` : "Edited player",
+            actorUserId: playerInput.userId || null,
+            changes: fieldChanges.map(c => ({ ...c, playerId: updatedPlayer.id, playerName: updatedPlayer.name })),
+        });
+    }
+
     // Check if player was just sold (wasn't sold before, but is sold now)
     const wasJustSold = !existingPlayer.sold && (playerInput.sold === true || playerInput.sold === 1);
 
@@ -221,14 +233,28 @@ const updatePlayer = async (playerInput) => {
  * Scoped by tournament so an id from elsewhere cannot be flipped, and returns
  * the count actually changed rather than the count requested.
  */
-const setPaymentVerified = async (touranmentId, playerIds, verified) => {
+const setPaymentVerified = async (touranmentId, playerIds, verified, actorUserId = null) => {
     if (!touranmentId) throw new Error("Tournament ID is required");
     const ids = (playerIds || []).filter(Boolean);
     if (ids.length === 0) return { count: 0 };
 
+    const before = await prisma.player.findMany({
+        where: { touranmentId, id: { in: ids } },
+        select: { id: true, name: true, paymentVerified: true },
+    });
+
     const result = await prisma.player.updateMany({
         where: { touranmentId, id: { in: ids } },
         data: { paymentVerified: !!verified },
+    });
+
+    history.record({
+        tournamentId: touranmentId,
+        label: verified ? "Verified payment" : "Moved back to pending",
+        actorUserId: actorUserId || null,
+        changes: before
+            .filter(p => p.paymentVerified !== !!verified)
+            .map(p => ({ playerId: p.id, playerName: p.name, field: "paymentVerified", oldValue: p.paymentVerified, newValue: !!verified })),
     });
 
     eventService.trackEvent({
@@ -243,11 +269,23 @@ const setPaymentVerified = async (touranmentId, playerIds, verified) => {
 };
 
 /** Every unverified player in the tournament, for "verify all". */
-const verifyAllPending = async (touranmentId) => {
+const verifyAllPending = async (touranmentId, actorUserId = null) => {
     if (!touranmentId) throw new Error("Tournament ID is required");
+    const before = await prisma.player.findMany({
+        where: { touranmentId, paymentVerified: false },
+        select: { id: true, name: true },
+    });
+
     const result = await prisma.player.updateMany({
         where: { touranmentId, paymentVerified: false },
         data: { paymentVerified: true },
+    });
+
+    history.record({
+        tournamentId: touranmentId,
+        label: `Verified payment for all ${before.length} pending`,
+        actorUserId: actorUserId || null,
+        changes: before.map(p => ({ playerId: p.id, playerName: p.name, field: "paymentVerified", oldValue: false, newValue: true })),
     });
     eventService.trackEvent({
         userId: null,
@@ -270,7 +308,7 @@ const verifyAllPending = async (touranmentId) => {
  * With `preview` nothing is written; the caller gets the same list of changes
  * it would have applied, to show before committing.
  */
-const resequenceSerials = async (touranmentId, { preview = false } = {}) => {
+const resequenceSerials = async (touranmentId, { preview = false, actorUserId = null } = {}) => {
     if (!touranmentId) throw new Error("Tournament ID is required");
 
     const players = await prisma.player.findMany({
@@ -303,6 +341,13 @@ const resequenceSerials = async (touranmentId, { preview = false } = {}) => {
         }))
     );
 
+    history.record({
+        tournamentId: touranmentId,
+        label: `Renumbered ${changes.length} serial numbers`,
+        actorUserId: actorUserId || null,
+        changes: changes.map(c => ({ playerId: c.id, playerName: c.name, field: "auctionSerialNumber", oldValue: c.from, newValue: c.to })),
+    });
+
     eventService.trackEvent({
         userId: null,
         tournamentId: touranmentId,
@@ -312,6 +357,93 @@ const resequenceSerials = async (touranmentId, { preview = false } = {}) => {
     }).catch(() => {});
 
     return { changes, applied: changes.length, total: players.length };
+};
+
+/**
+ * Undo one recorded action, or everything back to a point in time.
+ *
+ * Each change is applied in reverse — the field goes back to the value it had
+ * before that action — newest batch first, so a field touched twice lands on
+ * the older value. The undo is itself recorded, so the history stays a forward
+ * story and an undo can be undone in turn.
+ *
+ * Rows whose player has since been deleted are skipped rather than failing the
+ * whole undo, and are reported back so the host knows.
+ */
+const undoChanges = async (touranmentId, { batchId = null, until = null, actorUserId = null } = {}) => {
+    if (!touranmentId) throw new Error("Tournament ID is required");
+    if (!batchId && !until) throw new Error("Nothing to undo — pass a batch or a point in time");
+
+    const where = batchId
+        ? { tournamentId: touranmentId, batchId }
+        : { tournamentId: touranmentId, createdAt: { gt: new Date(until) } };
+
+    // Newest first: replaying backwards lands each field on its oldest value.
+    const rows = await prisma.playerChange.findMany({ where, orderBy: { createdAt: "desc" } });
+    if (rows.length === 0) return { reverted: 0, skipped: 0, batches: 0 };
+
+    const ids = [...new Set(rows.map(r => r.playerId))];
+    const alive = await prisma.player.findMany({
+        where: { id: { in: ids }, touranmentId },
+        select: { id: true, customFields: true },
+    });
+    const aliveById = new Map(alive.map(p => [p.id, p]));
+
+    // One value per player+field: the earliest old value in the window.
+    const target = new Map();
+    for (const r of rows) {
+        target.set(`${r.playerId}::${r.field}`, r);
+    }
+
+    const updates = new Map();      // playerId -> data
+    let skipped = 0;
+    for (const r of target.values()) {
+        const player = aliveById.get(r.playerId);
+        if (!player) { skipped++; continue; }
+
+        const data = updates.get(r.playerId) || {};
+        const raw = r.oldValue;
+
+        if (r.field === "customFields") {
+            data.customFields = raw === null ? null : JSON.parse(raw);
+        } else if (r.field === "paymentVerified" || r.field === "sold") {
+            data[r.field] = raw === "true";
+        } else if (r.field === "age" || r.field === "amtSold" || r.field === "auctionSerialNumber") {
+            data[r.field] = raw === null || raw === "" ? null : Number(raw);
+        } else {
+            data[r.field] = raw;
+        }
+        updates.set(r.playerId, data);
+    }
+
+    if (updates.size > 0) {
+        await prisma.$transaction(
+            [...updates.entries()].map(([id, data]) => prisma.player.update({ where: { id }, data }))
+        );
+    }
+
+    const batchIds = [...new Set(rows.map(r => r.batchId))];
+    const label = batchId
+        ? `Undid "${rows[0].batchLabel}"`
+        : `Reverted everything after ${new Date(until).toLocaleString("en-IN")}`;
+
+    await history.record({
+        tournamentId: touranmentId,
+        label,
+        actorUserId,
+        undoOfBatchId: batchId || batchIds[0],
+        changes: [...target.values()]
+            .filter(r => aliveById.has(r.playerId))
+            .map(r => ({
+                playerId: r.playerId,
+                playerName: r.playerName,
+                field: r.field,
+                oldValue: r.newValue,   // reversed on purpose: this action's "before" was that one's "after"
+                newValue: r.oldValue,
+            })),
+    });
+
+    return { reverted: updates.size, skipped, batches: batchIds.length, label };
 };
 
 const deletePlayer = async (playerId) => {
@@ -607,6 +739,7 @@ const getOverlayStats = async (touranmentId) => {
 };
 
 module.exports = {
+    undoChanges,
     resequenceSerials,
     setPaymentVerified,
     verifyAllPending,
