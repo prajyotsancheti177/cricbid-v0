@@ -43,6 +43,9 @@ initScoringSockets(io);
 // Import and initialize ip_geo_cache TTL cleanup job
 const { runOnce: runGeoCleanupOnce, scheduleGeoCleanup } = require("../jobs/geoCleanup");
 
+// Daily CricHeroes stats enrichment (06:00) — no-op unless enabled in .env
+const { scheduleCricHeroesSync } = require("../jobs/cricHeroesSync");
+
 // Use server.listen instead of app.listen for Socket.io
 server.listen(config.port, async () => {
   console.log(`Server listening on port ${config.port}`);
@@ -63,5 +66,10 @@ server.listen(config.port, async () => {
   // Run a one-time cleanup to clear any backlog, then schedule the daily job
   await runGeoCleanupOnce();
   scheduleGeoCleanup();
+
+  // Pull CricHeroes profiles/stats for registered players once a day. Not run
+  // at startup — it is hundreds of outbound calls and a restart loop would
+  // repeat them.
+  scheduleCricHeroesSync();
 });
 
