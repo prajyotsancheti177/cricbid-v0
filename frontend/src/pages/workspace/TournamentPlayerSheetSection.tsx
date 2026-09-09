@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Check, Columns3, Loader2, LockKeyhole, Search, X, Plus, Pencil, ImageIcon, RotateCcw,
+  Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered,
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
@@ -92,8 +92,10 @@ const TournamentPlayerSheetSection = () => {
   const [draft, setDraft] = useState("");
   /** The focused cell when not editing — what arrow keys move around. */
   const [cursor, setCursor] = useState<{ id: string; key: string } | null>(null);
-  const [photoOf, setPhotoOf] = useState<SheetPlayer | null>(null);
+  const [preview, setPreview] = useState<{ url: string; title: string; subtitle: string } | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [resequence, setResequence] = useState<{ changes: { id: string; name: string; from: number | null; to: number }[]; total: number } | null>(null);
+  const [resequencing, setResequencing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /* ---------------------------------------------------------- data loading */
@@ -324,6 +326,45 @@ const TournamentPlayerSheetSection = () => {
     }
   };
 
+  const askResequence = async () => {
+    setResequencing(true);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/resequence-serials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        body: JSON.stringify({ touranmentId: tournament._id, preview: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not work out the new numbering");
+      setResequence(data.data);
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not check the numbering", variant: "destructive" });
+    } finally {
+      setResequencing(false);
+    }
+  };
+
+  const applyResequence = async () => {
+    setResequencing(true);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/resequence-serials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        body: JSON.stringify({ touranmentId: tournament._id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not renumber");
+      const byId = new Map((data.data?.changes || []).map((c: { id: string; to: number }) => [c.id, c.to]));
+      setPlayers(prev => prev.map(p => byId.has(p._id) ? { ...p, auctionSerialNumber: byId.get(p._id) as number } : p));
+      setResequence(null);
+      toast({ title: "Serial numbers updated", description: data.message });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not renumber", variant: "destructive" });
+    } finally {
+      setResequencing(false);
+    }
+  };
+
   const renameNote = (id: string, label: string) => {
     const next = { ...noteLabels, [id]: label };
     setNoteLabels(next);
@@ -404,7 +445,14 @@ const TournamentPlayerSheetSection = () => {
       return (
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={(e) => { e.stopPropagation(); setPhotoOf(p); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreview({
+                url: p.photo ? getDriveThumbnail(p.photo) : "",
+                title: p.name || "Player",
+                subtitle: `#${p.auctionSerialNumber ?? "—"} · ${p.playerCategory || "No category"} · ${p.mobile || "No mobile"}`,
+              });
+            }}
             title="View photo"
             className="h-6 w-6 rounded-full overflow-hidden shrink-0 border border-border bg-muted grid place-items-center text-[9px] font-bold hover:ring-2 hover:ring-primary transition-shadow"
           >
@@ -449,11 +497,22 @@ const TournamentPlayerSheetSection = () => {
 
     if (col.kind === "file") {
       const url = p.customFields?.[col.key];
-      return url
-        ? <a href={url} target="_blank" rel="noreferrer" className="text-primary text-xs hover:underline flex items-center gap-1.5">
-            <ImageIcon className="h-3.5 w-3.5" /> View
-          </a>
-        : <span className="text-muted-foreground/60 text-xs italic">Not uploaded</span>;
+      if (!url) return <span className="text-muted-foreground/60 text-xs italic">Not uploaded</span>;
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreview({
+              url,
+              title: `${col.label} — ${p.name}`,
+              subtitle: `#${p.auctionSerialNumber ?? "—"} · ${p.mobile || "No mobile"}`,
+            });
+          }}
+          className="text-primary text-xs hover:underline flex items-center gap-1.5"
+        >
+          <ImageIcon className="h-3.5 w-3.5" /> View
+        </button>
+      );
     }
 
     if (col.kind === "readonly") {
@@ -603,6 +662,12 @@ const TournamentPlayerSheetSection = () => {
             </Button>
           )}
 
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" disabled={resequencing}
+                  onClick={askResequence} title="Close gaps left by deleted players">
+            {resequencing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListOrdered className="h-3.5 w-3.5" />}
+            Fix serial numbers
+          </Button>
+
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-9 gap-1.5">
@@ -724,23 +789,72 @@ const TournamentPlayerSheetSection = () => {
         Showing {rows.length} of {players.length} players{pendingCount > 0 && ` · ${pendingCount} awaiting payment`}
       </p>
 
-      {/* photo preview */}
-      <Dialog open={!!photoOf} onOpenChange={() => setPhotoOf(null)}>
-        <DialogContent className="max-w-sm p-0 overflow-hidden">
-          <DialogTitle className="sr-only">{photoOf?.name} photo</DialogTitle>
-          {photoOf?.photo ? (
-            <img src={getDriveThumbnail(photoOf.photo)} alt={photoOf?.name || ""} className="w-full max-h-[70vh] object-contain bg-black" />
-          ) : (
-            <div className="h-56 grid place-items-center text-muted-foreground text-sm">No photo uploaded</div>
-          )}
-          <div className="p-4 border-t border-border">
-            <p className="font-semibold">{photoOf?.name}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              #{photoOf?.auctionSerialNumber} · {photoOf?.playerCategory || "No category"} · {photoOf?.mobile || "No mobile"}
+      {/* renumbering asks first, and shows exactly what moves */}
+      <Dialog open={!!resequence} onOpenChange={() => setResequence(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogTitle>Fix serial numbers</DialogTitle>
+          {resequence && resequence.changes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing to do — the {resequence.total} players are already numbered 1 to {resequence.total} with no gaps.
             </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Renumbers everyone 1 to {resequence?.total} in their current order, closing gaps left by deleted
+                players. <span className="text-foreground font-medium">{resequence?.changes.length} players move.</span>
+              </p>
+              <div className="max-h-[280px] overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
+                {resequence?.changes.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 px-3 py-1.5 text-[13px]">
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <span className="text-muted-foreground tabular-nums">#{c.from ?? "—"}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-semibold tabular-nums w-8 text-right">#{c.to}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Serial numbers are printed and handed out — if you have already shared a list, share the updated one.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setResequence(null)}>Cancel</Button>
+                <Button onClick={applyResequence} disabled={resequencing} className="gap-1.5">
+                  {resequencing && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Renumber {resequence?.changes.length} players
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* image preview — screenshots open here rather than downloading */}
+      <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">{preview?.title}</DialogTitle>
+          {preview?.url ? (
+            <img src={preview.url} alt={preview.title}
+                 className="w-full max-h-[70vh] object-contain bg-black" />
+          ) : (
+            <div className="h-56 grid place-items-center text-muted-foreground text-sm">Nothing uploaded</div>
+          )}
+          <div className="p-4 border-t border-border flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold truncate">{preview?.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{preview?.subtitle}</p>
+            </div>
+            {preview?.url && (
+              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" asChild>
+                {/* uploads are served as octet-stream, so this saves the file */}
+                <a href={preview.url} target="_blank" rel="noreferrer">
+                  <Download className="h-3.5 w-3.5" /> Download
+                </a>
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

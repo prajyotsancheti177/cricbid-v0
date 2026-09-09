@@ -276,6 +276,20 @@ const verifyPayments = async (req, res) => {
     }
 };
 
+/** Close gaps in the serial numbers; `preview` reports without writing. */
+const resequenceSerials = async (req, res) => {
+    try {
+        const { touranmentId, preview } = req.body;
+        const result = await playersService.resequenceSerials(touranmentId, { preview: preview === true });
+        const message = preview === true
+            ? `${result.changes.length} of ${result.total} players would be renumbered`
+            : `${result.applied} of ${result.total} players renumbered`;
+        return sendSuccess(res, 200, message, result);
+    } catch (error) {
+        return sendError(res, 400, "Failed to renumber players", error);
+    }
+};
+
 const getOverlayStats = async (req, res) => {
     try {
         const { touranmentId, tournamentId } = req.body;
@@ -304,5 +318,6 @@ module.exports = {
     bulkUpdatePlayers,
     syncToSheet,
     getOverlayStats,
-    verifyPayments
+    verifyPayments,
+    resequenceSerials
 };

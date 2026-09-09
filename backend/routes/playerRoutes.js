@@ -40,6 +40,9 @@ playerRouter.post("/delete-all", authMiddleware, playerController.deleteAllPlaye
 // Payment verification — gates a registered player's entry into the auction
 playerRouter.post("/verify-payments", authMiddleware, playerController.verifyPayments);
 
+// Close gaps in the auction serial numbers (pass preview:true to dry-run)
+playerRouter.post("/resequence-serials", authMiddleware, playerController.resequenceSerials);
+
 // NOTE: sheet -> database sync was removed on 2026-09-08. Matching sheet rows
 // back to players proved unreliable (duplicate headers, renamed columns, ids
 // that drifted) and it silently overwrote good data. The player sheet in Manage

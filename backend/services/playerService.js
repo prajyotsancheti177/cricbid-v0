@@ -259,6 +259,61 @@ const verifyAllPending = async (touranmentId) => {
     return result;
 };
 
+/**
+ * Closes gaps in the auction serial numbers.
+ *
+ * Players keep their running order — the sequence is rebuilt as 1..N in the
+ * order they already sit in — so deleting #5 pulls everyone after it down by
+ * one instead of leaving a hole. Players with no serial at all go last, in name
+ * order, and finally get one.
+ *
+ * With `preview` nothing is written; the caller gets the same list of changes
+ * it would have applied, to show before committing.
+ */
+const resequenceSerials = async (touranmentId, { preview = false } = {}) => {
+    if (!touranmentId) throw new Error("Tournament ID is required");
+
+    const players = await prisma.player.findMany({
+        where: { touranmentId },
+        select: { id: true, name: true, auctionSerialNumber: true },
+        orderBy: [
+            { auctionSerialNumber: { sort: 'asc', nulls: 'last' } },
+            { name: 'asc' },
+        ],
+    });
+
+    const changes = [];
+    players.forEach((p, index) => {
+        const to = index + 1;
+        if (p.auctionSerialNumber !== to) {
+            changes.push({ id: p.id, name: p.name, from: p.auctionSerialNumber, to });
+        }
+    });
+
+    if (preview || changes.length === 0) {
+        return { changes, applied: 0, total: players.length };
+    }
+
+    // Serial numbers are not unique in the schema, so intermediate collisions
+    // during the renumber are harmless — one transaction keeps it all-or-nothing.
+    await prisma.$transaction(
+        changes.map(c => prisma.player.update({
+            where: { id: c.id },
+            data: { auctionSerialNumber: c.to },
+        }))
+    );
+
+    eventService.trackEvent({
+        userId: null,
+        tournamentId: touranmentId,
+        eventType: "players_resequenced",
+        page: "/players",
+        eventData: { tournamentId: touranmentId, changed: changes.length, total: players.length },
+    }).catch(() => {});
+
+    return { changes, applied: changes.length, total: players.length };
+};
+
 const deletePlayer = async (playerId) => {
     try {
         const deleted = await prisma.player.delete({ where: { id: playerId } });
@@ -552,6 +607,7 @@ const getOverlayStats = async (touranmentId) => {
 };
 
 module.exports = {
+    resequenceSerials,
     setPaymentVerified,
     verifyAllPending,
     registerPlayer,
