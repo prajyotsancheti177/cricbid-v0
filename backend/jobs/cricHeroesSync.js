@@ -21,6 +21,11 @@ const cricHeroesSyncService = require('../services/cricHeroesSyncService');
 
 const SCHEDULE = '0 6 * * *'; // 06:00 daily
 
+// The EC2 box runs UTC, so an unqualified 06:00 would fire at 11:30 IST —
+// mid-morning, while hosts are in the player sheet. Pin it to the timezone the
+// tournaments actually run in.
+const TIMEZONE = process.env.CRICHEROES_SYNC_TZ || 'Asia/Kolkata';
+
 const isEnabled = () => String(process.env.CRICHEROES_SYNC_ENABLED || '').toLowerCase() === 'true';
 
 const targetTournamentIds = () =>
@@ -84,12 +89,12 @@ function scheduleCricHeroesSync() {
     cron.schedule(SCHEDULE, async () => {
         console.log('[cricHeroesSync] Running scheduled CricHeroes sync...');
         await runOnce();
-    });
+    }, { timezone: TIMEZONE });
 
     const ids = targetTournamentIds();
     console.log(
-        `[cricHeroesSync] Daily sync scheduled (06:00) for ${ids.length} tournament(s): ${ids.join(', ')}`
+        `[cricHeroesSync] Daily sync scheduled (06:00 ${TIMEZONE}) for ${ids.length} tournament(s): ${ids.join(', ')}`
     );
 }
 
-module.exports = { runOnce, scheduleCricHeroesSync, SCHEDULE };
+module.exports = { runOnce, scheduleCricHeroesSync, SCHEDULE, TIMEZONE };
