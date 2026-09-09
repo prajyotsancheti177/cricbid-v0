@@ -1,0 +1,23 @@
+[
+  {"query": "the next player button isn't advancing when i run the auction serial number wise, any idea why", "should_trigger": true, "note": "codebase behaviour question"},
+  {"query": "why is serial number 0 showing as plain text instead of the green badge on the player cards pdf", "should_trigger": true, "note": "falsy-zero trap is in gotchas"},
+  {"query": "i want to add a jersey size column to the player sheet, where do i start", "should_trigger": true, "note": "needs the player sheet + customFields map"},
+  {"query": "someone changed a players photo yesterday, can we find out who and put it back", "should_trigger": true, "note": "history/undo + event log actor"},
+  {"query": "our sheet export is putting the upload url under the category column, whats going on there", "should_trigger": true, "note": "sheet header drift trap"},
+  {"query": "check how many players in IPCL still have payment pending", "should_trigger": true, "note": "production probe, no exploration needed"},
+  {"query": "add a field to the registration form and make sure it flows through to the export", "should_trigger": true, "note": "spans registration config + column plan"},
+  {"query": "before we start, get up to speed on how this repo is put together", "should_trigger": true, "note": "orientation is the highest-value trigger"},
+  {"query": "the dropdown in the manage form dialog closes the whole thing when i click fast", "should_trigger": true, "note": "Radix trap"},
+  {"query": "i need a bulk delete option in the player sheet with a confirm step", "should_trigger": true, "note": "feature work in a known file"},
+
+  {"query": "deploy the current branch to production", "should_trigger": false, "note": "near-miss: cricbid-deploy owns running a deploy"},
+  {"query": "push this and make it live on cricbid.online", "should_trigger": false, "note": "near-miss: same, cricbid-deploy"},
+  {"query": "whats the difference between prisma migrate dev and migrate deploy", "should_trigger": false, "note": "near-miss: general prisma, not this codebase"},
+  {"query": "how do i hide the up down arrows on a number input in css", "should_trigger": false, "note": "near-miss: we did this here, but the question is generic css"},
+  {"query": "explain how google sheets api service account auth works", "should_trigger": false, "note": "near-miss: general API question"},
+  {"query": "write a cricket scoring algorithm in python that handles duckworth lewis", "should_trigger": false, "note": "near-miss: cricket domain, unrelated to this app"},
+  {"query": "help me scaffold a new express app with socket.io and postgres", "should_trigger": false, "note": "near-miss: same stack, different project"},
+  {"query": "my nginx is throwing 502 on the staging box for a different project", "should_trigger": false, "note": "near-miss: infra shape matches, wrong system"},
+  {"query": "review the open PR in the analytics-dashboard repo", "should_trigger": false, "note": "different repo"},
+  {"query": "build me a react table component with inline editing and column pinning", "should_trigger": false, "note": "near-miss: describes the player sheet, but as a generic component ask"}
+]

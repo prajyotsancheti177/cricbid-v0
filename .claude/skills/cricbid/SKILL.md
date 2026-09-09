@@ -1,6 +1,6 @@
 ---
 name: cricbid
-description: Working context for the CricBid cricket auction platform (this repo) — the codebase map, what the live production system looks like, how to deploy safely, and the traps that have already bitten. Use this whenever working in the cricbid repo or on cricbid.online: any change to players, teams, tournaments, the live auction room, the player sheet, registration forms, Google Sheets export, analytics or the OBS overlays; any deploy, migration or production database question; and any time you are about to explore the codebase or query the production database to orient yourself — read this first instead, it is cheaper and already correct.
+description: Working context for the CricBid cricket auction platform in this repo — the codebase map, how production actually behaves, and the traps that have already cost hours of debugging. Use it for any work on this repo or on cricbid.online: players, teams, tournaments, the live auction room, the player sheet, registration forms, Google Sheets export, analytics, OBS overlays; anything in them that looks broken or behaves surprisingly; any question about the production database; and especially before exploring the codebase or querying production just to orient yourself, since reading this is cheaper and already correct. To actually run a deploy use the cricbid-deploy skill instead; this one covers everything around one, including data migrations and changing production data safely.
 ---
 
 # CricBid
