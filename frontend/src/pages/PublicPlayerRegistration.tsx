@@ -13,7 +13,7 @@ import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
-import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchProfileWithToken } from "@/components/PlayerProfileModal";
+import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
 
 const PublicPlayerRegistration = () => {
   const { tournamentId } = useParams();
@@ -55,9 +55,11 @@ const PublicPlayerRegistration = () => {
     // Restore session if player was already logged in
     const token = getStoredPlayerToken();
     if (token) {
-      fetchProfileWithToken(token).then((profile) => {
-        if (profile) setActiveProfile(profile);
-        else clearPlayerToken();
+      fetchAccountWithToken(token).then((acc) => {
+        if (!acc) { clearPlayerToken(); return; }
+        // An account can own several players, so only auto-select when there is
+        // no ambiguity. With two children the parent has to say which one.
+        if (acc.profiles.length === 1) setActiveProfile(acc.profiles[0]);
       });
     }
   }, [tournamentId]);
@@ -369,9 +371,17 @@ const PublicPlayerRegistration = () => {
 
       formPayload.append('customFields', JSON.stringify(primitiveCustomFields));
 
+      // Tell the API which saved player this is, so it can keep their details
+      // current for next time. Signed out, it deliberately saves nothing.
+      const playerToken = getStoredPlayerToken();
+      if (playerToken && activeProfile?.id) {
+        formPayload.append('playerProfileId', activeProfile.id);
+      }
+
       const response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
         method: 'POST',
         // Omit Content-Type to let the browser set boundary correctly for FormData
+        headers: playerToken ? { 'x-player-token': playerToken } : undefined,
         body: formPayload,
       });
 

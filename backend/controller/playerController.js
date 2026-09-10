@@ -119,12 +119,24 @@ const registerPlayerPublic = async (req, res) => {
 
         const player = await playersService.registerPlayer(safePayload);
 
-        // Upsert player profile so future tournament registrations can pre-fill
-        if (mobile) {
+        // Keep the signed-in player's saved details current, so the next
+        // tournament pre-fills with what they just typed.
+        //
+        // A registration made while signed OUT deliberately creates nothing.
+        // That auto-upsert is what produced 568 profiles nobody could log into
+        // or claim; a profile is now something an account owns on purpose.
+        const playerToken = req.headers["x-player-token"] || req.body?.playerToken;
+        const profileId = req.body?.playerProfileId;
+        if (playerToken && profileId) {
             try {
-                await playerProfileService.upsertProfile({ name, age, gender, mobile, email, address, skill, photo: photoUrl });
+                const account = await playerProfileService.getAccountByToken(playerToken);
+                if (account) {
+                    await playerProfileService.updateProfile(account.id, profileId, {
+                        name, age, gender, mobile, email, address, skill, photo: photoUrl,
+                    });
+                }
             } catch (profileErr) {
-                console.error("Failed to upsert player profile (non-fatal)", profileErr);
+                console.error("Could not update the player's saved profile (non-fatal)", profileErr);
             }
         }
 

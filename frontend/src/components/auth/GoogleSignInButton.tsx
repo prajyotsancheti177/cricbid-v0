@@ -68,8 +68,8 @@ export const useGoogleClientId = (): string | null => {
 };
 
 interface Props {
-  /** Called with the session token and profile once the server has verified. */
-  onSignedIn: (result: { token: string; profile: Record<string, unknown>; needsMobile: boolean }) => void;
+  /** Called with the session token and account once the server has verified. */
+  onSignedIn: (result: { token: string; account: any }) => void;
   onError?: (message: string) => void;
 }
 

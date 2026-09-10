@@ -181,44 +181,68 @@ model TeamBudgetTopup {
   @@map("team_budget_topup")
 }
 
-// A player's own account, reused across every tournament they register for.
+// A login. One account, many players.
 //
-// Phone is the identity key: hosts reach players on WhatsApp and registrations
-// are matched by mobile. Google sign-in is a front door onto that, not a
-// separate identity space — which is why a Google profile still collects a
-// number.
+// Split from PlayerProfile because they answer different questions: this is who
+// is signed in, a profile is who is playing. A parent signs in once and
+// registers two children, so the two cannot be the same row.
 //
-// `mobile` is the VERIFIED number and is unique. `pendingMobile` is what the
-// player typed but nobody has proved yet; it is deliberately not unique, so a
-// number one of the auto-created registration shells already holds cannot
-// collide or be silently claimed. OTP promotes pending -> mobile.
-model PlayerProfile {
-  id           String  @id @default(cuid())
-  mobile       String? @unique
-  password     String?
-  sessionToken String? @unique
-  // Sessions used to live forever. This is what ends them.
-  sessionExpiresAt DateTime?
+// Two ways in, and no password: Google now, WhatsApp OTP later. Of the 570
+// profiles that existed before this split only 2 ever had a password, because
+// the rest were created silently by public registration and could never log in.
+model PlayerAccount {
+  id String @id @default(cuid())
 
   googleSub     String? @unique
+  email         String?
   emailVerified Boolean @default(false)
 
-  pendingMobile  String?
+  // The number this login has PROVED it owns — written only by OTP, never by
+  // something a player typed about themselves. Unique: one verified number, one
+  // login. A profile's `mobile` is contact information and is not this.
+  mobile         String? @unique
   mobileVerified Boolean @default(false)
 
-  name         String?
-  age          Int?
-  gender       String?
-  photo        String?
-  skill        String?
-  email        String?
-  address      String?
+  sessionToken     String?   @unique
+  sessionExpiresAt DateTime?
+
+  profiles PlayerProfile[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([email])
-  @@index([pendingMobile])
+  @@map("player_account")
+}
+
+// A player. Not a login — see PlayerAccount.
+//
+// `mobile` is deliberately NOT unique: siblings registered by one parent share
+// that parent's number, and a unique constraint made that impossible to record.
+// It is contact information nobody has verified.
+model PlayerProfile {
+  id String @id @default(cuid())
+
+  // Null for the 568 shells auto-created by public registration before accounts
+  // existed. Unowned on purpose — handing one to whoever signs in with a
+  // matching email or number would be an account takeover with extra steps.
+  accountId String?
+  account   PlayerAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  name    String?
+  age     Int?
+  gender  String?
+  photo   String?
+  skill   String?
+  email   String?
+  address String?
+  mobile  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([mobile])
   @@map("player_profile")
 }
 

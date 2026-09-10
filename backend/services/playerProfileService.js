@@ -1,8 +1,17 @@
 const crypto = require("crypto");
 const prisma = require("../db/prisma");
-const { encrypt, decrypt } = require("../utils/encryDecry");
 const { OAuth2Client } = require("google-auth-library");
 const config = require("../config");
+
+/**
+ * Player accounts and the players they own.
+ *
+ * An account is a login; a profile is a player. One account owns several
+ * profiles, because a parent signs in once and registers two children.
+ *
+ * There is no password. Google is the way in today and WhatsApp OTP will join
+ * it; nothing here accepts a secret a player has to remember.
+ */
 
 const toInt = (v) => {
     if (v === undefined || v === null || v === '') return undefined;
@@ -18,7 +27,6 @@ const generateToken = () => crypto.randomBytes(32).toString("hex");
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const sessionExpiry = () => new Date(Date.now() + SESSION_TTL_MS);
 
-// Clean mobile to digits only
 const cleanMobile = (mobile) => String(mobile || '').trim().replace(/\D/g, '');
 
 const buildProfileData = (data) => {
@@ -30,65 +38,37 @@ const buildProfileData = (data) => {
     if (data.email !== undefined) d.email = toStr(data.email);
     if (data.address !== undefined) d.address = toStr(data.address);
     if (data.photo) d.photo = toStr(data.photo);
+    if (data.mobile !== undefined) {
+        const mob = cleanMobile(data.mobile);
+        if (mob && mob.length < 10) throw new Error("Enter a valid 10-digit mobile number");
+        d.mobile = mob || null;
+    }
     return d;
 };
 
-// Register a new player profile with password
-const registerProfile = async ({ mobile, password, name, age, gender, skill, email, address }) => {
-    const mob = cleanMobile(mobile);
-    if (!mob || mob.length < 10) throw new Error("Valid 10-digit mobile number is required");
-    if (!password || password.length < 4) throw new Error("Password must be at least 4 characters");
-    if (!name || !name.trim()) throw new Error("Name is required");
-
-    const existing = await prisma.playerProfile.findUnique({ where: { mobile: mob } });
-    if (existing) throw new Error("A profile already exists for this mobile number. Please login.");
-
-    const hashed = encrypt(password);
-    const profileData = buildProfileData({ name, age, gender, skill, email, address });
-
-    return prisma.playerProfile.create({
-        data: { mobile: mob, password: hashed, ...profileData },
-    });
-};
-
-// Login and return a session token
-const loginProfile = async ({ mobile, password }) => {
-    const mob = cleanMobile(mobile);
-    if (!mob) throw new Error("Mobile number is required");
-    if (!password) throw new Error("Password is required");
-
-    const profile = await prisma.playerProfile.findUnique({ where: { mobile: mob } });
-    if (!profile || !profile.password) throw new Error("No account found for this mobile number");
-
-    const valid = decrypt(password, profile.password);
-    if (!valid) throw new Error("Incorrect password");
-
-    const token = generateToken();
-    const updated = await prisma.playerProfile.update({
-        where: { id: profile.id },
-        data: { sessionToken: token, sessionExpiresAt: sessionExpiry() },
-    });
-
-    const { password: _p, sessionToken: _t, ...safeProfile } = updated;
-    return { token, profile: safeProfile };
-};
+/** An account and its players, with nothing secret in it. */
+const publicAccount = (account) => ({
+    id: account.id,
+    email: account.email,
+    emailVerified: account.emailVerified,
+    mobile: account.mobile,
+    mobileVerified: account.mobileVerified,
+    profiles: account.profiles || [],
+});
 
 /**
  * Sign in with Google.
  *
- * Verifies the ID token against Google's own keys — never trust a `sub` or an
- * email the client hands us — then finds or creates the profile keyed on the
- * Google account id.
+ * Verifies the ID token against Google's own keys — a `sub` or an email the
+ * client hands us proves nothing — then finds or creates the account.
  *
- * Deliberately does NOT adopt one of the profiles auto-created from public
- * registrations, even when the emails match. Those rows have no owner and
- * contain another person's name, photo and address; inheriting one on an
- * unproven signal is an account takeover with extra steps. A new Google user
- * starts from scratch and their profile becomes useful from their next
- * registration onwards.
+ * Deliberately does NOT adopt one of the profiles auto-created by public
+ * registration, even when the emails or numbers match. Those rows are unowned
+ * and hold another person's name, photo and address; claiming one on an
+ * unproven signal is an account takeover with extra steps.
  *
- * @param {string} credential - the ID token from Google Identity Services
- * @returns {Promise<{token: string, profile: Object, needsMobile: boolean}>}
+ * @param {string} credential - ID token from Google Identity Services
+ * @returns {Promise<{token: string, account: Object}>}
  */
 const loginWithGoogle = async (credential) => {
     if (!config.googleClientId) throw new Error("Google sign-in is not configured");
@@ -106,128 +86,108 @@ const loginWithGoogle = async (credential) => {
         // Deliberately vague: a caller does not need to know which check failed.
         throw new Error("Could not verify that Google sign-in");
     }
-
     if (!payload?.sub) throw new Error("Could not verify that Google sign-in");
+
     // An unverified Google email is not proof of anything, so it is stored but
-    // never treated as verified.
+    // never marked verified.
     const emailVerified = payload.email_verified === true;
 
-    let profile = await prisma.playerProfile.findUnique({ where: { googleSub: payload.sub } });
-
-    if (!profile) {
-        profile = await prisma.playerProfile.create({
-            data: {
-                googleSub: payload.sub,
-                email: payload.email || null,
-                emailVerified,
-                name: payload.name || null,
-                photo: payload.picture || null,
-            },
-        });
-    } else {
-        // Keep the Google-owned fields current; leave anything the player has
-        // edited themselves alone.
-        profile = await prisma.playerProfile.update({
-            where: { id: profile.id },
-            data: { email: payload.email || profile.email, emailVerified },
+    let account = await prisma.playerAccount.findUnique({ where: { googleSub: payload.sub } });
+    if (!account) {
+        account = await prisma.playerAccount.create({
+            data: { googleSub: payload.sub, email: payload.email || null, emailVerified },
         });
     }
 
     const token = generateToken();
-    const updated = await prisma.playerProfile.update({
-        where: { id: profile.id },
-        data: { sessionToken: token, sessionExpiresAt: sessionExpiry() },
+    const updated = await prisma.playerAccount.update({
+        where: { id: account.id },
+        data: {
+            email: payload.email || account.email,
+            emailVerified,
+            sessionToken: token,
+            sessionExpiresAt: sessionExpiry(),
+        },
+        include: { profiles: { orderBy: { createdAt: 'asc' } } },
     });
 
-    const { password: _p, sessionToken: _t, ...safeProfile } = updated;
-    return {
-        token,
-        profile: safeProfile,
-        // The front end asks for a number once; phone is what ties a profile to
-        // registrations and to WhatsApp.
-        needsMobile: !updated.mobile && !updated.pendingMobile,
-    };
+    return { token, account: publicAccount(updated) };
 };
 
-// Get profile from session token
-const getProfileByToken = async (token) => {
+/**
+ * Resolve a session token to its account and players.
+ * @returns {Promise<Object|null>} null when the token is unknown or expired
+ */
+const getAccountByToken = async (token) => {
     if (!token) return null;
-    const profile = await prisma.playerProfile.findUnique({ where: { sessionToken: token } });
-    if (!profile) return null;
+    const account = await prisma.playerAccount.findUnique({
+        where: { sessionToken: token },
+        include: { profiles: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!account) return null;
 
-    // A token with no expiry predates sessions having one; treat it as valid so
-    // the two existing logins are not broken, and stamp an expiry on it.
-    if (profile.sessionExpiresAt && profile.sessionExpiresAt.getTime() < Date.now()) {
-        await prisma.playerProfile.update({
-            where: { id: profile.id },
+    if (account.sessionExpiresAt && account.sessionExpiresAt.getTime() < Date.now()) {
+        await prisma.playerAccount.update({
+            where: { id: account.id },
             data: { sessionToken: null, sessionExpiresAt: null },
         });
         return null;
     }
 
-    const { password: _p, sessionToken: _t, ...safe } = profile;
-    return safe;
+    return publicAccount(account);
 };
 
-// Update profile fields (requires profileId, validated upstream via token)
-const updateProfile = async (profileId, data) => {
+/** Every player this account owns. */
+const listProfiles = (accountId) =>
+    prisma.playerProfile.findMany({ where: { accountId }, orderBy: { createdAt: 'asc' } });
+
+/**
+ * Add a player to an account — a second child, say.
+ *
+ * No uniqueness check on name or mobile: two siblings sharing one parent's
+ * number is the case this split exists to support.
+ */
+const createProfile = async (accountId, data) => {
     const profileData = buildProfileData(data);
-
-    // The number a player types about themselves is a claim, not a fact, so it
-    // lands in pendingMobile. Only an OTP may write `mobile` and set
-    // mobileVerified — nothing on this path can.
-    if (data.mobile !== undefined || data.pendingMobile !== undefined) {
-        const claimed = cleanMobile(data.pendingMobile ?? data.mobile);
-        if (claimed && claimed.length < 10) throw new Error("Enter a valid 10-digit mobile number");
-        profileData.pendingMobile = claimed || null;
-    }
-    const updated = await prisma.playerProfile.update({
-        where: { id: profileId },
-        data: profileData,
-    });
-    const { password: _p, sessionToken: _t, ...safe } = updated;
-    return safe;
+    if (!profileData.name) throw new Error("Player name is required");
+    return prisma.playerProfile.create({ data: { accountId, ...profileData } });
 };
 
-// Logout — clear session token
-const logoutProfile = async (profileId) => {
-    await prisma.playerProfile.update({
+/**
+ * Edit a player.
+ *
+ * Ownership is checked here rather than trusted from the caller: a profile id
+ * is guessable, and a session only proves which account is asking.
+ */
+const updateProfile = async (accountId, profileId, data) => {
+    const existing = await prisma.playerProfile.findUnique({ where: { id: profileId } });
+    if (!existing || existing.accountId !== accountId) throw new Error("Player not found");
+    return prisma.playerProfile.update({
         where: { id: profileId },
+        data: buildProfileData(data),
+    });
+};
+
+/** Remove a player from an account. */
+const deleteProfile = async (accountId, profileId) => {
+    const existing = await prisma.playerProfile.findUnique({ where: { id: profileId } });
+    if (!existing || existing.accountId !== accountId) throw new Error("Player not found");
+    await prisma.playerProfile.delete({ where: { id: profileId } });
+};
+
+const logoutAccount = async (accountId) => {
+    await prisma.playerAccount.update({
+        where: { id: accountId },
         data: { sessionToken: null, sessionExpiresAt: null },
-    });
-};
-
-// Simple lookup by mobile (used during public registration auto-fill)
-const lookupProfile = async (mobile) => {
-    const mob = cleanMobile(mobile);
-    if (!mob) throw new Error("Mobile number is required");
-    const profile = await prisma.playerProfile.findUnique({ where: { mobile: mob } });
-    if (!profile) return null;
-    const { password: _p, sessionToken: _t, ...safe } = profile;
-    return safe;
-};
-
-// Upsert profile after public registration (updates core fields, no auth needed)
-const upsertProfile = async (data) => {
-    const mobile = cleanMobile(data.mobile);
-    if (!mobile) return null;
-
-    const profileData = buildProfileData(data);
-
-    return prisma.playerProfile.upsert({
-        where: { mobile },
-        update: profileData,
-        create: { mobile, ...profileData },
     });
 };
 
 module.exports = {
     loginWithGoogle,
-    registerProfile,
-    loginProfile,
-    getProfileByToken,
+    getAccountByToken,
+    listProfiles,
+    createProfile,
     updateProfile,
-    logoutProfile,
-    lookupProfile,
-    upsertProfile,
+    deleteProfile,
+    logoutAccount,
 };

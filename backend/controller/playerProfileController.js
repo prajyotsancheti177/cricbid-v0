@@ -2,68 +2,7 @@ const playerProfileService = require("../services/playerProfileService");
 const config = require("../config");
 const { sendSuccess, sendError } = require("../utils");
 
-const registerProfile = async (req, res) => {
-    try {
-        const { mobile, password, name, age, gender, skill, email, address } = req.body;
-        const profile = await playerProfileService.registerProfile({ mobile, password, name, age, gender, skill, email, address });
-        const { password: _p, sessionToken: _t, ...safe } = profile;
-        return sendSuccess(res, 201, "Profile created successfully!", safe);
-    } catch (error) {
-        return sendError(res, 400, error.message || "Failed to create profile", error);
-    }
-};
-
-const loginProfile = async (req, res) => {
-    try {
-        const { mobile, password } = req.body;
-        const result = await playerProfileService.loginProfile({ mobile, password });
-        return sendSuccess(res, 200, "Login successful!", result);
-    } catch (error) {
-        return sendError(res, 401, error.message || "Login failed", error);
-    }
-};
-
-const getMe = async (req, res) => {
-    try {
-        return sendSuccess(res, 200, "Profile fetched successfully!", req.playerProfile);
-    } catch (error) {
-        return sendError(res, 400, "Failed to fetch profile", error);
-    }
-};
-
-const updateMe = async (req, res) => {
-    try {
-        const updated = await playerProfileService.updateProfile(req.playerProfile.id, req.body);
-        return sendSuccess(res, 200, "Profile updated successfully!", updated);
-    } catch (error) {
-        return sendError(res, 400, "Failed to update profile", error);
-    }
-};
-
-const logoutProfile = async (req, res) => {
-    try {
-        await playerProfileService.logoutProfile(req.playerProfile.id);
-        return sendSuccess(res, 200, "Logged out successfully");
-    } catch (error) {
-        return sendError(res, 400, "Failed to logout", error);
-    }
-};
-
-const lookupProfile = async (req, res) => {
-    try {
-        const { mobile } = req.body;
-        if (!mobile) return sendError(res, 400, "Mobile number is required");
-        const profile = await playerProfileService.lookupProfile(mobile);
-        if (!profile) return sendSuccess(res, 200, "No profile found", { found: false, profile: null });
-        return sendSuccess(res, 200, "Profile found", { found: true, profile });
-    } catch (error) {
-        return sendError(res, 400, "Failed to look up profile", error);
-    }
-};
-
-/**
- * POST /api/player-profile/google — sign in with a Google ID token.
- */
+/** POST /api/player-profile/google — sign in with a Google ID token. */
 const googleLogin = async (req, res) => {
     try {
         const result = await playerProfileService.loginWithGoogle(req.body?.credential);
@@ -73,14 +12,79 @@ const googleLogin = async (req, res) => {
     }
 }
 
-/** Whether Google sign-in is configured, so the button can hide itself. */
+/** Which sign-in methods are available, so the UI can render only those. */
 const authConfig = async (_req, res) => {
     return sendSuccess(res, 200, "Auth config", {
         googleClientId: config.googleClientId,
         googleEnabled: Boolean(config.googleClientId),
+        // Reserved for the WhatsApp OTP path; false until it ships.
+        otpEnabled: false,
     });
+}
+
+/** GET /me — the signed-in account and every player it owns. */
+const getMe = async (req, res) => {
+    return sendSuccess(res, 200, "Account fetched", req.playerAccount);
+}
+
+/** GET /profiles */
+const listProfiles = async (req, res) => {
+    try {
+        const profiles = await playerProfileService.listProfiles(req.playerAccount.id);
+        return sendSuccess(res, 200, "Players fetched", profiles);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not fetch players", error);
+    }
+}
+
+/** POST /profiles — add another player to this account. */
+const createProfile = async (req, res) => {
+    try {
+        const profile = await playerProfileService.createProfile(req.playerAccount.id, req.body);
+        return sendSuccess(res, 201, "Player added", profile);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not add that player", error);
+    }
+}
+
+/** PUT /profiles/:profileId */
+const updateProfile = async (req, res) => {
+    try {
+        const profile = await playerProfileService.updateProfile(
+            req.playerAccount.id, req.params.profileId, req.body
+        );
+        return sendSuccess(res, 200, "Player updated", profile);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not update that player", error);
+    }
+}
+
+/** DELETE /profiles/:profileId */
+const deleteProfile = async (req, res) => {
+    try {
+        await playerProfileService.deleteProfile(req.playerAccount.id, req.params.profileId);
+        return sendSuccess(res, 200, "Player removed", null);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not remove that player", error);
+    }
+}
+
+const logoutProfile = async (req, res) => {
+    try {
+        await playerProfileService.logoutAccount(req.playerAccount.id);
+        return sendSuccess(res, 200, "Signed out", null);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not sign out", error);
+    }
 }
 
 module.exports = {
     googleLogin,
-    authConfig, registerProfile, loginProfile, getMe, updateMe, logoutProfile, lookupProfile };
+    authConfig,
+    getMe,
+    listProfiles,
+    createProfile,
+    updateProfile,
+    deleteProfile,
+    logoutProfile,
+};
