@@ -71,6 +71,40 @@ const Login = () => {
     }
   };
 
+  /**
+   * Redirect-mode sign-in lands back here with the session token in the URL
+   * fragment (never sent to a server) or an ?error= to show. Both are stripped
+   * from the address bar immediately so a token is not left in history.
+   */
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const token = hash.get("token");
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+
+    if (err) {
+      setError(err === "csrf" ? "That sign-in could not be verified. Please try again." : err);
+      window.history.replaceState({}, "", "/login");
+      return;
+    }
+    if (!token) return;
+
+    window.history.replaceState({}, "", "/login");
+    localStorage.setItem("cricbid_session_token", token);
+    fetch(`${apiConfig.baseUrl}/api/user/detail`, {
+      method: "POST",
+      headers: jsonAuthHeaders(),
+      body: JSON.stringify({}),
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(b => {
+        if (!b?.data) { clearSession(); setError("Signed in, but the session could not be loaded."); return; }
+        completeLogin({ ...b.data, sessionToken: token }, "google");
+      })
+      .catch(() => { clearSession(); setError("Signed in, but the session could not be loaded."); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -132,6 +166,7 @@ const Login = () => {
             <div className="space-y-3 mb-4">
               <GoogleSignInButton
                 endpoint="/api/user/google-login"
+                redirectUri={`${apiConfig.baseUrl}/api/user/google-callback`}
                 onSignedIn={(user) => completeLogin(user, "google")}
                 onError={setError}
               />

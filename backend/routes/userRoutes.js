@@ -6,8 +6,12 @@ const userRouter = express.Router();
 // User Login (public)
 userRouter.post("/login", userController.loginUser);
 
-// Sign in with Google (public) — matches an existing user, never creates one
+// Sign in with Google (public)
 userRouter.post("/google-login", userController.googleLoginUser);
+
+// Google redirect-mode sign-in: Google POSTs the credential here directly,
+// so no popup and no window.opener handoff is involved.
+userRouter.post("/google-callback", userController.googleCallback);
 
 // Create User - Protected
 userRouter.post("/create", authMiddleware, userController.createUser);

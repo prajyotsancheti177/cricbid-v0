@@ -79,9 +79,18 @@ interface Props {
   /** Called with whatever that endpoint returned, once the server verified it. */
   onSignedIn: (data: any) => void;
   onError?: (message: string) => void;
+  /**
+   * Where Google should POST the credential in redirect mode. Setting this
+   * switches off the popup entirely: no popup to block, no window.opener to
+   * lose, and nothing for tracking prevention to interfere with. `onSignedIn`
+   * never fires in this mode — the browser leaves the page and comes back.
+   *
+   * Must be registered as an Authorised redirect URI on the OAuth client.
+   */
+  redirectUri?: string;
 }
 
-export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError }: Props) => {
+export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError, redirectUri }: Props) => {
   const clientId = useGoogleClientId();
   const holder = useRef<HTMLDivElement>(null);
   // Kept in a ref so re-renders never re-initialise GIS with a stale callback.
@@ -100,6 +109,9 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
 
         window.google.accounts.id.initialize({
           client_id: clientId,
+          ...(redirectUri
+            ? { ux_mode: "redirect", login_uri: redirectUri }
+            : {}),
           // Never sign someone in without them asking.
           auto_select: false,
           // Helps Safari and other browsers with tracking prevention, where the
@@ -157,7 +169,7 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
       .catch(err => onErrorRef.current?.(err.message));
 
     return () => { cancelled = true; };
-  }, [clientId, endpoint]);
+  }, [clientId, endpoint, redirectUri]);
 
   if (!clientId) return null;
 

@@ -9,4 +9,6 @@ module.exports = {
     // until this is set, so shipping the code does not enable a half-configured
     // login.
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+    // Where to send the browser back to after Google's redirect-mode sign-in.
+    appUrl: (process.env.APP_URL || 'https://cricbid.online').replace(/\/$/, ''),
 }

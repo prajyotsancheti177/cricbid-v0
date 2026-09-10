@@ -1,5 +1,6 @@
 const userService = require("../services/userService");
 const { sendSuccess, sendError } = require("../utils");
+const config = require("../config");
 
 const createUser = async (req, res) => {
     try {
@@ -55,6 +56,45 @@ const setUserAccess = async (req, res) => {
         return sendSuccess(res, 200, "Access updated", updated);
     } catch (error) {
         return sendError(res, 400, error.message || "Could not update access", error);
+    }
+};
+
+/**
+ * POST /api/user/google-callback — Google's redirect-mode sign-in.
+ *
+ * The popup flow hands the credential back through `window.opener`, which fails
+ * in ways a site cannot see or fix: blocked popups, tracking prevention, and a
+ * hang on Google's own /gsi/transfer page. Redirect mode avoids all of it —
+ * Google POSTs the credential straight here as a normal form submission.
+ *
+ * Google sends `g_csrf_token` in both a cookie and the body; they must match.
+ * The cookie is absent on some browsers for a cross-site POST, so a missing
+ * cookie is tolerated while a MISMATCH is refused. The real control is the ID
+ * token itself, which is signed by Google and bound to our client id.
+ *
+ * Ends with a redirect carrying the session token in the URL FRAGMENT, which
+ * browsers never send to a server and which the login page strips immediately.
+ */
+const googleCallback = async (req, res) => {
+    const appUrl = config.appUrl;
+    try {
+        const bodyToken = req.body?.g_csrf_token;
+        const cookieToken = String(req.headers.cookie || '')
+            .split(';')
+            .map(c => c.trim())
+            .find(c => c.startsWith('g_csrf_token='))
+            ?.split('=')[1];
+
+        if (cookieToken && bodyToken && cookieToken !== bodyToken) {
+            return res.redirect(`${appUrl}/login?error=csrf`);
+        }
+
+        const user = await userService.loginWithGoogle(req.body?.credential);
+        return res.redirect(`${appUrl}/login#token=${encodeURIComponent(user.sessionToken)}`);
+    } catch (error) {
+        // The message is shown to the user, so keep it short and readable.
+        const msg = encodeURIComponent(error.message || "Google sign-in failed");
+        return res.redirect(`${appUrl}/login?error=${msg}`);
     }
 };
 
@@ -136,6 +176,7 @@ module.exports = {
     createUser,
     loginUser,
     googleLoginUser,
+    googleCallback,
     logoutUser,
     searchUsers,
     setUserAccess,
