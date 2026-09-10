@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EyeOff, Users } from "lucide-react";
 import { PlayerStatus, Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
+import { useCricHeroesStats } from "@/hooks/useCricHeroesStats";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { isFeatureOn, WorkspaceTournament } from "@/pages/workspace/TournamentWorkspace";
 
@@ -44,6 +45,8 @@ const Players = () => {
     if (search) params.q = search;
     setSearchParams(params, { replace: true });
   }, [filter, selectedCategory, search, setSearchParams]);
+
+  const cricHeroesStats = useCricHeroesStats(getSelectedTournamentId());
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -323,7 +326,7 @@ const Players = () => {
               key={player._id}
               variants={cardVariants}
             >
-              <PlayerCard player={player} onClick={handlePlayerClick} categories={categories as string[]} />
+              <PlayerCard player={player} onClick={handlePlayerClick} categories={categories as string[]} cricHeroes={cricHeroesStats[player._id]} />
             </motion.div>
           ))}
         </motion.div>

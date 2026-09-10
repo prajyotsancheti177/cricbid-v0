@@ -8,7 +8,24 @@ const { sendSuccess, sendError } = require("../utils");
 const { buildColumnPlan, readPlayerValue } = require("../utils/sheetColumns");
 const eventService = require("../services/eventService");
 const playerHistoryService = require("../services/playerHistoryService");
+const cricHeroesSyncService = require("../services/cricHeroesSyncService");
 
+
+/**
+ * CricHeroes stats for a tournament's players, keyed by CricBid player id.
+ * Public: it feeds the players grid and the auction viewer, both of which are
+ * viewable without a login.
+ */
+const cricHeroesStats = async (req, res) => {
+    try {
+        const touranmentId = req.params.tournamentId;
+        const stats = await cricHeroesSyncService.statsForTournament(touranmentId);
+        return sendSuccess(res, 200, "CricHeroes stats fetched", stats);
+    } catch (error) {
+        // Enrichment must never take a page down with it.
+        return sendError(res, 500, "Failed to fetch CricHeroes stats", error);
+    }
+}
 
 const registerPlayer = async (req, res) => {
     try {
@@ -335,6 +352,7 @@ const getOverlayStats = async (req, res) => {
 }
 
 module.exports = {
+    cricHeroesStats,
     registerPlayer,
     registerPlayerPublic,
     allPlayerDetails,

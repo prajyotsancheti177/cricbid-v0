@@ -22,6 +22,9 @@ playerRouter.post("/update", authMiddleware, playerController.updatePlayer);
 // Delete Player - Protected
 playerRouter.post("/delete", authMiddleware, playerController.deletePlayer);
 
+// CricHeroes stats for a tournament's players - Public (for viewing)
+playerRouter.get("/cricheroes-stats/:tournamentId", playerController.cricHeroesStats);
+
 // Get All Player Categories - Public (for viewing)
 playerRouter.post("/categories", playerController.getPlayerCategories);
 

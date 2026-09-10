@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { AuctionPlayerCard } from "@/components/auction/AuctionPlayerCard";
+import { useCricHeroesStats } from "@/hooks/useCricHeroesStats";
 import { SoldCelebration } from "@/components/auction/SoldCelebration";
 import { UnsoldAnimation } from "@/components/auction/UnsoldAnimation";
 import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
@@ -78,6 +79,8 @@ const Auction = () => {
     infoMessage,
     actions
   } = useAuctionSocket(tournamentId || undefined, user?._id);
+
+  const cricHeroesStats = useCricHeroesStats(tournamentId);
 
   // Derived State
   const currentPlayer = auctionState?.currentPlayer || null;
@@ -601,6 +604,7 @@ const Auction = () => {
                   leadingTeamName={teams.find(t => t._id === leadingTeam)?.name}
                   leadingTeamLogo={getDriveThumbnail(teams.find(t => t._id === leadingTeam)?.logo || "")}
                   bidPrice={bidPrice}
+                  cricHeroes={currentPlayer ? cricHeroesStats[currentPlayer._id] : undefined}
                 />
               )}
             </div>

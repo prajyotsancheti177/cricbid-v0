@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
+import { CricHeroesStats } from "@/components/player/CricHeroesStats";
+import type { CricHeroesStat } from "@/hooks/useCricHeroesStats";
 
 interface PlayerCardProps {
   player: Player | null; // Allow null
@@ -15,10 +17,12 @@ interface PlayerCardProps {
   leadingTeamLogo?: string;
   bidPrice?: number;
   onClick?: (player: Player) => void;
+  /** CricHeroes career numbers, when this player has a confirmed match. */
+  cricHeroes?: CricHeroesStat;
 }
 
 
-export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, currentBid, leadingTeamName, leadingTeamLogo, bidPrice, onClick }: PlayerCardProps) => {
+export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, currentBid, leadingTeamName, leadingTeamLogo, bidPrice, onClick, cricHeroes }: PlayerCardProps) => {
   const maskingEligible = useMaskingEligible(player?.touranmentId);
 
   if (!player) {
@@ -157,6 +161,12 @@ export const AuctionPlayerCard = ({ player, isAnimated, isSold, className, curre
                 Base: {player.basePrice} Pts | Increment: {bidPrice} Pts
               </p>
             </div>
+          )}
+
+          {/* CricHeroes career numbers — the last thing read before a bid.
+              Hidden below sm so it can never squeeze the bid on a phone. */}
+          {currentBid !== undefined && (
+            <CricHeroesStats stat={cricHeroes} variant="band" className="hidden sm:block mx-1 md:mx-4 mt-1 md:mt-2" />
           )}
 
           {/* Bid Display - Center of right side, takes available space */}

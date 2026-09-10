@@ -389,8 +389,61 @@ const syncTournament = async (tournamentId, options = {}) => {
     return summary;
 };
 
+
+/**
+ * Stats for every linked player in a tournament, keyed by CricBid player id.
+ *
+ * Only `linked` rows are returned — an ambiguous match is a guess, and a guess
+ * shown on an auction card is worse than showing nothing.
+ *
+ * @param {string} tournamentId
+ * @returns {Promise<Object>} `{ [playerId]: stat }`
+ */
+const statsForTournament = async (tournamentId) => {
+    const links = await prisma.cricHeroesLink.findMany({
+        where: { tournamentId, status: 'linked', cricheroesPlayerId: { not: null } },
+        select: { playerId: true, cricheroesPlayerId: true }
+    });
+    if (links.length === 0) return {};
+
+    const stats = await prisma.cricHeroesStat.findMany({
+        where: { cricheroesPlayerId: { in: links.map((l) => l.cricheroesPlayerId) } }
+    });
+    const byCricHeroesId = new Map(stats.map((s) => [s.cricheroesPlayerId, s]));
+
+    const out = {};
+    for (const link of links) {
+        const stat = byCricHeroesId.get(link.cricheroesPlayerId);
+        if (stat) out[link.playerId] = toCardShape(stat);
+    }
+    return out;
+};
+
+/**
+ * The subset of a stat row the cards actually render.
+ *
+ * `ballTypes` and `overs` are the honest-context line: these are 5-over
+ * tennis-ball numbers, and a 218 strike rate read as a 20-over figure is a
+ * misleading number, not an impressive one.
+ */
+const toCardShape = (s) => ({
+    cricheroesPlayerId: s.cricheroesPlayerId,
+    name: s.name,
+    matches: s.totalMatches,
+    runs: s.totalRuns,
+    wickets: s.totalWickets,
+    average: s.battingAverage,
+    strikeRate: s.battingStrikeRate,
+    highestScore: s.highestScore,
+    economy: s.bowlingEconomy,
+    bestBowling: s.bestBowling,
+    catches: s.catches,
+    fetchedAt: s.fetchedAt
+});
+
 module.exports = {
     syncTournament,
+    statsForTournament,
     refreshStats,
     selectPlayersToSync,
     // exported for tests / manual checks

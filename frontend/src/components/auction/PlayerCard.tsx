@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
+import { CricHeroesStats } from "@/components/player/CricHeroesStats";
+import type { CricHeroesStat } from "@/hooks/useCricHeroesStats";
 
 interface PlayerCardProps {
   player: Player;
@@ -11,6 +13,8 @@ interface PlayerCardProps {
   className?: string;
   onClick?: (player: Player) => void;
   categories?: string[]; // Array of categories from tournament for dynamic coloring
+  /** CricHeroes career numbers, when this player has a confirmed match. */
+  cricHeroes?: CricHeroesStat;
 }
 
 // Color palette for categories - subtle, theme-consistent colors
@@ -23,7 +27,7 @@ const CATEGORY_COLORS = [
   "bg-fuchsia-500/80 text-white border border-fuchsia-400", // 6th - Subtle fuchsia
 ];
 
-export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, categories = [] }: PlayerCardProps) => {
+export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, categories = [], cricHeroes }: PlayerCardProps) => {
   const formatPrice = (price: number) => {
     if (price >= 100) {
       return `${price} Pts`;
@@ -146,6 +150,9 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
           )}
         </div>
       </div>
+
+      {/* CricHeroes career numbers — renders nothing without a confirmed match */}
+      <CricHeroesStats stat={cricHeroes} variant="strip" />
 
       {/* Skill subsection - accent bottom strip */}
       {player.skill && (
