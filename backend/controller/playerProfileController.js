@@ -1,4 +1,5 @@
 const playerProfileService = require("../services/playerProfileService");
+const config = require("../config");
 const { sendSuccess, sendError } = require("../utils");
 
 const registerProfile = async (req, res) => {
@@ -60,4 +61,26 @@ const lookupProfile = async (req, res) => {
     }
 };
 
-module.exports = { registerProfile, loginProfile, getMe, updateMe, logoutProfile, lookupProfile };
+/**
+ * POST /api/player-profile/google — sign in with a Google ID token.
+ */
+const googleLogin = async (req, res) => {
+    try {
+        const result = await playerProfileService.loginWithGoogle(req.body?.credential);
+        return sendSuccess(res, 200, "Signed in with Google", result);
+    } catch (error) {
+        return sendError(res, 401, error.message || "Google sign-in failed", error);
+    }
+}
+
+/** Whether Google sign-in is configured, so the button can hide itself. */
+const authConfig = async (_req, res) => {
+    return sendSuccess(res, 200, "Auth config", {
+        googleClientId: config.googleClientId,
+        googleEnabled: Boolean(config.googleClientId),
+    });
+}
+
+module.exports = {
+    googleLogin,
+    authConfig, registerProfile, loginProfile, getMe, updateMe, logoutProfile, lookupProfile };

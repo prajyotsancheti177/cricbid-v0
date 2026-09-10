@@ -8,6 +8,8 @@ const playerProfileRouter = express.Router();
 playerProfileRouter.post("/register", playerProfileController.registerProfile);
 playerProfileRouter.post("/login", playerProfileController.loginProfile);
 playerProfileRouter.post("/lookup", playerProfileController.lookupProfile);
+playerProfileRouter.post("/google", playerProfileController.googleLogin);
+playerProfileRouter.get("/auth-config", playerProfileController.authConfig);
 
 // Protected — requires x-player-token header
 playerProfileRouter.get("/me", playerProfileAuthMiddleware, playerProfileController.getMe);

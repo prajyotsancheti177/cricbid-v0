@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, User, LogIn } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { GoogleSignInButton, useGoogleClientId } from "@/components/auth/GoogleSignInButton";
 
 interface PlayerProfile {
   id: string;
@@ -43,14 +44,17 @@ export const fetchProfileWithToken = async (token: string): Promise<PlayerProfil
   }
 };
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "mobile";
 
 const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
   const [mode, setMode] = useState<Mode>("login");
+  const googleEnabled = Boolean(useGoogleClientId());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [mobile, setMobile] = useState("");
+  /** Session from a Google sign-in that still owes us a phone number. */
+  const [pendingGoogle, setPendingGoogle] = useState<{ token: string; profile: PlayerProfile } | null>(null);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -66,6 +70,49 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
   const switchMode = (m: Mode) => {
     setMode(m);
     setError("");
+  };
+
+  /**
+   * Google has verified who they are; we still need the number, because that is
+   * what ties a profile to tournament registrations and to WhatsApp. Asked once,
+   * and stored unverified until an OTP can prove it.
+   */
+  const handleGoogleSignedIn = (result: { token: string; profile: any; needsMobile: boolean }) => {
+    setError("");
+    localStorage.setItem(STORAGE_KEY, result.token);
+    if (result.needsMobile) {
+      setPendingGoogle({ token: result.token, profile: result.profile });
+      setMode("mobile");
+      return;
+    }
+    onProfileLoaded(result.profile);
+    reset();
+    onClose();
+  };
+
+  const saveGoogleMobile = async () => {
+    const digits = mobile.replace(/\D/g, "");
+    if (digits.length < 10) { setError("Enter a valid 10-digit mobile number"); return; }
+    if (!pendingGoogle) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player-profile/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-player-token": pendingGoogle.token },
+        body: JSON.stringify({ mobile: digits }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not save your number");
+      onProfileLoaded(data.data);
+      setPendingGoogle(null);
+      reset();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Could not save your number");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -143,11 +190,55 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {mode === "login" ? <LogIn className="w-5 h-5" /> : <User className="w-5 h-5" />}
-            {mode === "login" ? "Login to your CricBid Profile" : "Create CricBid Profile"}
+            {mode === "mobile" ? "One last thing"
+              : mode === "login" ? "Login to your CricBid Profile" : "Create CricBid Profile"}
           </DialogTitle>
         </DialogHeader>
 
+        {/* Google first — it is one tap and needs nothing remembered. */}
+        {mode !== "mobile" && googleEnabled && (
+          <div className="space-y-3">
+            <GoogleSignInButton onSignedIn={handleGoogleSignedIn} onError={setError} />
+            <div className="flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or use a mobile number
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </div>
+        )}
+
+        {/* Google is verified; we still need the number that ties this profile
+            to registrations and WhatsApp. */}
+        {mode === "mobile" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Signed in as <span className="font-medium text-foreground">{pendingGoogle?.profile?.name || pendingGoogle?.profile?.email}</span>.
+              Add your mobile number so hosts can reach you about your registrations.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="pp-google-mobile">Mobile Number *</Label>
+              <Input
+                id="pp-google-mobile"
+                type="tel"
+                inputMode="numeric"
+                placeholder="10-digit mobile number"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveGoogleMobile(); }}
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+            )}
+            <Button className="w-full" onClick={saveGoogleMobile} disabled={loading}>
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save & Continue
+            </Button>
+          </div>
+        )}
+
         {/* Mode switcher */}
+        {mode !== "mobile" && (
         <div className="flex rounded-md border border-border overflow-hidden text-sm">
           <button
             type="button"
@@ -164,7 +255,9 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
             Create Profile
           </button>
         </div>
+        )}
 
+        {mode !== "mobile" && (
         <div className="space-y-4">
           {mode === "register" && (
             <div className="space-y-1">
@@ -241,6 +334,7 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
             </p>
           )}
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

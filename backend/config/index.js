@@ -4,5 +4,9 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 module.exports = {
     port: process.env.PORT,
     mongoDBUri: process.env.MONGO_DB_URI,
-    metaApiKey: process.env.META_API_KEY
+    metaApiKey: process.env.META_API_KEY,
+    // Web OAuth client id from Google Cloud Console. Google sign-in stays off
+    // until this is set, so shipping the code does not enable a half-configured
+    // login.
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
 }
