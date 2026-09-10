@@ -19,6 +19,18 @@ const loginUser = async (req, res) => {
     }
 };
 
+/** POST /api/user/google-login — sign in an existing host with Google. */
+const googleLoginUser = async (req, res) => {
+    try {
+        const user = await userService.loginWithGoogle(req.body?.credential);
+        return sendSuccess(res, 200, "Login successful", user);
+    } catch (error) {
+        // The message matters here: "not registered" is actionable, and there
+        // is no account to enumerate that an administrator did not already make.
+        return sendError(res, 401, error.message || "Google sign-in failed", error);
+    }
+};
+
 const getUserDetail = async (req, res) => {
     try {
         // Use targetUserId if provided (for viewing other users), otherwise fallback to authenticated userId
@@ -86,6 +98,7 @@ const deleteUser = async (req, res) => {
 module.exports = {
     createUser,
     loginUser,
+    googleLoginUser,
     getUserDetail,
     getUsersByCreator,
     getUsersInHierarchy,

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { GoogleSignInButton, useGoogleClientId } from "@/components/auth/GoogleSignInButton";
 import { trackEvent } from "@/lib/eventTracker";
 
 const Login = () => {
@@ -20,6 +21,7 @@ const Login = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const googleEnabled = Boolean(useGoogleClientId());
   const [error, setError] = useState("");
 
   // Redirect if already authenticated
@@ -49,6 +51,25 @@ const Login = () => {
     setError("");
   };
 
+  /** Everything that happens once a login is accepted, whichever way it came. */
+  const completeLogin = (user: any, method: "password" | "google") => {
+    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("isAuthenticated", "true");
+
+    trackEvent("login", { role: user.role, userId: user._id, method });
+
+    toast({
+      title: "Login Successful",
+      description: `Welcome back, ${user.name}!`,
+    });
+
+    if (user.role === 'boss' || user.role === 'super_user') {
+      navigate("/users");
+    } else {
+      navigate("/tournaments");
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -72,24 +93,7 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Save user data to localStorage
-        localStorage.setItem("user", JSON.stringify(data.data));
-        localStorage.setItem("isAuthenticated", "true");
-
-        // Track successful login
-        trackEvent("login", { role: data.data.role, userId: data.data._id });
-
-        toast({
-          title: "Login Successful",
-          description: `Welcome back, ${data.data.name}!`,
-        });
-
-        // Redirect based on role
-        if (data.data.role === 'boss' || data.data.role === 'super_user') {
-          navigate("/users");
-        } else {
-          navigate("/tournaments");
-        }
+        completeLogin(data.data, "password");
       } else {
         setError(data.message || "Login failed. Please check your credentials.");
       }
@@ -123,6 +127,21 @@ const Login = () => {
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+
+          {googleEnabled && (
+            <div className="space-y-3 mb-4">
+              <GoogleSignInButton
+                endpoint="/api/user/google-login"
+                onSignedIn={(user) => completeLogin(user, "google")}
+                onError={setError}
+              />
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or use your password
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">

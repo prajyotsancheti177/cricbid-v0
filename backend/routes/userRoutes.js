@@ -6,6 +6,9 @@ const userRouter = express.Router();
 // User Login (public)
 userRouter.post("/login", userController.loginUser);
 
+// Sign in with Google (public) — matches an existing user, never creates one
+userRouter.post("/google-login", userController.googleLoginUser);
+
 // Create User - Protected
 userRouter.post("/create", authMiddleware, userController.createUser);
 

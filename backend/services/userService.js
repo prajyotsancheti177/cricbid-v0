@@ -1,5 +1,7 @@
 const prisma = require("../db/prisma");
 const { encrypt, decrypt } = require('../utils/encryDecry');
+const { OAuth2Client } = require('google-auth-library');
+const config = require('../config');
 
 // Permission columns -> permissions{} object (preserves the old API shape)
 const permsOf = (u) => ({
@@ -136,6 +138,72 @@ const loginUser = async (credentials) => {
     const isPasswordValid = decrypt(password, user.password);
     if (!isPasswordValid) {
         throw new Error("Invalid email or password");
+    }
+
+    const s = serializeUser(user);
+    delete s.createdBy;
+    delete s.updatedAt;
+    return s;
+};
+
+/**
+ * Sign in with Google.
+ *
+ * A host is never CREATED by signing in — the Google account is matched to a
+ * user an administrator already made. Without that rule anyone with a Google
+ * account could sign in and be handed a tournament_host role, which is the
+ * whole reason this is not the same flow as a player account.
+ *
+ * The match is on the Google-verified email. An unverified one proves nothing
+ * about who controls the address, so it is refused.
+ *
+ * @param {string} credential - ID token from Google Identity Services
+ * @returns {Promise<Object>} the same serialized user shape as loginUser
+ */
+const loginWithGoogle = async (credential) => {
+    if (!config.googleClientId) throw new Error("Google sign-in is not configured");
+    if (!credential) throw new Error("Missing Google credential");
+
+    const client = new OAuth2Client(config.googleClientId);
+    let payload;
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: config.googleClientId,
+        });
+        payload = ticket.getPayload();
+    } catch {
+        throw new Error("Could not verify that Google sign-in");
+    }
+
+    if (!payload?.sub) throw new Error("Could not verify that Google sign-in");
+    if (payload.email_verified !== true || !payload.email) {
+        throw new Error("That Google account has no verified email address");
+    }
+
+    const email = String(payload.email).toLowerCase();
+
+    // Prefer the recorded link; fall back to the email for a first sign-in.
+    let user = await prisma.user.findUnique({ where: { googleSub: payload.sub } });
+    if (!user) {
+        user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            // Deliberately explicit rather than "invalid credentials": there is
+            // nothing to guess here, and a host locked out by a typo in their
+            // email should be told what actually happened.
+            throw new Error("This Google account is not registered on CricBid. Ask an administrator to add you first.");
+        }
+        if (user.googleSub && user.googleSub !== payload.sub) {
+            throw new Error("Another Google account is already linked to this CricBid user");
+        }
+        user = await prisma.user.update({
+            where: { id: user.id },
+            data: { googleSub: payload.sub },
+        });
+    }
+
+    if (!user.isActive) {
+        throw new Error("Your account has been deactivated. Please contact support.");
     }
 
     const s = serializeUser(user);
@@ -299,6 +367,7 @@ const deleteUser = async (userId, hardDelete = false) => {
 };
 
 module.exports = {
+    loginWithGoogle,
     createUser,
     loginUser,
     getUserDetail,

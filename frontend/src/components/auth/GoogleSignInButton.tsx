@@ -68,12 +68,19 @@ export const useGoogleClientId = (): string | null => {
 };
 
 interface Props {
-  /** Called with the session token and account once the server has verified. */
-  onSignedIn: (result: { token: string; account: any }) => void;
+  /**
+   * Where to send the Google credential for verification. Players and hosts
+   * are separate identities with separate rules — a player account is created
+   * on first sign-in, a host is only ever matched to one an administrator
+   * already made — so they verify at different endpoints.
+   */
+  endpoint?: string;
+  /** Called with whatever that endpoint returned, once the server verified it. */
+  onSignedIn: (data: any) => void;
   onError?: (message: string) => void;
 }
 
-export const GoogleSignInButton = ({ onSignedIn, onError }: Props) => {
+export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError }: Props) => {
   const clientId = useGoogleClientId();
   const holder = useRef<HTMLDivElement>(null);
   // Kept in a ref so re-renders never re-initialise GIS with a stale callback.
@@ -98,7 +105,7 @@ export const GoogleSignInButton = ({ onSignedIn, onError }: Props) => {
               return;
             }
             try {
-              const res = await fetch(`${apiConfig.baseUrl}/api/player-profile/google`, {
+              const res = await fetch(`${apiConfig.baseUrl}${endpoint}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ credential: response.credential }),
@@ -123,7 +130,7 @@ export const GoogleSignInButton = ({ onSignedIn, onError }: Props) => {
       .catch(err => onErrorRef.current?.(err.message));
 
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, endpoint]);
 
   if (!clientId) return null;
 
