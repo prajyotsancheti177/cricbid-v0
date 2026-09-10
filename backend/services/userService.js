@@ -1,7 +1,11 @@
 const prisma = require("../db/prisma");
 const { encrypt, decrypt } = require('../utils/encryDecry');
+const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const config = require('../config');
+
+// Matches the player session length.
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 // Permission columns -> permissions{} object (preserves the old API shape)
 const permsOf = (u) => ({
@@ -187,28 +191,183 @@ const loginWithGoogle = async (credential) => {
     let user = await prisma.user.findUnique({ where: { googleSub: payload.sub } });
     if (!user) {
         user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-            // Deliberately explicit rather than "invalid credentials": there is
-            // nothing to guess here, and a host locked out by a typo in their
-            // email should be told what actually happened.
-            throw new Error("This Google account is not registered on CricBid. Ask an administrator to add you first.");
-        }
-        if (user.googleSub && user.googleSub !== payload.sub) {
+
+        if (user && user.googleSub && user.googleSub !== payload.sub) {
             throw new Error("Another Google account is already linked to this CricBid user");
         }
-        user = await prisma.user.update({
-            where: { id: user.id },
-            data: { googleSub: payload.sub },
-        });
+
+        if (user) {
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: { googleSub: payload.sub, emailVerified: true, name: user.name || payload.name || null },
+            });
+        } else {
+            // Anyone may sign in, and everyone starts as a player. A role is
+            // something a boss grants afterwards to someone who already exists
+            // — signing in never confers access to anything.
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    name: payload.name || null,
+                    googleSub: payload.sub,
+                    emailVerified: true,
+                    role: 'player',
+                    password: null,
+                },
+            });
+        }
     }
 
     if (!user.isActive) {
         throw new Error("Your account has been deactivated. Please contact support.");
     }
 
+    const token = crypto.randomBytes(32).toString('hex');
+    const withSession = await prisma.user.update({
+        where: { id: user.id },
+        data: { sessionToken: token, sessionExpiresAt: new Date(Date.now() + SESSION_TTL_MS) },
+    });
+
+    const s = serializeUser(withSession);
+    delete s.createdBy;
+    delete s.updatedAt;
+    return { ...s, sessionToken: token };
+};
+
+/**
+ * Resolve a session token to its user, or null when unknown or expired.
+ */
+const getUserBySessionToken = async (token) => {
+    if (!token) return null;
+    const user = await prisma.user.findUnique({ where: { sessionToken: token } });
+    if (!user) return null;
+    if (user.sessionExpiresAt && user.sessionExpiresAt.getTime() < Date.now()) {
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { sessionToken: null, sessionExpiresAt: null },
+        });
+        return null;
+    }
     const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
+    return s;
+};
+
+/**
+ * Search people to grant access to.
+ *
+ * Only finds people who have already signed in at least once — a role is
+ * granted to an account that exists, so someone who has never signed in cannot
+ * be promoted in advance. Worth knowing before hunting for a colleague who is
+ * not there yet.
+ *
+ * @param {string} query - matched against name and email, case-insensitively
+ * @param {{ role?: string, limit?: number }} options
+ */
+const searchUsers = async (query, { role, limit = 25 } = {}) => {
+    const q = String(query || '').trim();
+    const where = {};
+    if (q) {
+        where.OR = [
+            { name: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+        ];
+    }
+    if (role) where.role = role;
+
+    const users = await prisma.user.findMany({
+        where,
+        orderBy: [{ role: 'asc' }, { name: 'asc' }],
+        take: Math.min(Number(limit) || 25, 100),
+        include: {
+            tournamentAccess: {
+                select: { tournamentId: true, tournament: { select: { name: true } } },
+            },
+        },
+    });
+
+    return users.map((u) => {
+        const s = serializeUser(u);
+        delete s.createdBy;
+        s.tournamentAccess = (u.tournamentAccess || []).map((a) => ({
+            tournamentId: a.tournamentId,
+            tournamentName: a.tournament?.name || null,
+        }));
+        return s;
+    });
+};
+
+/**
+ * Set someone's role, and — for a tournament host — exactly which tournaments
+ * they may work on.
+ *
+ * Grants are additive to ownership: a host keeps whatever they created. Passing
+ * `tournamentIds` replaces the granted set, so unticking one revokes it.
+ *
+ * @param {string} actorId - the boss/super_user making the change
+ * @param {{ userId: string, role?: string, tournamentIds?: string[] }} input
+ */
+const setUserAccess = async (actorId, { userId, role, tournamentIds }) => {
+    if (!userId) throw new Error("User is required");
+
+    const actor = await prisma.user.findUnique({ where: { id: actorId } });
+    if (!actor || !actor.isActive) throw new Error("Not permitted");
+    if (actor.role !== 'boss' && actor.role !== 'super_user') throw new Error("Not permitted");
+
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) throw new Error("User not found");
+
+    // Only a boss may create or unmake another boss, and nobody may demote
+    // themselves out of the role that lets them fix it afterwards.
+    if (role && role !== target.role) {
+        if ((role === 'boss' || target.role === 'boss') && actor.role !== 'boss') {
+            throw new Error("Only a boss can change boss access");
+        }
+        if (target.id === actor.id) {
+            throw new Error("You cannot change your own role");
+        }
+    }
+
+    const validRoles = ['boss', 'super_user', 'tournament_host', 'player'];
+    if (role && !validRoles.includes(role)) throw new Error("Unknown role");
+
+    await prisma.$transaction(async (tx) => {
+        if (role && role !== target.role) {
+            await tx.user.update({ where: { id: userId }, data: { role } });
+        }
+
+        if (Array.isArray(tournamentIds)) {
+            const effectiveRole = role || target.role;
+            // A boss or super_user already sees everything, and a player sees
+            // nothing, so per-tournament grants only mean anything for a host.
+            const keep = effectiveRole === 'tournament_host' ? tournamentIds : [];
+
+            await tx.tournamentAccess.deleteMany({
+                where: { userId, tournamentId: { notIn: keep.length ? keep : ['__none__'] } },
+            });
+
+            for (const tournamentId of keep) {
+                await tx.tournamentAccess.upsert({
+                    where: { userId_tournamentId: { userId, tournamentId } },
+                    create: { userId, tournamentId, grantedById: actorId },
+                    update: {},
+                });
+            }
+        }
+    });
+
+    const updated = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { tournamentAccess: { select: { tournamentId: true, tournament: { select: { name: true } } } } },
+    });
+
+    const s = serializeUser(updated);
+    delete s.createdBy;
+    s.tournamentAccess = (updated.tournamentAccess || []).map((a) => ({
+        tournamentId: a.tournamentId,
+        tournamentName: a.tournament?.name || null,
+    }));
     return s;
 };
 
@@ -368,6 +527,9 @@ const deleteUser = async (userId, hardDelete = false) => {
 
 module.exports = {
     loginWithGoogle,
+    searchUsers,
+    setUserAccess,
+    getUserBySessionToken,
     createUser,
     loginUser,
     getUserDetail,

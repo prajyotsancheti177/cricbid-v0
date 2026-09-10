@@ -74,8 +74,15 @@ const getAllTournaments = async () => {
  */
 const getTournamentsByHost = async (hostId) => {
     try {
+        // Owned OR granted. A host keeps the tournaments they created and gains
+        // whatever a boss has ticked for them in user management.
         const tournaments = await prisma.tournament.findMany({
-            where: { tournamentHostId: hostId },
+            where: {
+                OR: [
+                    { tournamentHostId: hostId },
+                    { access: { some: { userId: hostId } } },
+                ],
+            },
             orderBy: { createdAt: 'desc' },
         });
         return tournaments.map(serializeTournament);

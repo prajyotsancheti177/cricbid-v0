@@ -31,6 +31,33 @@ const googleLoginUser = async (req, res) => {
     }
 };
 
+/** GET /api/user/search?q=&role= — find someone to grant access to. */
+const searchUsers = async (req, res) => {
+    try {
+        const users = await userService.searchUsers(req.query.q, {
+            role: req.query.role || undefined,
+            limit: req.query.limit,
+        });
+        return sendSuccess(res, 200, "Users fetched", users);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Search failed", error);
+    }
+};
+
+/** POST /api/user/set-access — change a role and, for a host, their tournaments. */
+const setUserAccess = async (req, res) => {
+    try {
+        const updated = await userService.setUserAccess(req.userId, {
+            userId: req.body.targetUserId,
+            role: req.body.role,
+            tournamentIds: req.body.tournamentIds,
+        });
+        return sendSuccess(res, 200, "Access updated", updated);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not update access", error);
+    }
+};
+
 const getUserDetail = async (req, res) => {
     try {
         // Use targetUserId if provided (for viewing other users), otherwise fallback to authenticated userId
@@ -99,6 +126,8 @@ module.exports = {
     createUser,
     loginUser,
     googleLoginUser,
+    searchUsers,
+    setUserAccess,
     getUserDetail,
     getUsersByCreator,
     getUsersInHierarchy,

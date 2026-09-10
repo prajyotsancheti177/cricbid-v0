@@ -1,12 +1,20 @@
 const playerProfileService = require("../services/playerProfileService");
+const userService = require("../services/userService");
 const config = require("../config");
 const { sendSuccess, sendError } = require("../utils");
 
 /** POST /api/player-profile/google — sign in with a Google ID token. */
 const googleLogin = async (req, res) => {
     try {
-        const result = await playerProfileService.loginWithGoogle(req.body?.credential);
-        return sendSuccess(res, 200, "Signed in with Google", result);
+        // Same sign-in as the admin login — there is one identity now, and the
+        // role on it decides what the caller can do. A first-time signer-in is
+        // created as a `player`.
+        const user = await userService.loginWithGoogle(req.body?.credential);
+        const account = await playerProfileService.getAccountByToken(user.sessionToken);
+        return sendSuccess(res, 200, "Signed in with Google", {
+            token: user.sessionToken,
+            account,
+        });
     } catch (error) {
         return sendError(res, 401, error.message || "Google sign-in failed", error);
     }

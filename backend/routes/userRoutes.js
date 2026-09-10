@@ -1,6 +1,6 @@
 const express = require('express');
 const userController = require('../controller/userController');
-const { authMiddleware } = require('../utils/authMiddleware');
+const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
 const userRouter = express.Router();
 
 // User Login (public)
@@ -11,6 +11,12 @@ userRouter.post("/google-login", userController.googleLoginUser);
 
 // Create User - Protected
 userRouter.post("/create", authMiddleware, userController.createUser);
+
+// Find someone to grant access to - boss/super_user only
+userRouter.get("/search", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.searchUsers);
+
+// Grant/change a role and a host's tournaments - boss/super_user only
+userRouter.post("/set-access", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.setUserAccess);
 
 // Get User Details - Protected
 userRouter.post("/detail", authMiddleware, userController.getUserDetail);

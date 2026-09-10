@@ -1,7 +1,6 @@
 const crypto = require("crypto");
 const prisma = require("../db/prisma");
-const { OAuth2Client } = require("google-auth-library");
-const config = require("../config");
+const userService = require("./userService");
 
 /**
  * Player accounts and the players they own.
@@ -46,100 +45,29 @@ const buildProfileData = (data) => {
     return d;
 };
 
-/** An account and its players, with nothing secret in it. */
-const publicAccount = (account) => ({
-    id: account.id,
-    email: account.email,
-    emailVerified: account.emailVerified,
-    mobile: account.mobile,
-    mobileVerified: account.mobileVerified,
-    profiles: account.profiles || [],
-});
-
-/**
- * Sign in with Google.
- *
- * Verifies the ID token against Google's own keys — a `sub` or an email the
- * client hands us proves nothing — then finds or creates the account.
- *
- * Deliberately does NOT adopt one of the profiles auto-created by public
- * registration, even when the emails or numbers match. Those rows are unowned
- * and hold another person's name, photo and address; claiming one on an
- * unproven signal is an account takeover with extra steps.
- *
- * @param {string} credential - ID token from Google Identity Services
- * @returns {Promise<{token: string, account: Object}>}
- */
-const loginWithGoogle = async (credential) => {
-    if (!config.googleClientId) throw new Error("Google sign-in is not configured");
-    if (!credential) throw new Error("Missing Google credential");
-
-    const client = new OAuth2Client(config.googleClientId);
-    let payload;
-    try {
-        const ticket = await client.verifyIdToken({
-            idToken: credential,
-            audience: config.googleClientId,
-        });
-        payload = ticket.getPayload();
-    } catch {
-        // Deliberately vague: a caller does not need to know which check failed.
-        throw new Error("Could not verify that Google sign-in");
-    }
-    if (!payload?.sub) throw new Error("Could not verify that Google sign-in");
-
-    // An unverified Google email is not proof of anything, so it is stored but
-    // never marked verified.
-    const emailVerified = payload.email_verified === true;
-
-    let account = await prisma.playerAccount.findUnique({ where: { googleSub: payload.sub } });
-    if (!account) {
-        account = await prisma.playerAccount.create({
-            data: { googleSub: payload.sub, email: payload.email || null, emailVerified },
-        });
-    }
-
-    const token = generateToken();
-    const updated = await prisma.playerAccount.update({
-        where: { id: account.id },
-        data: {
-            email: payload.email || account.email,
-            emailVerified,
-            sessionToken: token,
-            sessionExpiresAt: sessionExpiry(),
-        },
-        include: { profiles: { orderBy: { createdAt: 'asc' } } },
-    });
-
-    return { token, account: publicAccount(updated) };
-};
-
 /**
  * Resolve a session token to its account and players.
  * @returns {Promise<Object|null>} null when the token is unknown or expired
  */
 const getAccountByToken = async (token) => {
-    if (!token) return null;
-    const account = await prisma.playerAccount.findUnique({
-        where: { sessionToken: token },
-        include: { profiles: { orderBy: { createdAt: 'asc' } } },
+    const user = await userService.getUserBySessionToken(token);
+    if (!user) return null;
+    const profiles = await prisma.playerProfile.findMany({
+        where: { userId: user._id || user.id },
+        orderBy: { createdAt: 'asc' },
     });
-    if (!account) return null;
-
-    if (account.sessionExpiresAt && account.sessionExpiresAt.getTime() < Date.now()) {
-        await prisma.playerAccount.update({
-            where: { id: account.id },
-            data: { sessionToken: null, sessionExpiresAt: null },
-        });
-        return null;
-    }
-
-    return publicAccount(account);
+    return {
+        id: user._id || user.id,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        role: user.role,
+        profiles,
+    };
 };
 
-/** Every player this account owns. */
-const listProfiles = (accountId) =>
-    prisma.playerProfile.findMany({ where: { accountId }, orderBy: { createdAt: 'asc' } });
+/** Every player this user owns. */
+const listProfiles = (userId) =>
+    prisma.playerProfile.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } });
 
 /**
  * Add a player to an account — a second child, say.
@@ -147,10 +75,10 @@ const listProfiles = (accountId) =>
  * No uniqueness check on name or mobile: two siblings sharing one parent's
  * number is the case this split exists to support.
  */
-const createProfile = async (accountId, data) => {
+const createProfile = async (userId, data) => {
     const profileData = buildProfileData(data);
     if (!profileData.name) throw new Error("Player name is required");
-    return prisma.playerProfile.create({ data: { accountId, ...profileData } });
+    return prisma.playerProfile.create({ data: { userId, ...profileData } });
 };
 
 /**
@@ -159,9 +87,9 @@ const createProfile = async (accountId, data) => {
  * Ownership is checked here rather than trusted from the caller: a profile id
  * is guessable, and a session only proves which account is asking.
  */
-const updateProfile = async (accountId, profileId, data) => {
+const updateProfile = async (userId, profileId, data) => {
     const existing = await prisma.playerProfile.findUnique({ where: { id: profileId } });
-    if (!existing || existing.accountId !== accountId) throw new Error("Player not found");
+    if (!existing || existing.userId !== userId) throw new Error("Player not found");
     return prisma.playerProfile.update({
         where: { id: profileId },
         data: buildProfileData(data),
@@ -169,21 +97,20 @@ const updateProfile = async (accountId, profileId, data) => {
 };
 
 /** Remove a player from an account. */
-const deleteProfile = async (accountId, profileId) => {
+const deleteProfile = async (userId, profileId) => {
     const existing = await prisma.playerProfile.findUnique({ where: { id: profileId } });
-    if (!existing || existing.accountId !== accountId) throw new Error("Player not found");
+    if (!existing || existing.userId !== userId) throw new Error("Player not found");
     await prisma.playerProfile.delete({ where: { id: profileId } });
 };
 
-const logoutAccount = async (accountId) => {
-    await prisma.playerAccount.update({
-        where: { id: accountId },
+const logoutAccount = async (userId) => {
+    await prisma.user.update({
+        where: { id: userId },
         data: { sessionToken: null, sessionExpiresAt: null },
     });
 };
 
 module.exports = {
-    loginWithGoogle,
     getAccountByToken,
     listProfiles,
     createProfile,

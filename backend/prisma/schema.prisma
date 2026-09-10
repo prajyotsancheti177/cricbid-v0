@@ -22,10 +22,13 @@ datasource db {
 // Enums (well-bounded sets enforced by the app today)
 // ---------------------------------------------------------------------------
 
+// Everyone who signs in starts as `player`. A boss promotes from there — a
+// role is granted to someone who already exists, never created alongside them.
 enum Role {
   boss
   super_user
   tournament_host
+  player
 }
 
 enum AuctionMode {
@@ -53,8 +56,14 @@ model User {
   id       String  @id @default(cuid())
   name     String?
   email    String  @unique
-  password String
-  role     Role    @default(tournament_host)
+  // Null for anyone who only ever signs in with Google. The admins who predate
+  // Google sign-in keep theirs.
+  password String?
+  role     Role    @default(player)
+
+  emailVerified    Boolean   @default(false)
+  sessionToken     String?   @unique
+  sessionExpiresAt DateTime?
 
   // Set the first time this user signs in with Google. A host is never created
   // by signing in — the Google account is matched to a user an administrator
@@ -82,10 +91,14 @@ model User {
   venues              Venue[]              @relation("VenueOwner")
   bookings            Booking[]            @relation("BookingUser")
   teamBudgetTopups    TeamBudgetTopup[]
+  playerProfiles      PlayerProfile[]
+  tournamentAccess    TournamentAccess[]   @relation("AccessUser")
+  accessGranted       TournamentAccess[]   @relation("AccessGrantedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([name])
   @@map("user")
 }
 
@@ -118,6 +131,7 @@ model Tournament {
   auctionLiveState    AuctionLiveState?
   playerChanges       PlayerChange[]
   cricHeroesLinks     CricHeroesLink[]
+  access              TournamentAccess[]
   userEvents          UserEvent[]
   whatsappLogs        WhatsappLog[]
   backups             TournamentBackup[]
@@ -186,39 +200,7 @@ model TeamBudgetTopup {
   @@map("team_budget_topup")
 }
 
-// A login. One account, many players.
-//
-// Split from PlayerProfile because they answer different questions: this is who
-// is signed in, a profile is who is playing. A parent signs in once and
-// registers two children, so the two cannot be the same row.
-//
-// Two ways in, and no password: Google now, WhatsApp OTP later. Of the 570
-// profiles that existed before this split only 2 ever had a password, because
-// the rest were created silently by public registration and could never log in.
-model PlayerAccount {
-  id String @id @default(cuid())
 
-  googleSub     String? @unique
-  email         String?
-  emailVerified Boolean @default(false)
-
-  // The number this login has PROVED it owns — written only by OTP, never by
-  // something a player typed about themselves. Unique: one verified number, one
-  // login. A profile's `mobile` is contact information and is not this.
-  mobile         String? @unique
-  mobileVerified Boolean @default(false)
-
-  sessionToken     String?   @unique
-  sessionExpiresAt DateTime?
-
-  profiles PlayerProfile[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([email])
-  @@map("player_account")
-}
 
 // A player. Not a login — see PlayerAccount.
 //
@@ -231,8 +213,8 @@ model PlayerProfile {
   // Null for the 568 shells auto-created by public registration before accounts
   // existed. Unowned on purpose — handing one to whoever signs in with a
   // matching email or number would be an account takeover with extra steps.
-  accountId String?
-  account   PlayerAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name    String?
   age     Int?
@@ -246,7 +228,7 @@ model PlayerProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([accountId])
+  @@index([userId])
   @@index([mobile])
   @@map("player_profile")
 }
@@ -1040,4 +1022,29 @@ model CricHeroesStat {
 
   @@index([fetchedAt])
   @@map("cricheroes_stat")
+}
+
+/// Which tournaments a granted host may work on.
+///
+/// Additive: a host still owns whatever they created (Tournament.tournamentHostId)
+/// and gains whatever is granted here, so turning this on takes nothing away
+/// from the hosts who already have tournaments.
+model TournamentAccess {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("AccessUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Kept for the audit trail: a permissions table should say who granted what.
+  grantedById String?
+  grantedBy   User?   @relation("AccessGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tournamentId])
+  @@index([tournamentId])
+  @@map("tournament_access")
 }

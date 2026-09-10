@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, Trash2, Shield, Users, Crown } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { AccessManager } from "@/components/admin/AccessManager";
 
 interface User {
   _id: string;
@@ -230,6 +231,11 @@ const UserManagement = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {/* Grant a role to someone who has already signed in. This is the way
+          access is meant to be given now; creating a user with a password
+          below is the older path, kept for anyone without a Google account. */}
+      <AccessManager currentUser={currentUser} />
+
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
