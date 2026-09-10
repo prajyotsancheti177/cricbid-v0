@@ -4,7 +4,8 @@ const { sendSuccess, sendError } = require("../utils");
 const addTournamnet = async (req, res) => {
     try {
         // Extract user info from request (you may need to add auth middleware)
-        const { userId, userRole } = req.body; // Adjust based on your auth implementation
+        const userId = req.userId;
+        const userRole = req.userRole;
         
         const tournament = await tournamentService.createTournament(
             req.body, 
@@ -19,7 +20,7 @@ const addTournamnet = async (req, res) => {
 
 const getAllTournaments = async (req, res) => {
     try {
-        const { userRole, userId } = req.body; // Adjust based on your auth implementation
+        const userRole = req.userRole; const userId = req.userId;
         
         let tournaments;
         if (userRole === 'tournament_host') {
@@ -38,7 +39,9 @@ const getAllTournaments = async (req, res) => {
 
 const getTournamentDetail = async (req, res) => {
     try {
-        const { tournamentId, userId, userRole } = req.body;
+        const { tournamentId } = req.body;
+        const userId = req.userId;
+        const userRole = req.userRole;
         
         const tournament = await tournamentService.getTournamentDetail(
             tournamentId, 
@@ -53,7 +56,9 @@ const getTournamentDetail = async (req, res) => {
 
 const updateTournament = async (req, res) => {
     try {
-        const { tournamentId, userId, userRole, ...updateData } = req.body;
+        const { tournamentId, userId: _ignoredUserId, userRole: _ignoredRole, ...updateData } = req.body;
+        const userId = req.userId;
+        const userRole = req.userRole;
         
         const tournament = await tournamentService.updateTournament(
             tournamentId,
@@ -69,7 +74,9 @@ const updateTournament = async (req, res) => {
 
 const deleteTournament = async (req, res) => {
     try {
-        const { tournamentId, userId, userRole } = req.body;
+        const { tournamentId } = req.body;
+        const userId = req.userId;
+        const userRole = req.userRole;
         
         const tournament = await tournamentService.deleteTournament(
             tournamentId,

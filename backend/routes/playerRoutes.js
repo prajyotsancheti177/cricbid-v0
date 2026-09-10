@@ -1,11 +1,12 @@
 const express = require('express');
 const playerController = require('../controller/playerController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireTournamentAccess } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const playerRouter = express.Router();
 
 // Register New Player - Protected
-playerRouter.post("/register", authMiddleware, playerController.registerPlayer);
+playerRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.registerPlayer);
 
 // Register New Player - Public (From customizable registration link)
 playerRouter.post("/register-public", uploadMiddleware.any(), playerController.registerPlayerPublic);
@@ -17,10 +18,10 @@ playerRouter.post("/all", playerController.allPlayerDetails);
 playerRouter.post("/detail", playerController.getPlayerDetail);
 
 // Update Individual Player Details - Protected
-playerRouter.post("/update", authMiddleware, playerController.updatePlayer);
+playerRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.updatePlayer);
 
 // Delete Player - Protected
-playerRouter.post("/delete", authMiddleware, playerController.deletePlayer);
+playerRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.deletePlayer);
 
 // CricHeroes stats for a tournament's players - Public (for viewing)
 playerRouter.get("/cricheroes-stats/:tournamentId", playerController.cricHeroesStats);
@@ -29,22 +30,22 @@ playerRouter.get("/cricheroes-stats/:tournamentId", playerController.cricHeroesS
 playerRouter.post("/categories", playerController.getPlayerCategories);
 
 // Bulk Create Players - Protected
-playerRouter.post("/bulk-create", authMiddleware, playerController.bulkCreatePlayers);
+playerRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkCreatePlayers);
 
 // Reset Unsold Players - Protected (Admin and Tournament Host)
 playerRouter.post("/reset-unsold", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.resetUnsoldPlayers);
 
 // Bulk Update Existing Players - Protected
-playerRouter.post("/bulk-update", authMiddleware, playerController.bulkUpdatePlayers);
+playerRouter.post("/bulk-update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkUpdatePlayers);
 
 // Delete All Players for a Tournament - Protected
-playerRouter.post("/delete-all", authMiddleware, playerController.deleteAllPlayers);
+playerRouter.post("/delete-all", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.deleteAllPlayers);
 
 // Payment verification — gates a registered player's entry into the auction
-playerRouter.post("/verify-payments", authMiddleware, playerController.verifyPayments);
+playerRouter.post("/verify-payments", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.verifyPayments);
 
 // Close gaps in the auction serial numbers (pass preview:true to dry-run)
-playerRouter.post("/resequence-serials", authMiddleware, playerController.resequenceSerials);
+playerRouter.post("/resequence-serials", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.resequenceSerials);
 
 // Edit history and undo
 playerRouter.post("/history", authMiddleware, playerController.getPlayerHistory);
@@ -56,7 +57,7 @@ playerRouter.post("/undo", authMiddleware, playerController.undoPlayerChanges);
 // Tournament is the editing surface now. The export below is unaffected.
 
 // Push DB to Sheet - Protected
-playerRouter.post("/sync-to-sheet", authMiddleware, playerController.syncToSheet);
+playerRouter.post("/sync-to-sheet", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.syncToSheet);
 
 // Get Overlay Stats - Public (for overlay marquee and top players)
 playerRouter.post("/overlay-stats", playerController.getOverlayStats);

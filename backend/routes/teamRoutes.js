@@ -1,6 +1,7 @@
 const express = require('express');
 const teamController = require('../controller/teamController');
-const { authMiddleware } = require('../utils/authMiddleware');
+const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireTournamentAccess } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const teamRouter = express.Router();
 
@@ -8,7 +9,7 @@ const teamRouter = express.Router();
 teamRouter.post("/register-public", uploadMiddleware.any(), teamController.registerTeamPublic);
 
 // Register New Team - Protected
-teamRouter.post("/register", authMiddleware, teamController.addTeam);
+teamRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.addTeam);
 
 // Get All Team Details - Public (for viewing)
 teamRouter.post("/all", teamController.getTournamentTeamsReport);
@@ -21,7 +22,7 @@ teamRouter.post("/detail", teamController.getTeamReport);
 teamRouter.post("/update", uploadMiddleware.any(), authMiddleware, teamController.updateTeam);
 
 // Delete Individual Team - Protected
-teamRouter.post("/delete", authMiddleware, teamController.deleteTeam);
+teamRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.deleteTeam);
 
 // Top up a team's auction balance - Protected
 teamRouter.post("/topup-budget", authMiddleware, teamController.topUpTeamBudget);
@@ -39,9 +40,9 @@ teamRouter.post("/names", teamController.getTeamNames);
 teamRouter.post("/names-budget", teamController.getTeamNamesAndBudget);
 
 // Bulk Create Teams - Protected
-teamRouter.post("/bulk-create", authMiddleware, teamController.bulkCreateTeams);
+teamRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.bulkCreateTeams);
 
 // Delete All Teams for a Tournament - Protected
-teamRouter.post("/delete-all", authMiddleware, teamController.deleteAllTeams);
+teamRouter.post("/delete-all", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.deleteAllTeams);
 
 module.exports = teamRouter;

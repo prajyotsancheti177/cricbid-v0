@@ -125,7 +125,10 @@ const TournamentWorkspace = () => {
 
   const authUser = getAuthUser();
   const isLoggedIn = Boolean(authUser);
-  const isAdmin = authUser?.role === "admin";
+  // "admin" is not one of the roles — Role is boss | super_user |
+  // tournament_host | player — so this was always false, and boss and
+  // super_user were treated as if they owned nothing.
+  const isAdmin = authUser?.role === "boss" || authUser?.role === "super_user";
   const hostId = typeof tournament.tournamentHostId === "object"
     ? (tournament.tournamentHostId as { _id?: string } | null)?._id
     : (tournament.tournamentHostId as string | undefined);

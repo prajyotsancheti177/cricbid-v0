@@ -44,7 +44,7 @@ import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
 import SiteSettingsPage from "./pages/SiteSettings";
 import { SiteSettingsProvider } from "@/lib/siteSettings";
-import { clearSession, getSessionToken } from "@/lib/auth";
+import { clearSession, getSessionToken, getStoredUser } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +68,25 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+/**
+ * For screens that manage a tournament.
+ *
+ * Being signed in is not enough now that anyone can sign in with Google and
+ * land as a `player`. A player reaching the management workspace saw a real UI
+ * they had no business seeing.
+ *
+ * The server enforces this too — this only keeps the wrong screen off theirs.
+ */
+const MANAGING_ROLES = ["boss", "super_user", "tournament_host"];
+
+const ManageRoute = ({ children }: { children: React.ReactNode }) => {
+  const role = getStoredUser()?.role;
+  if (!MANAGING_ROLES.includes(String(role))) {
+    return <Navigate to="/tournaments" replace />;
+  }
+  return <>{children}</>;
 };
 
 // Page transition wrapper — fades + slides each route in
@@ -153,7 +172,9 @@ const App = () => (
                 path="/tournament/:tournamentId/manage"
                 element={
                   <ProtectedRoute>
-                    <TournamentWorkspace />
+                    <ManageRoute>
+                      <TournamentWorkspace />
+                    </ManageRoute>
                   </ProtectedRoute>
                 }
               >

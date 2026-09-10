@@ -1,4 +1,5 @@
 const prisma = require("../db/prisma");
+const { canManageAnything, isAdminRole } = require("../utils/tournamentAccess");
 const googleService = require("../utils/googleService");
 const { serializeTournament, serializeTeam, serializePlayer } = require("../utils/serialize");
 const eventService = require("./eventService");
@@ -126,8 +127,13 @@ const updateTournament = async (tournamentId, updateData, userId, userRole) => {
             throw new Error("Tournament not found");
         }
 
-        if (userRole === 'tournament_host' &&
-            String(existingTournament.tournamentHostId) !== userId) {
+        // Deny by default. This used to restrict only `tournament_host`, so any
+        // other role — including `player` — fell through and was allowed.
+        if (!canManageAnything(userRole)) {
+            throw new Error("Unauthorized to update this tournament");
+        }
+        if (!isAdminRole(userRole) &&
+            String(existingTournament.tournamentHostId) !== String(userId)) {
             throw new Error("Unauthorized to update this tournament");
         }
 
@@ -172,8 +178,11 @@ const deleteTournament = async (tournamentId, userId, userRole) => {
             throw new Error("Tournament not found");
         }
 
-        if (userRole === 'tournament_host' &&
-            String(existingTournament.tournamentHostId) !== userId) {
+        if (!canManageAnything(userRole)) {
+            throw new Error("Unauthorized to delete this tournament");
+        }
+        if (!isAdminRole(userRole) &&
+            String(existingTournament.tournamentHostId) !== String(userId)) {
             throw new Error("Unauthorized to delete this tournament");
         }
 
