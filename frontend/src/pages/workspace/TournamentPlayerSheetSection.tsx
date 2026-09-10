@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered, History, Undo2,
+  ArrowUp, ChevronsUpDown,
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
@@ -104,6 +105,8 @@ const TournamentPlayerSheetSection = () => {
   /** The focused cell when not editing — what arrow keys move around. */
   const [cursor, setCursor] = useState<{ id: string; key: string } | null>(null);
   const [preview, setPreview] = useState<{ url: string; title: string; subtitle: string } | null>(null);
+  /** Column sort. Serial ascending is the order the sheet is read and printed in. */
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "auctionSerialNumber", dir: "asc" });
   const [verifying, setVerifying] = useState(false);
   const [resequence, setResequence] = useState<{ changes: { id: string; name: string; from: number | null; to: number }[]; total: number } | null>(null);
   const [resequencing, setResequencing] = useState(false);
@@ -236,9 +239,32 @@ const TournamentPlayerSheetSection = () => {
 
   /* --------------------------------------------------------------- rows */
 
+  /**
+   * The value a column sorts on. Numeric columns sort as numbers, everything
+   * else case-insensitively as text.
+   *
+   * Blanks always sort last, in both directions — a player with no serial yet
+   * belongs at the bottom of the sheet whichever way the arrow points, not
+   * jumping to the top when the host reverses the order.
+   */
+  const sortValue = (p: SheetPlayer, col: ColumnDef): number | string | null => {
+    const raw = col.custom
+      ? p.customFields?.[col.key]
+      : (p as unknown as Record<string, unknown>)[col.key];
+
+    // `!= null` and not a truthiness check: serial 0 and age 0 are real values.
+    if (raw == null || raw === "") return null;
+    if (col.kind === "number") {
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    }
+    if (typeof raw === "boolean") return raw ? 1 : 0;
+    return String(raw).toLowerCase();
+  };
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return players.filter(p => {
+    const filtered = players.filter(p => {
       if (tab === "pending" && p.paymentVerified !== false) return false;
       if (tab === "verified" && p.paymentVerified === false) return false;
       if (categoryFilter !== "all" && (p.playerCategory || "") !== categoryFilter) return false;
@@ -249,7 +275,25 @@ const TournamentPlayerSheetSection = () => {
       }
       return true;
     });
-  }, [players, tab, search, categoryFilter, skillFilter]);
+
+    const col = columns.find(c => c.key === sort.key);
+    if (!col) return filtered;
+
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = sortValue(a, col);
+      const bv = sortValue(b, col);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * dir;
+    });
+  }, [players, tab, search, categoryFilter, skillFilter, columns, sort]);
+
+  /** Click a header: first click sorts ascending, clicking the same one flips it. */
+  const toggleSort = (key: string) =>
+    setSort(prev => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   const pendingCount = players.filter(p => p.paymentVerified === false).length;
   const skillOptions = [...new Set(players.map(p => p.skill).filter(Boolean))] as string[];
@@ -265,6 +309,22 @@ const TournamentPlayerSheetSection = () => {
   const saveCell = async (player: SheetPlayer, col: ColumnDef, raw: string) => {
     const previous = valueOf(player, col);
     if (raw === previous) { setEditing(null); return; }
+
+    // Serial numbers are printed and handed to team owners, so two players
+    // holding the same one is a real-world mix-up, not just bad data. Refuse it
+    // before anything is saved and leave the old serial on screen.
+    if (col.key === "auctionSerialNumber" && raw !== "") {
+      const clash = players.find(o => o._id !== player._id && String(o.auctionSerialNumber ?? "") === raw);
+      if (clash) {
+        setEditing(null);
+        toast({
+          title: `Serial #${raw} is taken`,
+          description: `${clash.name || "Another player"} already has it. Pick a different number, or clear theirs first.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     // optimistic: the grid should feel like a spreadsheet, not a form
     setPlayers(prev => prev.map(p => {
@@ -289,17 +349,6 @@ const TournamentPlayerSheetSection = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "Save failed");
 
-      // Serial numbers are printed and handed out, so a duplicate is worth
-      // saying out loud — but it is the host's call, so the save still stands.
-      if (col.key === "auctionSerialNumber" && raw !== "") {
-        const clash = players.find(o => o._id !== player._id && String(o.auctionSerialNumber ?? "") === raw);
-        if (clash) {
-          toast({
-            title: `Serial ${raw} is now used twice`,
-            description: `${player.name} and ${clash.name} both have #${raw}.`,
-          });
-        }
-      }
     } catch (e) {
       // put the old value back rather than leaving a lie on screen
       setPlayers(prev => prev.map(p => {
@@ -808,13 +857,24 @@ const TournamentPlayerSheetSection = () => {
                 onCheckedChange={(c) => setSelected(c ? new Set(rows.map(r => r._id)) : new Set())}
               />
             </div>
-            {shown.map(col => (
-              <div key={col.key}
-                   className={cn("sticky top-0 z-20 bg-muted/70 backdrop-blur border-b border-r border-border h-9 flex items-center px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
-                     col.align === "right" && "justify-end", col.group === "Your columns" && "text-primary")}>
-                {col.label}
-              </div>
-            ))}
+            {shown.map(col => {
+              const sorted = sort.key === col.key;
+              return (
+                <button key={col.key} type="button"
+                     onClick={() => toggleSort(col.key)}
+                     title={`Sort by ${col.label}`}
+                     aria-sort={sorted ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                     className={cn("group/head sticky top-0 z-20 bg-muted/70 backdrop-blur border-b border-r border-border h-9 flex items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-left transition-colors hover:bg-muted",
+                       col.align === "right" && "justify-end",
+                       col.group === "Your columns" ? "text-primary" : "text-muted-foreground",
+                       sorted && "text-foreground")}>
+                  <span className="truncate">{col.label}</span>
+                  {sorted
+                    ? <ArrowUp className={cn("h-3 w-3 shrink-0 transition-transform", sort.dir === "desc" && "rotate-180")} />
+                    : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-0 group-hover/head:opacity-40" />}
+                </button>
+              );
+            })}
 
             {/* rows */}
             {rows.map(p => {

@@ -66,13 +66,11 @@ const registerPlayer = async (playerInput) => {
     }
 
     let finalSerialNumber = toInt(playerInput.auctionSerialNumber);
-    if (!finalSerialNumber) {
-        const maxSerialPlayer = await prisma.player.findFirst({
-            where: { touranmentId: playerInput.touranmentId },
-            orderBy: { auctionSerialNumber: 'desc' },
-            select: { auctionSerialNumber: true },
-        });
-        finalSerialNumber = (maxSerialPlayer?.auctionSerialNumber || 0) + 1;
+    // `== null`, not falsy: serial 0 is a real serial a host may have set.
+    if (finalSerialNumber == null) {
+        finalSerialNumber = (await nextSerialNumber(playerInput.touranmentId));
+    } else {
+        await assertSerialFree(playerInput.touranmentId, finalSerialNumber, null);
     }
 
     const data = buildPlayerData({ ...playerInput, name });
@@ -121,6 +119,47 @@ const getPlayerDetail = async (playerId) => {
     return formatPlayer(playerDetail, tournamentData);
 };
 
+/**
+ * The next free serial number in a tournament.
+ *
+ * Postgres sorts NULLs FIRST on a DESC order, so the obvious
+ * `orderBy: { auctionSerialNumber: 'desc' }` returns a player with no serial
+ * and reports the maximum as null — after which every new registration is
+ * handed serial 1. `nulls: 'last'` is what makes this the actual maximum.
+ *
+ * @param {string} touranmentId
+ * @returns {Promise<number>}
+ */
+const nextSerialNumber = async (touranmentId) => {
+    const top = await prisma.player.findFirst({
+        where: { touranmentId, auctionSerialNumber: { not: null } },
+        orderBy: { auctionSerialNumber: { sort: 'desc', nulls: 'last' } },
+        select: { auctionSerialNumber: true },
+    });
+    // `?? 0` and not `|| 0`: serial 0 is a real serial, not "unset".
+    return (top?.auctionSerialNumber ?? 0) + 1;
+};
+
+/**
+ * Throw unless `serial` is free in this tournament.
+ * @param {string} touranmentId
+ * @param {number} serial
+ * @param {string|null} exceptPlayerId - the player being edited, if any
+ */
+const assertSerialFree = async (touranmentId, serial, exceptPlayerId) => {
+    const clash = await prisma.player.findFirst({
+        where: {
+            touranmentId,
+            auctionSerialNumber: serial,
+            ...(exceptPlayerId ? { id: { not: exceptPlayerId } } : {}),
+        },
+        select: { name: true },
+    });
+    if (clash) {
+        throw new Error(`Serial number ${serial} is already used by "${clash.name}"`);
+    }
+};
+
 const updatePlayer = async (playerInput) => {
     const existingPlayer = await prisma.player.findUnique({ where: { id: playerInput.playerId } });
     if (!existingPlayer) {
@@ -128,6 +167,18 @@ const updatePlayer = async (playerInput) => {
     }
 
     const updateData = buildPlayerData(playerInput);
+
+    // Serial numbers are printed and handed to team owners, so two players
+    // sharing one is a real-world mix-up. The sheet blocks this in the UI; this
+    // is the guard for every other caller.
+    if (updateData.auctionSerialNumber != null
+        && updateData.auctionSerialNumber !== existingPlayer.auctionSerialNumber) {
+        await assertSerialFree(
+            existingPlayer.touranmentId,
+            updateData.auctionSerialNumber,
+            existingPlayer.id
+        );
+    }
 
     // customFieldPatch merges into what is stored rather than replacing it, so
     // a grid saving one note cannot wipe a payment-proof upload it never saw.
@@ -491,12 +542,7 @@ const bulkCreatePlayers = async (playersData, touranmentId) => {
     const teamNameMap = {};
     teams.forEach((t) => { teamNameMap[t.name.toLowerCase().trim()] = t.id; });
 
-    const maxSerialPlayer = await prisma.player.findFirst({
-        where: { touranmentId },
-        orderBy: { auctionSerialNumber: 'desc' },
-        select: { auctionSerialNumber: true },
-    });
-    let currentSerial = (maxSerialPlayer?.auctionSerialNumber || 0);
+    let currentSerial = (await nextSerialNumber(touranmentId)) - 1;
 
     const newPlayers = [];
     let updatedCount = 0;
