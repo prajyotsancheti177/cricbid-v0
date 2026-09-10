@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import apiConfig from "@/config/apiConfig";
+import { authHeaders } from "@/lib/auth";
 import { REPORTING_TZ } from "./shared";
 import type { AnalyticsData, AuctionRoomAnalytics, GeoAnalyticsData } from "./types";
 
@@ -50,16 +51,6 @@ export const useAnalyticsFilters = () => {
     );
 
     return { filters, setFilter };
-};
-
-const authHeaders = () => {
-    try {
-        const userStr = localStorage.getItem("user");
-        const userId = userStr ? JSON.parse(userStr)?._id : null;
-        return userId ? { } : {};
-    } catch {
-        return {};
-    }
 };
 
 const getJson = async (path: string) => {

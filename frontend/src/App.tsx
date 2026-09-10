@@ -44,6 +44,7 @@ import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
 import SiteSettingsPage from "./pages/SiteSettings";
 import { SiteSettingsProvider } from "@/lib/siteSettings";
+import { clearSession, getSessionToken } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,16 @@ const TournamentRedirect = () => {
 // Protected Route Component - for admin features
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+
+  // A session from before tokens existed looks signed in but cannot prove it:
+  // the flag is set, there is no token, and every API call comes back 401. That
+  // reads as "the app is broken" rather than "please sign in again", so treat
+  // it as signed out and clear it.
+  if (isAuthenticated && !getSessionToken()) {
+    clearSession();
+    return <Navigate to="/login" replace />;
+  }
+
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
