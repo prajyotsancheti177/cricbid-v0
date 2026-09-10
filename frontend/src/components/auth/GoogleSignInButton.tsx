@@ -100,6 +100,32 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
 
         window.google.accounts.id.initialize({
           client_id: clientId,
+          // Never sign someone in without them asking.
+          auto_select: false,
+          // Helps Safari and other browsers with tracking prevention, where the
+          // sign-in popup otherwise cannot read its own storage.
+          itp_support: true,
+          /**
+           * Without this, a failure inside Google's own flow is completely
+           * silent — the popup opens, hangs, and the page says nothing. That is
+           * what "stuck on the Google screen" looks like, and it left no way to
+           * tell an unpublished OAuth app from a blocked popup.
+           */
+          error_callback: (err: { type?: string; message?: string }) => {
+            const type = err?.type || "";
+            if (type === "popup_closed") {
+              onErrorRef.current?.("Sign-in was cancelled.");
+            } else if (type === "popup_failed_to_open") {
+              onErrorRef.current?.("Your browser blocked the Google sign-in window. Allow popups for this site and try again.");
+            } else {
+              onErrorRef.current?.(
+                "Google could not complete the sign-in. If it hangs on the Google screen, allow third-party cookies for accounts.google.com, or try a different browser."
+              );
+            }
+            // Kept for diagnosis: the type is the only thing that distinguishes
+            // these cases, and it is not shown to the user verbatim.
+            console.warn("[google sign-in] failed:", err);
+          },
           callback: async (response: { credential?: string }) => {
             if (!response?.credential) {
               onErrorRef.current?.("Google did not return a sign-in");
