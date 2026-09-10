@@ -139,15 +139,35 @@ const loginUser = async (credentials) => {
         throw new Error("Your account has been deactivated. Please contact support.");
     }
 
+    if (!user.password) {
+        // Google-only account. Say so plainly rather than "invalid password" —
+        // there is no password to get right.
+        throw new Error("This account signs in with Google");
+    }
+
     const isPasswordValid = decrypt(password, user.password);
     if (!isPasswordValid) {
         throw new Error("Invalid email or password");
     }
 
-    const s = serializeUser(user);
+    const token = crypto.randomBytes(32).toString('hex');
+    const withSession = await prisma.user.update({
+        where: { id: user.id },
+        data: { sessionToken: token, sessionExpiresAt: new Date(Date.now() + SESSION_TTL_MS) },
+    });
+
+    const s = serializeUser(withSession);
     delete s.createdBy;
     delete s.updatedAt;
-    return s;
+    return { ...s, sessionToken: token };
+};
+
+/** End a session. */
+const logout = async (userId) => {
+    await prisma.user.update({
+        where: { id: userId },
+        data: { sessionToken: null, sessionExpiresAt: null },
+    }).catch(() => { /* already gone is fine */ });
 };
 
 /**
@@ -530,6 +550,7 @@ module.exports = {
     searchUsers,
     setUserAccess,
     getUserBySessionToken,
+    logout,
     createUser,
     loginUser,
     getUserDetail,

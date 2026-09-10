@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { WorkspaceTournament } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ const saveTemplates = (tid: string, templates: MatchTemplate[]) =>
 const api = (path: string, body: object) =>
   fetch(`${apiConfig.baseUrl}/api/match/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonAuthHeaders(),
     body: JSON.stringify(body),
   }).then(r => r.json());
 
@@ -120,7 +121,7 @@ export default function TournamentScheduleSection() {
         api("list", { tournamentId }).catch(() => ({ success: false })),
         api("points-table", { tournamentId }).catch(() => ({ success: false })),
         fetch(`${apiConfig.baseUrl}/api/team/names`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: jsonAuthHeaders(),
           body: JSON.stringify({ touranmentId: tournamentId }),
         }).then(r => r.json()).catch(() => ({ success: false })),
       ]);

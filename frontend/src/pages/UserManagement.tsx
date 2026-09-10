@@ -8,10 +8,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, Trash2, Shield, Users, Crown } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { AccessManager } from "@/components/admin/AccessManager";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface User {
   _id: string;
@@ -37,6 +39,8 @@ const UserManagement = () => {
   const { toast } = useToast();
 
   const [users, setUsers] = useState<User[]>([]);
+  /** Deactivated accounts are history, not working data — hidden until asked for. */
+  const [showInactive, setShowInactive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -79,7 +83,7 @@ const UserManagement = () => {
       // Use hierarchy endpoint to get all users created by this user and their descendants
       const response = await fetch(`${apiConfig.baseUrl}/api/user/hierarchy`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ userId: user._id }),
       });
 
@@ -122,7 +126,7 @@ const UserManagement = () => {
     try {
       const response = await fetch(`${apiConfig.baseUrl}/api/user/create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           ...newUser,
           createdBy: currentUser?._id,
@@ -170,7 +174,7 @@ const UserManagement = () => {
     try {
       const response = await fetch(`${apiConfig.baseUrl}/api/user/delete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ targetUserId: userId, hardDelete: false, userId: currentUser?._id }),
       });
 
@@ -229,6 +233,9 @@ const UserManagement = () => {
     );
   }
 
+  const inactiveCount = users.filter(u => !u.isActive).length;
+  const visibleUsers = showInactive ? users : users.filter(u => u.isActive);
+
   return (
     <div className="container mx-auto py-8 px-4">
       {/* Grant a role to someone who has already signed in. This is the way
@@ -246,6 +253,16 @@ const UserManagement = () => {
                   ? 'Manage all users in the system'
                   : 'Manage users you created and their descendants in the hierarchy'}
               </CardDescription>
+              {inactiveCount > 0 && (
+                <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                  <Checkbox
+                    checked={showInactive}
+                    onCheckedChange={(c) => setShowInactive(c === true)}
+                  />
+                  Show inactive users
+                  <span className="text-xs text-muted-foreground/70">({inactiveCount} hidden)</span>
+                </label>
+              )}
             </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -364,14 +381,16 @@ const UserManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {visibleUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No users found. Create your first user to get started.
+                    {users.length === 0
+                      ? "No users found. Create your first user to get started."
+                      : "No active users. Turn on \"Show inactive users\" to see the rest."}
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((user) => (
+                visibleUsers.map((user) => (
                   <TableRow key={user._id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>

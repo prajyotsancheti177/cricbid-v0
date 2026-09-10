@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { WorkspaceTournament } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ const DEFAULT_CONFIG: WhatsAppConfig = {
 
 const api = (path: string, body: object) =>
   fetch(`${apiConfig.baseUrl}/api/whatsapp/${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "POST", headers: jsonAuthHeaders(), body: JSON.stringify(body),
   }).then(r => r.json());
 
 const TYPE_META: Record<string, { label: string; color: string }> = {

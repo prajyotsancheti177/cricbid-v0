@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { trackEvent } from "@/lib/eventTracker";
 import { getSocket } from "@/lib/socket";
 import logo from "@/assets/logo.png";
+import apiConfig from "@/config/apiConfig";
+import { clearSession, jsonAuthHeaders } from "@/lib/auth";
 
 // Public links shown in the main bar for everyone
 const PUBLIC_LINKS = [
@@ -110,8 +112,10 @@ export const Navbar = () => {
       trackEvent("logout", { userId: user._id, role: user.role });
     }
 
-    localStorage.removeItem("user");
-    localStorage.removeItem("isAuthenticated");
+    // Tell the server first so the token stops working everywhere, then clear.
+    fetch(`${apiConfig.baseUrl}/api/user/logout`, { method: "POST", headers: jsonAuthHeaders() })
+      .catch(() => { /* clearing locally still signs this browser out */ });
+    clearSession();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",

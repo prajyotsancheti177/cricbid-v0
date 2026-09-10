@@ -56,7 +56,7 @@ const authHeaders = () => {
     try {
         const userStr = localStorage.getItem("user");
         const userId = userStr ? JSON.parse(userStr)?._id : null;
-        return userId ? { "x-user-id": userId } : {};
+        return userId ? { } : {};
     } catch {
         return {};
     }

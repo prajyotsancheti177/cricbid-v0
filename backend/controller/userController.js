@@ -58,10 +58,20 @@ const setUserAccess = async (req, res) => {
     }
 };
 
+/** POST /api/user/logout — end this session. */
+const logoutUser = async (req, res) => {
+    try {
+        await userService.logout(req.userId);
+        return sendSuccess(res, 200, "Signed out", null);
+    } catch (error) {
+        return sendError(res, 400, "Could not sign out", error);
+    }
+};
+
 const getUserDetail = async (req, res) => {
     try {
         // Use targetUserId if provided (for viewing other users), otherwise fallback to authenticated userId
-        const targetUserId = req.body.targetUserId || req.body.userId;
+        const targetUserId = req.body.targetUserId || req.userId;
         const user = await userService.getUserDetail(targetUserId);
         return sendSuccess(res, 200, "User details fetched successfully", user);
     } catch (error) {
@@ -81,7 +91,7 @@ const getUsersByCreator = async (req, res) => {
 const getUsersInHierarchy = async (req, res) => {
     try {
         // This uses the authenticated userId to show hierarchy relative to them
-        const users = await userService.getUsersInHierarchy(req.body.userId);
+        const users = await userService.getUsersInHierarchy(req.userId);
         return sendSuccess(res, 200, "Users in hierarchy fetched successfully", users);
     } catch (error) {
         return sendError(res, 400, "Failed to fetch users in hierarchy", error);
@@ -114,7 +124,7 @@ const updateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
     try {
         // Use targetUserId if provided, otherwise fallback to userId (though usually we want targetUserId for deletion)
-        const targetUserId = req.body.targetUserId || req.body.userId;
+        const targetUserId = req.body.targetUserId || req.userId;
         const result = await userService.deleteUser(targetUserId, req.body.hardDelete);
         return sendSuccess(res, 200, result.message, result);
     } catch (error) {
@@ -126,6 +136,7 @@ module.exports = {
     createUser,
     loginUser,
     googleLoginUser,
+    logoutUser,
     searchUsers,
     setUserAccess,
     getUserDetail,

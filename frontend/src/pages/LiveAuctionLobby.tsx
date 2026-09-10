@@ -11,6 +11,7 @@ import { getSocket } from "@/lib/socket";
 import apiConfig from "@/config/apiConfig";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Plus, Gavel, Radio, Trash2 } from "lucide-react";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface ActiveAuction {
     tournamentId: string;
@@ -106,10 +107,7 @@ export default function LiveAuctionLobby() {
 
             const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
+                headers: jsonAuthHeaders(),
                 body: JSON.stringify({
                     userId: user._id,
                     userRole: user.role

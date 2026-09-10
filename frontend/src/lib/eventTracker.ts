@@ -1,4 +1,5 @@
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /**
  * Visitor / session identity
@@ -184,7 +185,7 @@ const flush = (useBeacon = false): void => {
 
     fetch(trackUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body,
         keepalive: true,
     }).catch(() => {
@@ -268,7 +269,7 @@ const sendHeartbeat = (): void => {
 
     fetch(`${apiConfig.baseUrl}/api/event/heartbeat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
             visitorId: getVisitorId(),
             sessionId: getSessionId(),
@@ -338,9 +339,7 @@ export const saveAuctionLog = async (auctionData: {
 
         const response = await fetch(`${apiConfig.baseUrl}/api/auction-log/save`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: jsonAuthHeaders(),
             body: JSON.stringify({
                 ...auctionData,
                 conductedBy: user?._id,

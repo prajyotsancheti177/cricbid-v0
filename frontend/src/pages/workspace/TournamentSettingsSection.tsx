@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
 import { useWorkspace, TournamentFeatures, isFeatureOn } from "./TournamentWorkspace";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -58,7 +59,7 @@ const TournamentSettingsSection = () => {
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${apiConfig.baseUrl}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify(body),
     });
 

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download, Upload, FileSpreadsheet, Users, UserCheck } from "lucide-react";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const BulkUpload = () => {
   const [teamsFile, setTeamsFile] = useState<File | null>(null);
@@ -140,9 +141,7 @@ Bangalore Bulls,https://drive.google.com/file/d/1122334455/view,Priya Patel,9876
 
       const response = await fetch(`${apiConfig.baseUrl}/api/team/bulk-create`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ teams, touranmentId: tournamentId, userId }),
       });
 
@@ -219,10 +218,7 @@ Bangalore Bulls,https://drive.google.com/file/d/1122334455/view,Priya Patel,9876
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/bulk-create`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ players, touranmentId: tournamentId, userId }),
       });
 

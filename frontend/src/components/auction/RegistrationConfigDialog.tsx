@@ -12,6 +12,7 @@ import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
 import { buildPaymentProofField, hasPaymentProofField, isPaymentProofField, findHostProofField, isPaymentProofRequired } from "@/lib/paymentProof";
+import { authHeaders, jsonAuthHeaders } from "@/lib/auth";
 
 
 
@@ -156,7 +157,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
       setSaving(true);
       const response = await fetch(`${apiConfig.baseUrl}/api/tournament/update-registration-config`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           tournamentId,
           configData: config,
@@ -285,7 +286,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
       formData.append('image', compressed, file.name);
       const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
         method: 'POST',
-        headers: { 'x-user-id': user._id },
+        headers: authHeaders(),
         body: formData,
       });
       const data = await response.json();
@@ -307,7 +308,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
       formData.append('image', compressed, file.name);
       const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
         method: 'POST',
-        headers: { 'x-user-id': user._id },
+        headers: authHeaders(),
         body: formData,
       });
       const data = await response.json();

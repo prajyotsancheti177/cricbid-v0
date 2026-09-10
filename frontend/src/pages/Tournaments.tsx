@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import { trackEvent } from "@/lib/eventTracker";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface Tournament {
   _id: string;
@@ -42,9 +43,7 @@ const Tournaments = () => {
       try {
         const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: jsonAuthHeaders(),
         });
 
         if (!response.ok) {
@@ -97,9 +96,7 @@ const Tournaments = () => {
       // First get recipient count
       const previewResponse = await fetch(`${apiConfig.baseUrl}/api/whatsapp/preview-recipients`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ tournamentId }),
       });
 
@@ -135,9 +132,7 @@ const Tournaments = () => {
       // Send the announcement
       const response = await fetch(`${apiConfig.baseUrl}/api/whatsapp/announce-auction`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ tournamentId, tournamentName }),
       });
 

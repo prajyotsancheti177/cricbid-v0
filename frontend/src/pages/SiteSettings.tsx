@@ -7,6 +7,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { useSiteSettings } from "@/lib/siteSettings";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -44,7 +45,7 @@ const SiteSettingsPage = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/site-settings/update`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ userId: user?._id, maskFemalePlayers: value }),
       });
       const data = await res.json().catch(() => ({}));

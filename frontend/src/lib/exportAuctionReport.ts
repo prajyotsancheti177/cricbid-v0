@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 // ── Theme (matches CricBid primary purple + slate) ──────────────────────────
 const PURPLE: [number, number, number] = [109, 40, 217];      // #6D28D9
@@ -69,7 +70,7 @@ export async function exportAuctionReport(tournamentName: string, tournamentId: 
 
   const res = await fetch(`${apiConfig.baseUrl}/api/tournament/export`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-id": user._id || "" },
+    headers: jsonAuthHeaders(),
     body: JSON.stringify({ tournamentId, userId: user._id }),
   });
   if (!res.ok) throw new Error("Failed to fetch auction data");

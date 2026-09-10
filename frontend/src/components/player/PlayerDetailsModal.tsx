@@ -35,6 +35,7 @@ import { getDriveThumbnail } from "@/lib/imageUtils";
 import { shouldMaskPlayer, maskMobile, useMaskingEligible } from "@/lib/privacyUtils";
 import { cn } from "@/lib/utils";
 import { compressImage } from "@/lib/imageCompressor";
+import { authHeaders, jsonAuthHeaders } from "@/lib/auth";
 
 interface Team {
   _id: string;
@@ -80,7 +81,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
       try {
         const response = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({ touranmentId: player.touranmentId }),
         });
         if (response.ok) {
@@ -101,7 +102,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
       try {
         const response = await fetch(`${apiConfig.baseUrl}/api/player/categories`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({ touranmentId: player.touranmentId }),
         });
         if (response.ok) {
@@ -165,7 +166,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
 
       const response = await fetch(`${apiConfig.baseUrl}/api/tournament/upload-image`, {
         method: "POST",
-        headers: { "x-user-id": user?._id || "" },
+        headers: authHeaders(),
         body: formData,
       });
       const data = await response.json();
@@ -234,7 +235,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -272,7 +273,7 @@ export const PlayerDetailsModal = ({ player, isOpen, onClose, onUpdate, onDelete
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/delete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ playerId: player._id, userId }),
       });
 

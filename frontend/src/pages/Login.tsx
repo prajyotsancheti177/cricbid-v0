@@ -10,6 +10,7 @@ import { Loader2, Shield } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { GoogleSignInButton, useGoogleClientId } from "@/components/auth/GoogleSignInButton";
 import { trackEvent } from "@/lib/eventTracker";
+import { clearSession, jsonAuthHeaders, storeSession } from "@/lib/auth";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -39,8 +40,7 @@ const Login = () => {
         }
       } catch {
         // If parsing fails, clear storage
-        localStorage.removeItem("user");
-        localStorage.removeItem("isAuthenticated");
+        clearSession();
       }
     }
   }, [navigate]);
@@ -53,8 +53,9 @@ const Login = () => {
 
   /** Everything that happens once a login is accepted, whichever way it came. */
   const completeLogin = (user: any, method: "password" | "google") => {
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("isAuthenticated", "true");
+    // storeSession keeps the session token out of the user object it saves, so
+    // nothing renders it and only authHeaders() ever reads it.
+    storeSession(user);
 
     trackEvent("login", { role: user.role, userId: user._id, method });
 
@@ -84,9 +85,7 @@ const Login = () => {
     try {
       const response = await fetch(`${apiConfig.baseUrl}/api/user/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(formData),
       });
 

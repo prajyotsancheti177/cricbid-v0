@@ -7,6 +7,7 @@ import { Play, Plus, Share2, Users, Shield, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace } from "./TournamentWorkspace";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const Stat = ({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) => (
   <Card>
@@ -33,7 +34,7 @@ const TournamentOverview = () => {
         const [pRes] = await Promise.all([
           fetch(`${apiConfig.baseUrl}/api/player/all`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: jsonAuthHeaders(),
             body: JSON.stringify({ touranmentId: tournament._id }),
           }),
         ]);

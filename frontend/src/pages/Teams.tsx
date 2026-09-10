@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const Teams = () => {
   const [teams, setTeams] = useState([]);
@@ -19,9 +20,7 @@ const Teams = () => {
         const tournamentId = getSelectedTournamentId();
         const response = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({
             touranmentId: tournamentId,
           }),

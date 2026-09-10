@@ -6,6 +6,7 @@ import {
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 export interface TournamentFeatures {
   whatsappNotifications?: boolean;
@@ -86,7 +87,7 @@ const TournamentWorkspace = () => {
         const user = getAuthUser();
         const res = await fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({ tournamentId, userId: user?._id, userRole: user?.role }),
         });
         const data = await res.json();

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /**
  * "Continue with Google" for player profiles.
@@ -107,7 +108,7 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
             try {
               const res = await fetch(`${apiConfig.baseUrl}${endpoint}`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: jsonAuthHeaders(),
                 body: JSON.stringify({ credential: response.credential }),
               });
               const body = await res.json();

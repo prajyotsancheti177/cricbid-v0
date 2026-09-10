@@ -15,6 +15,7 @@ import apiConfig from "@/config/apiConfig";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { compressImage } from "@/lib/imageCompressor";
 import { useToast } from "@/hooks/use-toast";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -46,9 +47,7 @@ const TeamDetail = () => {
     try {
       const response = await fetch(`${apiConfig.baseUrl}/api/team/detail`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           teamId: teamId,
         }),
@@ -143,7 +142,7 @@ const TeamDetail = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/team/delete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ teamId: team._id, userId: user?._id }),
       });
       const data = await res.json();

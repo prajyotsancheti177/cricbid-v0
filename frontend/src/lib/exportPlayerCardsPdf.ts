@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface RawPlayer {
   name?: string;
@@ -552,7 +553,7 @@ export async function exportPlayerCardsPdf(
   // no team, so team rosters cannot see them at all.
   const playersRes = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonAuthHeaders(),
     body: JSON.stringify({ touranmentId: tournamentId }),
   });
 
@@ -571,7 +572,7 @@ export async function exportPlayerCardsPdf(
     try {
       const teamsRes = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournamentId }),
       });
       if (teamsRes.ok) {

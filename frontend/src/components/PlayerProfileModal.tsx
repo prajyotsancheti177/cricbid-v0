@@ -97,6 +97,8 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
   const handleGoogleSignedIn = (result: { token: string; account: PlayerAccount }) => {
     setError("");
     localStorage.setItem(STORAGE_KEY, result.token);
+    // Same token the rest of the app authenticates with — one identity now.
+    localStorage.setItem("cricbid_session_token", result.token);
     setAccount(result.account);
     // A new account owns nobody yet, so go straight to adding a player rather
     // than showing an empty list.

@@ -266,7 +266,7 @@ const syncToSheet = async (req, res) => {
         const summary = await googleService.updateEntireSheetWithPlayers(config.googleSheetId, config, dbPlayers);
 
         eventService.trackEvent({
-            userId: req.body.userId || null,
+            userId: req.userId || null,
             tournamentId: touranmentId || null,
             eventType: "sheets_sync_exported",
             page: "/players",

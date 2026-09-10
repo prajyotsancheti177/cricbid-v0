@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import apiConfig from "@/config/apiConfig";
 import { useSiteSettings } from "@/lib/siteSettings";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -36,7 +37,7 @@ const fetchTournamentCreatedAt = (tournamentId: string): Promise<string | null> 
   if (!tournamentCreatedAtCache.has(tournamentId)) {
     const promise = fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ tournamentId }),
     })
       .then((res) => res.json())

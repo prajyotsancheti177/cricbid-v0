@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface Tournament {
   _id: string;
@@ -61,7 +62,7 @@ export default function TournamentManagement() {
       setLoading(true);
       const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           userId: user._id,
           userRole: user.role,

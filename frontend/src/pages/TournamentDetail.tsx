@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import { trackEvent } from "@/lib/eventTracker";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface Tournament {
   _id: string;
@@ -48,9 +49,7 @@ const TournamentDetail = () => {
 
         const response = await fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({
             tournamentId,
             userId: user?._id || "",

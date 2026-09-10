@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Radio } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import SplitFlapCounter from "./SplitFlapCounter";
+import { authHeaders } from "@/lib/auth";
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -40,7 +41,7 @@ const LiveActiveUsers = () => {
                 const userId = userStr ? JSON.parse(userStr)?._id : undefined;
 
                 const response = await fetch(`${apiConfig.baseUrl}/api/event/active-users`, {
-                    headers: userId ? { "x-user-id": userId } : undefined,
+                    headers: authHeaders(),
                 });
                 const body = await response.json();
 

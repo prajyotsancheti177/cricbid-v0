@@ -16,6 +16,7 @@ import apiConfig from "@/config/apiConfig";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ types */
 
@@ -124,12 +125,12 @@ const TournamentPlayerSheetSection = () => {
       try {
         const [playersRes, configRes, catRes] = await Promise.all([
           fetch(`${apiConfig.baseUrl}/api/player/all`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: jsonAuthHeaders(),
             body: JSON.stringify({ touranmentId: tournament._id }),
           }),
           fetch(`${apiConfig.baseUrl}/api/tournament/${tournament._id}/registration-config`),
           fetch(`${apiConfig.baseUrl}/api/player/categories`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: jsonAuthHeaders(),
             body: JSON.stringify({ touranmentId: tournament._id }),
           }),
         ]);
@@ -180,7 +181,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       await fetch(`${apiConfig.baseUrl}/api/tournament/update`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           tournamentId: tournament._id,
           userId: user._id,
@@ -343,7 +344,7 @@ const TournamentPlayerSheetSection = () => {
 
       const res = await fetch(`${apiConfig.baseUrl}/api/player/update`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -374,7 +375,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/verify-payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id, playerIds: ids, verified, all }),
       });
       const data = await res.json();
@@ -394,7 +395,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/resequence-serials`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id, preview: true }),
       });
       const data = await res.json();
@@ -412,7 +413,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/resequence-serials`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id }),
       });
       const data = await res.json();
@@ -434,7 +435,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/history`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id, userId: user._id, limit: 40 }),
       });
       const data = await res.json();
@@ -452,7 +453,7 @@ const TournamentPlayerSheetSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/undo`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({
           touranmentId: tournament._id,
           userId: user._id,
@@ -464,7 +465,7 @@ const TournamentPlayerSheetSection = () => {
 
       // the grid is now stale — reload rather than guess at the reverted values
       const fresh = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id }),
       });
       const freshData = await fresh.json();

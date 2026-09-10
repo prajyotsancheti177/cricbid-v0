@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuctionSocket } from "@/hooks/useAuctionSocket";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
 import { cn } from "@/lib/utils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /**
  * Auctioneer room preferences (sound, animations), kept in localStorage.
@@ -196,7 +197,7 @@ const Auction = () => {
         // Categories
         const catRes = await fetch(`${apiConfig.baseUrl}/api/auction/player-categories`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({ touranmentId: tournamentId }),
         });
         const catData = await catRes.json();
@@ -205,7 +206,7 @@ const Auction = () => {
         // Slabs (from tournament detail)
         const tournRes = await fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({ tournamentId }),
         });
         const tournData = await tournRes.json();
@@ -256,7 +257,7 @@ const Auction = () => {
         try {
           const response = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: jsonAuthHeaders(),
             body: JSON.stringify({ touranmentId: tournamentId }),
           });
           const data = await response.json();

@@ -11,6 +11,7 @@ import apiConfig from "@/config/apiConfig";
 import { useCricHeroesStats } from "@/hooks/useCricHeroesStats";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { isFeatureOn, WorkspaceTournament } from "@/pages/workspace/TournamentWorkspace";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const getAuthUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -61,7 +62,7 @@ const Players = () => {
           const user = getAuthUser();
           const tRes = await fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: jsonAuthHeaders(),
             body: JSON.stringify({ tournamentId, userId: user?._id, userRole: user?.role || "guest" }),
           });
           const tData = await tRes.json().catch(() => ({}));
@@ -77,9 +78,7 @@ const Players = () => {
 
         const response = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: jsonAuthHeaders(),
           body: JSON.stringify({
             touranmentId: tournamentId,
           }),

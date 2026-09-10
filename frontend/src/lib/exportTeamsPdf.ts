@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface PlayerRow {
   name: string;
@@ -27,7 +28,7 @@ export async function exportTeamsPdf(tournamentName: string, overrideTournamentI
   // Fetch teams (players are already embedded via MongoDB $lookup)
   const teamsRes = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonAuthHeaders(),
     body: JSON.stringify({ touranmentId: tournamentId }),
   });
 

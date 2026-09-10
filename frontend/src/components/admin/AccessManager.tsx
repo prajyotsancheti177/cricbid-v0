@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, ShieldCheck, UserCog } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { cn } from "@/lib/utils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /**
  * Grant access to someone who already signed in.
@@ -62,11 +63,10 @@ export const AccessManager = ({ currentUser }: { currentUser: { _id: string; rol
   const [expanded, setExpanded] = useState<string | null>(null);
   const [draftRole, setDraftRole] = useState<string>("");
   const [draftTournaments, setDraftTournaments] = useState<string[]>([]);
+  /** Deactivated accounts are history, not people you are about to grant access to. */
+  const [showInactive, setShowInactive] = useState(false);
 
-  const headers = useMemo(() => ({
-    "Content-Type": "application/json",
-    "x-user-id": currentUser?._id || "",
-  }), [currentUser?._id]);
+  const headers = useMemo(() => jsonAuthHeaders(), []);
 
   useEffect(() => {
     if (!currentUser?._id) return;
@@ -135,6 +135,8 @@ export const AccessManager = ({ currentUser }: { currentUser: { _id: string; rol
   };
 
   const isBoss = currentUser?.role === "boss";
+  const inactiveCount = results.filter(u => u.isActive === false).length;
+  const visible = showInactive ? results : results.filter(u => u.isActive !== false);
 
   return (
     <Card className="mb-6">
@@ -161,14 +163,22 @@ export const AccessManager = ({ currentUser }: { currentUser: { _id: string; rol
           {searching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
         </div>
 
-        {results.length === 0 && !searching && (
+        {inactiveCount > 0 && (
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox checked={showInactive} onCheckedChange={(c) => setShowInactive(c === true)} />
+            Show inactive users
+            <span className="text-xs text-muted-foreground/70">({inactiveCount} hidden)</span>
+          </label>
+        )}
+
+        {visible.length === 0 && !searching && (
           <p className="py-6 text-center text-sm text-muted-foreground">
             {query.trim() ? "Nobody matches that. They may not have signed in yet." : "Start typing to find someone."}
           </p>
         )}
 
         <div className="space-y-2">
-          {results.map(u => {
+          {visible.map(u => {
             const open = expanded === u._id;
             const self = u._id === currentUser?._id;
             return (

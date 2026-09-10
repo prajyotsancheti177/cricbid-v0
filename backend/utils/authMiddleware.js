@@ -1,30 +1,85 @@
 const prisma = require('../db/prisma');
 
 /**
- * Authentication middleware.
+ * Session authentication.
  *
- * Still identifies the caller from an unverified `x-user-id`. That is a known
- * weakness and this file is where a real signed session belongs — see the note
- * on roleMiddleware below.
+ * The caller is identified by a session token issued at login and stored on the
+ * user row — never by a header naming who they claim to be.
+ *
+ * This replaces `x-user-id`, which the server used to take at face value: send
+ * someone else's id and you were them. That was tolerable when twelve people
+ * had accounts and all of them were trusted; it stopped being tolerable the
+ * moment signing in with Google gave everyone an account.
+ *
+ * The token arrives as `x-session-token`, or as `x-player-token` from the
+ * player-facing screens. They are the same token — there is one identity now —
+ * and both are accepted so the player flow keeps working unchanged.
+ *
+ * A body's `userId` is still read by some services for business logic, but it
+ * no longer establishes who you are: `req.userId` always comes from the token.
  */
-const authMiddleware = (req, res, next) => {
-    try {
-        const userId = (req.body && req.body.userId) || req.query.userId || req.headers['x-user-id'];
 
-        if (!userId) {
+const readToken = (req) =>
+    req.headers['x-session-token']
+    || req.headers['x-player-token']
+    || (req.body && req.body.sessionToken)
+    || req.query.sessionToken
+    || null;
+
+const authMiddleware = async (req, res, next) => {
+    try {
+        const token = readToken(req);
+
+        if (!token) {
             return res.status(401).json({
                 success: false,
-                message: "Authentication required. Please login to perform this action."
+                message: "Authentication required. Please login to perform this action.",
+                code: "NO_SESSION",
             });
         }
 
-        req.userId = userId;
+        const user = await prisma.user.findUnique({
+            where: { sessionToken: String(token) },
+            select: { id: true, role: true, isActive: true, sessionExpiresAt: true },
+        });
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Your session has expired. Please sign in again.",
+                code: "SESSION_INVALID",
+            });
+        }
+
+        if (user.sessionExpiresAt && user.sessionExpiresAt.getTime() < Date.now()) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { sessionToken: null, sessionExpiresAt: null },
+            }).catch(() => {});
+            return res.status(401).json({
+                success: false,
+                message: "Your session has expired. Please sign in again.",
+                code: "SESSION_EXPIRED",
+            });
+        }
+
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: "Your account has been deactivated. Please contact support.",
+                code: "DEACTIVATED",
+            });
+        }
+
+        // Identity comes from here and nowhere else.
+        req.userId = user.id;
+        req.userRole = user.role;
         next();
     } catch (error) {
         return res.status(401).json({
             success: false,
             message: "Authentication failed",
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -32,54 +87,48 @@ const authMiddleware = (req, res, next) => {
 /**
  * Role-based authorization.
  *
- * The role is read from the DATABASE, never from the request. It used to come
- * from an `x-user-role` header, which meant anyone could send
- * `x-user-role: boss` and pass every role check in the app. That was survivable
- * while twelve people had accounts; it is not now that signing in with Google
- * gives everyone one, and it would make granting roles meaningless.
- *
- * This does not fix identity — `x-user-id` is still unverified, so someone who
- * knows a boss's id can still act as them. That needs a real session and is the
- * next thing to do here.
+ * Runs after authMiddleware, so the role is already the one on the user's row.
+ * It is never read from the request — an `x-user-role` header used to be enough
+ * to pass every role check in the app.
  *
  * @param {Array} allowedRoles
  */
 const roleMiddleware = (allowedRoles = []) => {
     return async (req, res, next) => {
         try {
-            const userId = req.userId
-                || (req.body && req.body.userId) || req.query.userId || req.headers['x-user-id'];
+            let role = req.userRole;
 
-            if (!userId) {
-                return res.status(403).json({ success: false, message: "Role information required" });
+            // Defensive: if this is ever mounted without authMiddleware in
+            // front, resolve the role rather than trusting anything sent.
+            if (!role) {
+                const token = readToken(req);
+                if (!token) {
+                    return res.status(403).json({ success: false, message: "You do not have permission to perform this action" });
+                }
+                const user = await prisma.user.findUnique({
+                    where: { sessionToken: String(token) },
+                    select: { role: true, isActive: true },
+                });
+                if (!user || !user.isActive) {
+                    return res.status(403).json({ success: false, message: "You do not have permission to perform this action" });
+                }
+                role = user.role;
+                req.userRole = role;
             }
 
-            const user = await prisma.user.findUnique({
-                where: { id: String(userId) },
-                select: { role: true, isActive: true },
-            });
-
-            if (!user || !user.isActive) {
+            if (!allowedRoles.includes(role)) {
                 return res.status(403).json({
                     success: false,
-                    message: "You do not have permission to perform this action"
+                    message: "You do not have permission to perform this action",
                 });
             }
 
-            if (!allowedRoles.includes(user.role)) {
-                return res.status(403).json({
-                    success: false,
-                    message: "You do not have permission to perform this action"
-                });
-            }
-
-            req.userRole = user.role;
             next();
         } catch (error) {
             return res.status(403).json({
                 success: false,
                 message: "Authorization failed",
-                error: error.message
+                error: error.message,
             });
         }
     };
@@ -87,5 +136,5 @@ const roleMiddleware = (allowedRoles = []) => {
 
 module.exports = {
     authMiddleware,
-    roleMiddleware
+    roleMiddleware,
 };

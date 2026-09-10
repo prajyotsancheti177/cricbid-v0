@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Trophy } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface Tournament {
   _id: string;
@@ -57,7 +58,7 @@ const AddPlayer = () => {
       try {
         const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: jsonAuthHeaders(),
         });
 
         if (!response.ok) throw new Error("Failed to fetch tournaments");
@@ -151,7 +152,7 @@ const AddPlayer = () => {
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(payload),
       });
 

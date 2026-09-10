@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
@@ -60,7 +61,7 @@ const TournamentDataSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/tournament/export`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user._id },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ tournamentId: tournament._id, userId: user._id }),
       });
       const result = await res.json();
@@ -142,11 +143,7 @@ const TournamentDataSection = () => {
     try {
       const res = await fetch(`${apiConfig.baseUrl}/api/player/sync-to-sheet`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": user._id,
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ touranmentId: tournament._id }),
       });
       const data = await res.json();

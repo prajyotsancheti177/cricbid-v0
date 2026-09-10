@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Users, Trophy } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 interface PlayerRegistrationData {
   name: string;
@@ -127,9 +128,7 @@ const PlayerRegistration = () => {
 
       const response = await fetch(`${apiConfig.baseUrl}/api/player/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(payload),
       });
 

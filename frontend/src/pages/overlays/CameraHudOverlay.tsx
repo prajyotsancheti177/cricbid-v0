@@ -13,6 +13,7 @@ import { getDriveThumbnail } from "@/lib/imageUtils";
 import apiConfig from "@/config/apiConfig";
 import { useMaskingEligible } from "@/lib/privacyUtils";
 import "./overlays.css";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 /**
  * Layout 1 — Camera with HUD (Lower Third)
@@ -76,7 +77,7 @@ const CameraHudOverlay = () => {
     try {
       const response = await fetch(`${apiConfig.baseUrl}/api/player/overlay-stats`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify({ tournamentId })
       });
       const data = await response.json();

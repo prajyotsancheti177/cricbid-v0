@@ -11,6 +11,7 @@ import {
 import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
+import { authHeaders, jsonAuthHeaders } from "@/lib/auth";
 
 export interface TournamentFormData {
   name: string;
@@ -112,7 +113,7 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
   // Fetch hosts once if needed
   useEffect(() => {
     if (!open || !canSelectHost || hosts.length > 0) return;
-    fetch(`${apiConfig.baseUrl}/api/tournament/hosts`, { headers: { "x-user-id": user._id } })
+    fetch(`${apiConfig.baseUrl}/api/tournament/hosts`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => setHosts(d.data || []))
       .catch(() => {});
@@ -168,7 +169,7 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(payload),
       });
       const data = await res.json();

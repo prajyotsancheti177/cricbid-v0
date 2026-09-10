@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, createElement, type ReactNode } from "react";
 import apiConfig from "@/config/apiConfig";
+import { jsonAuthHeaders } from "@/lib/auth";
 
 export interface SiteSettings {
   maskFemalePlayers: boolean;
@@ -25,7 +26,7 @@ export const fetchSiteSettings = async (): Promise<SiteSettings> => {
   try {
     const res = await fetch(`${apiConfig.baseUrl}/api/site-settings/get`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({}),
     });
     if (!res.ok) return DEFAULT_SETTINGS;

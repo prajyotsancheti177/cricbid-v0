@@ -18,6 +18,9 @@ userRouter.get("/search", authMiddleware, roleMiddleware(['boss', 'super_user'])
 // Grant/change a role and a host's tournaments - boss/super_user only
 userRouter.post("/set-access", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.setUserAccess);
 
+// End the current session - Protected
+userRouter.post("/logout", authMiddleware, userController.logoutUser);
+
 // Get User Details - Protected
 userRouter.post("/detail", authMiddleware, userController.getUserDetail);
 
