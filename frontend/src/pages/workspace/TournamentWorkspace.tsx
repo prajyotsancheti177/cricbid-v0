@@ -15,6 +15,7 @@ export interface TournamentFeatures {
   googleSheetsSync?: boolean;
   dataExport?: boolean;
   showRegisteredPlayers?: boolean;
+  cricHeroesStats?: boolean;
   countdownEnabled?: boolean;
   countdownSeconds?: number;
 }

@@ -394,12 +394,23 @@ const syncTournament = async (tournamentId, options = {}) => {
  * Stats for every linked player in a tournament, keyed by CricBid player id.
  *
  * Only `linked` rows are returned — an ambiguous match is a guess, and a guess
- * shown on an auction card is worse than showing nothing.
+ * shown on an auction card is worse than showing nothing. Returns nothing at
+ * all when the tournament has the `cricHeroesStats` feature switched off.
  *
  * @param {string} tournamentId
  * @returns {Promise<Object>} `{ [playerId]: stat }`
  */
 const statsForTournament = async (tournamentId) => {
+    // The host's switch, enforced here rather than in the two pages that render
+    // the stats: off means the data never leaves the server, so every consumer
+    // — players grid, auction screen, overlays — is covered by the one check.
+    // Missing is ON, matching how every other flag in `features` behaves.
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { features: true }
+    });
+    if (tournament?.features && tournament.features.cricHeroesStats === false) return {};
+
     const links = await prisma.cricHeroesLink.findMany({
         where: { tournamentId, status: 'linked', cricheroesPlayerId: { not: null } },
         select: { playerId: true, cricheroesPlayerId: true }
