@@ -40,6 +40,7 @@ import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
 import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
 import SiteSettingsPage from "./pages/SiteSettings";
 import { SiteSettingsProvider } from "@/lib/siteSettings";
@@ -97,6 +98,7 @@ const App = () => (
           <Routes>
             {/* Standalone pages — no navbar */}
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
             {/* Landing Page - Standalone (No Navbar) */}
             <Route path="/" element={<Home />} />
