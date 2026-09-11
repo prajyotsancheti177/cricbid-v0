@@ -11,4 +11,8 @@ module.exports = {
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
     // Where to send the browser back to after Google's redirect-mode sign-in.
     appUrl: (process.env.APP_URL || 'https://cricbid.online').replace(/\/$/, ''),
+    // Redirect-mode sign-in only works once its callback URL is registered
+    // under the OAuth client's Authorised redirect URIs. Until then Google
+    // rejects the request, so this stays OFF and the popup flow is used.
+    googleRedirectMode: String(process.env.GOOGLE_REDIRECT_MODE || '').toLowerCase() === 'true',
 }

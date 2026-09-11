@@ -62,8 +62,6 @@ model User {
   role     Role    @default(player)
 
   emailVerified    Boolean   @default(false)
-  sessionToken     String?   @unique
-  sessionExpiresAt DateTime?
 
   // Set the first time this user signs in with Google. A host is never created
   // by signing in — the Google account is matched to a user an administrator
@@ -92,6 +90,7 @@ model User {
   bookings            Booking[]            @relation("BookingUser")
   teamBudgetTopups    TeamBudgetTopup[]
   playerProfiles      PlayerProfile[]
+  sessions            UserSession[]
   tournamentAccess    TournamentAccess[]   @relation("AccessUser")
   accessGranted       TournamentAccess[]   @relation("AccessGrantedBy")
 
@@ -1047,4 +1046,28 @@ model TournamentAccess {
   @@unique([userId, tournamentId])
   @@index([tournamentId])
   @@map("tournament_access")
+}
+
+/// A signed-in device.
+///
+/// Sessions used to be a single column on the user, so signing in anywhere
+/// logged you out everywhere else — a laptop and a phone could not both be
+/// signed in, and the loser was told its session had expired on every request.
+model UserSession {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String   @unique
+  expiresAt DateTime
+
+  /// Only to tell devices apart in a "signed in on" list.
+  userAgent  String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_session")
 }

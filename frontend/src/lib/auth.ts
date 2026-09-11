@@ -91,3 +91,42 @@ export const forceSignOut = () => {
     window.location.href = "/login";
   }
 };
+
+/**
+ * Sign the user out the moment the server says their session is gone.
+ *
+ * Installed once at app start. Without it an expired session produced a page
+ * that still looked signed in while every request failed — "session expired"
+ * over and over, with no way out but clearing storage by hand. Now the first
+ * such response ends the session and returns them to the login page.
+ *
+ * Only session codes trigger it. A 403 for lacking permission is a different
+ * thing and must not log anyone out.
+ */
+export const installSessionExpiryHandler = () => {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as { __cricbidAuthHooked?: boolean };
+  if (w.__cricbidAuthHooked) return;
+  w.__cricbidAuthHooked = true;
+
+  const originalFetch = window.fetch.bind(window);
+
+  window.fetch = async (...args: Parameters<typeof fetch>) => {
+    const response = await originalFetch(...args);
+
+    if (response.status === 401 && getSessionToken()) {
+      // Read a clone so the caller still gets an unconsumed body.
+      try {
+        const body = await response.clone().json();
+        const code = String(body?.code || "");
+        if (code === "SESSION_EXPIRED" || code === "SESSION_INVALID" || code === "NO_SESSION") {
+          forceSignOut();
+        }
+      } catch {
+        /* not JSON — leave it to the caller */
+      }
+    }
+
+    return response;
+  };
+};

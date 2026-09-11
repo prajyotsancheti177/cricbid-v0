@@ -166,7 +166,6 @@ const Login = () => {
             <div className="space-y-3 mb-4">
               <GoogleSignInButton
                 endpoint="/api/user/google-login"
-                redirectUri={`${apiConfig.baseUrl}/api/user/google-callback`}
                 onSignedIn={(user) => completeLogin(user, "google")}
                 onError={setError}
               />

@@ -16,6 +16,7 @@ const playerProfileAuthMiddleware = async (req, res, next) => {
     if (!account) return sendError(res, 401, "Your session has expired. Please sign in again.");
 
     req.playerAccount = account;
+    req.playerToken = token;
     next();
 };
 

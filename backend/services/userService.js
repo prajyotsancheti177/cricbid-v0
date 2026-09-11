@@ -150,25 +150,51 @@ const loginUser = async (credentials) => {
         throw new Error("Invalid email or password");
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const withSession = await prisma.user.update({
-        where: { id: user.id },
-        data: { sessionToken: token, sessionExpiresAt: new Date(Date.now() + SESSION_TTL_MS) },
-    });
+    const token = await createSession(user.id);
 
-    const s = serializeUser(withSession);
+    const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
     return { ...s, sessionToken: token };
 };
 
-/** End a session. */
-const logout = async (userId) => {
-    await prisma.user.update({
-        where: { id: userId },
-        data: { sessionToken: null, sessionExpiresAt: null },
-    }).catch(() => { /* already gone is fine */ });
+/**
+ * Start a session for one device.
+ *
+ * Adds a row rather than replacing a column, so signing in on a phone does not
+ * sign out a laptop.
+ */
+const createSession = async (userId, userAgent) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.userSession.create({
+        data: {
+            userId,
+            token,
+            expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+            userAgent: userAgent ? String(userAgent).slice(0, 255) : null,
+        },
+    });
+    return token;
 };
+
+/** End one session — this device only. Other devices stay signed in. */
+const logout = async (token) => {
+    if (!token) return;
+    await prisma.userSession.deleteMany({ where: { token: String(token) } });
+};
+
+/** End every session for a user. */
+const logoutEverywhere = async (userId) => {
+    await prisma.userSession.deleteMany({ where: { userId } });
+};
+
+/** The devices a user is currently signed in on. */
+const listSessions = (userId) =>
+    prisma.userSession.findMany({
+        where: { userId, expiresAt: { gt: new Date() } },
+        select: { id: true, userAgent: true, createdAt: true, lastSeenAt: true },
+        orderBy: { lastSeenAt: 'desc' },
+    });
 
 /**
  * Sign in with Google.
@@ -242,13 +268,9 @@ const loginWithGoogle = async (credential) => {
         throw new Error("Your account has been deactivated. Please contact support.");
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const withSession = await prisma.user.update({
-        where: { id: user.id },
-        data: { sessionToken: token, sessionExpiresAt: new Date(Date.now() + SESSION_TTL_MS) },
-    });
+    const token = await createSession(user.id);
 
-    const s = serializeUser(withSession);
+    const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
     return { ...s, sessionToken: token };
@@ -259,15 +281,16 @@ const loginWithGoogle = async (credential) => {
  */
 const getUserBySessionToken = async (token) => {
     if (!token) return null;
-    const user = await prisma.user.findUnique({ where: { sessionToken: token } });
-    if (!user) return null;
-    if (user.sessionExpiresAt && user.sessionExpiresAt.getTime() < Date.now()) {
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { sessionToken: null, sessionExpiresAt: null },
-        });
+    const session = await prisma.userSession.findUnique({
+        where: { token: String(token) },
+        include: { user: true },
+    });
+    if (!session) return null;
+    if (session.expiresAt.getTime() < Date.now()) {
+        await prisma.userSession.delete({ where: { id: session.id } }).catch(() => {});
         return null;
     }
+    const user = session.user;
     const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
@@ -550,7 +573,10 @@ module.exports = {
     searchUsers,
     setUserAccess,
     getUserBySessionToken,
+    createSession,
     logout,
+    logoutEverywhere,
+    listSessions,
     createUser,
     loginUser,
     getUserDetail,

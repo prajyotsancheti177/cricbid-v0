@@ -103,11 +103,8 @@ const deleteProfile = async (userId, profileId) => {
     await prisma.playerProfile.delete({ where: { id: profileId } });
 };
 
-const logoutAccount = async (userId) => {
-    await prisma.user.update({
-        where: { id: userId },
-        data: { sessionToken: null, sessionExpiresAt: null },
-    });
+const logoutAccount = async (token) => {
+    await userService.logout(token);
 };
 
 module.exports = {

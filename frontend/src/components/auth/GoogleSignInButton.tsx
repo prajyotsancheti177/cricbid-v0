@@ -53,20 +53,40 @@ const loadGis = () => {
  * Exported so a caller can hide its own surrounding chrome — a divider reading
  * "or use a mobile number" is nonsense with nothing above it.
  */
-export const useGoogleClientId = (): string | null => {
-  const [clientId, setClientId] = useState<string | null>(null);
+interface AuthConfig {
+  googleClientId: string | null;
+  googleRedirectUri: string | null;
+}
+
+/**
+ * The server's sign-in config.
+ *
+ * `googleRedirectUri` is null unless redirect mode is switched on server-side,
+ * because it only works once that URL is registered under the OAuth client's
+ * Authorised redirect URIs. Sending Google an unregistered one fails the
+ * sign-in outright, so the popup stays the default.
+ */
+export const useAuthConfig = (): AuthConfig => {
+  const [cfg, setCfg] = useState<AuthConfig>({ googleClientId: null, googleRedirectUri: null });
   useEffect(() => {
     let cancelled = false;
     fetch(`${apiConfig.baseUrl}/api/player-profile/auth-config`)
       .then(res => (res.ok ? res.json() : null))
       .then(body => {
-        if (!cancelled && body?.data?.googleEnabled) setClientId(body.data.googleClientId);
+        if (cancelled || !body?.data?.googleEnabled) return;
+        setCfg({
+          googleClientId: body.data.googleClientId,
+          googleRedirectUri: body.data.googleRedirectUri ?? null,
+        });
       })
       .catch(() => { /* sign-in stays hidden; password login still works */ });
     return () => { cancelled = true; };
   }, []);
-  return clientId;
+  return cfg;
 };
+
+/** Just the client id — most callers only need to know whether sign-in is on. */
+export const useGoogleClientId = (): string | null => useAuthConfig().googleClientId;
 
 interface Props {
   /**
@@ -79,19 +99,10 @@ interface Props {
   /** Called with whatever that endpoint returned, once the server verified it. */
   onSignedIn: (data: any) => void;
   onError?: (message: string) => void;
-  /**
-   * Where Google should POST the credential in redirect mode. Setting this
-   * switches off the popup entirely: no popup to block, no window.opener to
-   * lose, and nothing for tracking prevention to interfere with. `onSignedIn`
-   * never fires in this mode — the browser leaves the page and comes back.
-   *
-   * Must be registered as an Authorised redirect URI on the OAuth client.
-   */
-  redirectUri?: string;
 }
 
-export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError, redirectUri }: Props) => {
-  const clientId = useGoogleClientId();
+export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError }: Props) => {
+  const { googleClientId: clientId, googleRedirectUri } = useAuthConfig();
   const holder = useRef<HTMLDivElement>(null);
   // Kept in a ref so re-renders never re-initialise GIS with a stale callback.
   const onSignedInRef = useRef(onSignedIn);
@@ -109,8 +120,8 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
 
         window.google.accounts.id.initialize({
           client_id: clientId,
-          ...(redirectUri
-            ? { ux_mode: "redirect", login_uri: redirectUri }
+          ...(googleRedirectUri
+            ? { ux_mode: "redirect", login_uri: googleRedirectUri }
             : {}),
           // Never sign someone in without them asking.
           auto_select: false,
@@ -169,7 +180,7 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
       .catch(err => onErrorRef.current?.(err.message));
 
     return () => { cancelled = true; };
-  }, [clientId, endpoint, redirectUri]);
+  }, [clientId, endpoint, googleRedirectUri]);
 
   if (!clientId) return null;
 

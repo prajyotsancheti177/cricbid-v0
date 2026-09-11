@@ -25,6 +25,11 @@ const authConfig = async (_req, res) => {
     return sendSuccess(res, 200, "Auth config", {
         googleClientId: config.googleClientId,
         googleEnabled: Boolean(config.googleClientId),
+        // The client only switches off the popup when the callback URL has
+        // actually been registered with Google.
+        googleRedirectUri: config.googleRedirectMode
+            ? `${config.appUrl}/api/user/google-callback`
+            : null,
         // Reserved for the WhatsApp OTP path; false until it ships.
         otpEnabled: false,
     });
@@ -79,7 +84,7 @@ const deleteProfile = async (req, res) => {
 
 const logoutProfile = async (req, res) => {
     try {
-        await playerProfileService.logoutAccount(req.playerAccount.id);
+        await playerProfileService.logoutAccount(req.playerToken);
         return sendSuccess(res, 200, "Signed out", null);
     } catch (error) {
         return sendError(res, 400, error.message || "Could not sign out", error);

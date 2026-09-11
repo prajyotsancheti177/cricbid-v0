@@ -101,7 +101,7 @@ const googleCallback = async (req, res) => {
 /** POST /api/user/logout — end this session. */
 const logoutUser = async (req, res) => {
     try {
-        await userService.logout(req.userId);
+        await userService.logout(req.sessionToken);
         return sendSuccess(res, 200, "Signed out", null);
     } catch (error) {
         return sendError(res, 400, "Could not sign out", error);

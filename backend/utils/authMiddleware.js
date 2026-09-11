@@ -3,8 +3,13 @@ const prisma = require('../db/prisma');
 /**
  * Session authentication.
  *
- * The caller is identified by a session token issued at login and stored on the
- * user row — never by a header naming who they claim to be.
+ * The caller is identified by a session token issued at login and stored as a
+ * row in `user_session` — never by a header naming who they claim to be.
+ *
+ * One row per device, so a phone and a laptop can both be signed in. It used to
+ * be a single column on the user, which meant signing in anywhere silently
+ * invalidated everywhere else and the other device was told, on every request,
+ * that its session had expired.
  *
  * This replaces `x-user-id`, which the server used to take at face value: send
  * someone else's id and you were them. That was tolerable when twelve people
@@ -38,12 +43,16 @@ const authMiddleware = async (req, res, next) => {
             });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { sessionToken: String(token) },
-            select: { id: true, role: true, isActive: true, sessionExpiresAt: true },
+        const session = await prisma.userSession.findUnique({
+            where: { token: String(token) },
+            select: {
+                id: true,
+                expiresAt: true,
+                user: { select: { id: true, role: true, isActive: true } },
+            },
         });
 
-        if (!user) {
+        if (!session) {
             return res.status(401).json({
                 success: false,
                 message: "Your session has expired. Please sign in again.",
@@ -51,17 +60,16 @@ const authMiddleware = async (req, res, next) => {
             });
         }
 
-        if (user.sessionExpiresAt && user.sessionExpiresAt.getTime() < Date.now()) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { sessionToken: null, sessionExpiresAt: null },
-            }).catch(() => {});
+        if (session.expiresAt.getTime() < Date.now()) {
+            await prisma.userSession.delete({ where: { id: session.id } }).catch(() => {});
             return res.status(401).json({
                 success: false,
                 message: "Your session has expired. Please sign in again.",
                 code: "SESSION_EXPIRED",
             });
         }
+
+        const user = session.user;
 
         if (!user.isActive) {
             return res.status(403).json({
@@ -74,6 +82,15 @@ const authMiddleware = async (req, res, next) => {
         // Identity comes from here and nowhere else.
         req.userId = user.id;
         req.userRole = user.role;
+        req.sessionToken = String(token);
+
+        // Cheap liveness for the "signed in on" list; not awaited so it never
+        // adds latency to a request.
+        prisma.userSession.update({
+            where: { id: session.id },
+            data: { lastSeenAt: new Date() },
+        }).catch(() => {});
+
         next();
     } catch (error) {
         return res.status(401).json({
@@ -105,10 +122,11 @@ const roleMiddleware = (allowedRoles = []) => {
                 if (!token) {
                     return res.status(403).json({ success: false, message: "You do not have permission to perform this action" });
                 }
-                const user = await prisma.user.findUnique({
-                    where: { sessionToken: String(token) },
-                    select: { role: true, isActive: true },
+                const session = await prisma.userSession.findUnique({
+                    where: { token: String(token) },
+                    select: { expiresAt: true, user: { select: { role: true, isActive: true } } },
                 });
+                const user = session && session.expiresAt.getTime() > Date.now() ? session.user : null;
                 if (!user || !user.isActive) {
                     return res.status(403).json({ success: false, message: "You do not have permission to perform this action" });
                 }

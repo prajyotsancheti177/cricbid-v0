@@ -44,7 +44,7 @@ import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
 import SiteSettingsPage from "./pages/SiteSettings";
 import { SiteSettingsProvider } from "@/lib/siteSettings";
-import { clearSession, getSessionToken, getStoredUser } from "@/lib/auth";
+import { clearSession, getSessionToken, getStoredUser, installSessionExpiryHandler } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +55,9 @@ const TournamentRedirect = () => {
 };
 
 // Protected Route Component - for admin features
+// Installed before anything renders, so the very first failed request signs out.
+installSessionExpiryHandler();
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
 
