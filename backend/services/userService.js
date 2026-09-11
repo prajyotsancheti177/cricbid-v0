@@ -562,10 +562,26 @@ const deleteUser = async (userId, hardDelete = false) => {
     if (hardDelete) {
         await prisma.user.delete({ where: { id: userId } });
         return { message: "User permanently deleted" };
-    } else {
-        await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
-        return { message: "User deactivated successfully" };
     }
+
+    // Removing someone's access is not the same as banning them from CricBid.
+    //
+    // `isActive: false` blocks sign-in outright, which made sense when the only
+    // accounts were twelve hand-made admin logins. Now every person who signs in
+    // with Google has an account, so blocking one locks that human out of the
+    // public product entirely — they cannot even register their own child for a
+    // tournament, because their email already belongs to a disabled row.
+    //
+    // So this demotes instead: no role, no tournaments, no live sessions. They
+    // can sign in tomorrow and see exactly what any other member of the public
+    // sees. `isActive` is left alone and now means only one thing — suspended —
+    // which nothing in the UI sets.
+    await prisma.$transaction([
+        prisma.user.update({ where: { id: userId }, data: { role: 'player' } }),
+        prisma.tournamentAccess.deleteMany({ where: { userId } }),
+        prisma.userSession.deleteMany({ where: { userId } }),
+    ]);
+    return { message: "Access removed. They can still sign in, with no admin access." };
 };
 
 module.exports = {

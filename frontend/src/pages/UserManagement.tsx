@@ -167,7 +167,7 @@ const UserManagement = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to deactivate this user?")) {
+    if (!confirm("Remove this user's access? They keep their account and can still sign in, but will have no admin access.")) {
       return;
     }
 
@@ -182,8 +182,8 @@ const UserManagement = () => {
 
       if (data.success) {
         toast({
-          title: "User Deactivated",
-          description: "User has been deactivated successfully.",
+          title: "Access removed",
+          description: "They can still sign in, with no admin access.",
         });
 
         if (currentUser) {
@@ -192,7 +192,7 @@ const UserManagement = () => {
       } else {
         toast({
           title: "Error",
-          description: data.message || "Failed to deactivate user",
+          description: data.message || "Could not remove access",
           variant: "destructive",
         });
       }
