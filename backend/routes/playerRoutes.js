@@ -48,8 +48,8 @@ playerRouter.post("/verify-payments", authMiddleware, roleMiddleware(['boss', 's
 playerRouter.post("/resequence-serials", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.resequenceSerials);
 
 // Edit history and undo
-playerRouter.post("/history", authMiddleware, playerController.getPlayerHistory);
-playerRouter.post("/undo", authMiddleware, playerController.undoPlayerChanges);
+playerRouter.post("/history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.getPlayerHistory);
+playerRouter.post("/undo", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.undoPlayerChanges);
 
 // NOTE: sheet -> database sync was removed on 2026-09-08. Matching sheet rows
 // back to players proved unreliable (duplicate headers, renamed columns, ids

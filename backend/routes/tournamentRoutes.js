@@ -6,7 +6,7 @@ const uploadMiddleware = require('../utils/uploadMiddleware');
 const tournamentRouter = express.Router();
 
 // Register New Tournament - Protected
-tournamentRouter.post("/register", authMiddleware, touranmentController.addTournamnet);
+tournamentRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), touranmentController.addTournamnet);
 
 // Get All Tournaments (filtered by role) - Public (for viewing)
 tournamentRouter.post("/all", touranmentController.getAllTournaments);
@@ -21,7 +21,7 @@ tournamentRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_
 tournamentRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.deleteTournament);
 
 // Get All Tournament Hosts (for boss and super_user) - Protected
-tournamentRouter.get("/hosts", authMiddleware, touranmentController.getAllTournamentHosts);
+tournamentRouter.get("/hosts", authMiddleware, roleMiddleware(['boss', 'super_user']), touranmentController.getAllTournamentHosts);
 
 // Export Tournament Data (teams and players) - Protected
 tournamentRouter.post("/export", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.exportTournamentData);
@@ -33,6 +33,6 @@ tournamentRouter.get("/:id/registration-config", touranmentController.getRegistr
 tournamentRouter.post("/update-registration-config", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.updateRegistrationConfig);
 
 // Upload tournament image (poster / QR) to S3 - Protected
-tournamentRouter.post("/upload-image", authMiddleware, uploadMiddleware.single('image'), touranmentController.uploadImage);
+tournamentRouter.post("/upload-image", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), uploadMiddleware.single('image'), touranmentController.uploadImage);
 
 module.exports = tournamentRouter;

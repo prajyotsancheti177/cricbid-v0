@@ -110,8 +110,15 @@ const logoutUser = async (req, res) => {
 
 const getUserDetail = async (req, res) => {
     try {
-        // Use targetUserId if provided (for viewing other users), otherwise fallback to authenticated userId
-        const targetUserId = req.body.targetUserId || req.userId;
+        // Reading somebody ELSE's account is an admin act. Anyone signed in
+        // could previously pass a targetUserId and read any account on the
+        // system, which now means any Gmail address reading any host's details.
+        const requested = req.body.targetUserId;
+        const isAdmin = req.userRole === 'boss' || req.userRole === 'super_user';
+        if (requested && requested !== req.userId && !isAdmin) {
+            return sendError(res, 403, "You do not have permission to view that user", new Error("forbidden"));
+        }
+        const targetUserId = requested || req.userId;
         const user = await userService.getUserDetail(targetUserId);
         return sendSuccess(res, 200, "User details fetched successfully", user);
     } catch (error) {

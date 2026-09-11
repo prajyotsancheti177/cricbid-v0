@@ -19,19 +19,19 @@ teamRouter.post("/detail", teamController.getTeamReport);
 
 // Update Individual Team - Protected (multipart: uploadMiddleware must run
 // before authMiddleware, since only multer populates req.body for multipart requests)
-teamRouter.post("/update", uploadMiddleware.any(), authMiddleware, teamController.updateTeam);
+teamRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), uploadMiddleware.any(), authMiddleware, teamController.updateTeam);
 
 // Delete Individual Team - Protected
 teamRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.deleteTeam);
 
 // Top up a team's auction balance - Protected
-teamRouter.post("/topup-budget", authMiddleware, teamController.topUpTeamBudget);
+teamRouter.post("/topup-budget", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.topUpTeamBudget);
 
 // Team budget top-up history for a tournament - Protected
-teamRouter.post("/topup-history", authMiddleware, teamController.getTeamBudgetTopups);
+teamRouter.post("/topup-history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.getTeamBudgetTopups);
 
 // Delete a team budget top-up entry - Protected
-teamRouter.post("/topup-delete", authMiddleware, teamController.deleteTeamBudgetTopup);
+teamRouter.post("/topup-delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.deleteTeamBudgetTopup);
 
 // Get All Team Names - Public (for viewing)
 teamRouter.post("/names", teamController.getTeamNames);
