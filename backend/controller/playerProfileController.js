@@ -25,11 +25,12 @@ const authConfig = async (_req, res) => {
     return sendSuccess(res, 200, "Auth config", {
         googleClientId: config.googleClientId,
         googleEnabled: Boolean(config.googleClientId),
-        // The client only switches off the popup when the callback URL has
-        // actually been registered with Google.
-        googleRedirectUri: config.googleRedirectMode
-            ? `${config.appUrl}/api/user/google-callback`
-            : null,
+        // The callback the client should POST to in redirect mode, plus which
+        // devices should use it. The client decides; the server just says where.
+        googleRedirectUri: config.googleRedirectMode === 'false'
+            ? null
+            : `${config.appUrl}/api/user/google-callback`,
+        googleRedirectOn: config.googleRedirectMode, // 'mobile' | 'true' | 'false'
         // Reserved for the WhatsApp OTP path; false until it ships.
         otpEnabled: false,
     });

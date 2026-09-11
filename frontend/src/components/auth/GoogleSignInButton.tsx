@@ -56,7 +56,28 @@ const loadGis = () => {
 interface AuthConfig {
   googleClientId: string | null;
   googleRedirectUri: string | null;
+  /** 'mobile' | 'true' | 'false' — which devices skip the popup. */
+  googleRedirectOn: string;
 }
+
+/**
+ * Whether this device should skip the popup.
+ *
+ * The popup returns the credential through `window.opener`, which mobile
+ * browsers routinely prevent — the popup opens, hangs on Google's own
+ * /gsi/transform page, and nothing ever comes back. Redirect mode has no popup
+ * and no opener, so none of that can happen.
+ *
+ * Coarse on purpose: a false positive costs a full-page navigation instead of a
+ * popup, which is fine. A false negative costs a sign-in that never completes.
+ */
+const isMobileLike = () => {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini/i.test(ua)) return true;
+  // iPadOS reports itself as a Mac, so fall back to the touch signal.
+  return navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+};
 
 /**
  * The server's sign-in config.
@@ -67,7 +88,9 @@ interface AuthConfig {
  * sign-in outright, so the popup stays the default.
  */
 export const useAuthConfig = (): AuthConfig => {
-  const [cfg, setCfg] = useState<AuthConfig>({ googleClientId: null, googleRedirectUri: null });
+  const [cfg, setCfg] = useState<AuthConfig>({
+    googleClientId: null, googleRedirectUri: null, googleRedirectOn: "false",
+  });
   useEffect(() => {
     let cancelled = false;
     fetch(`${apiConfig.baseUrl}/api/player-profile/auth-config`)
@@ -77,6 +100,7 @@ export const useAuthConfig = (): AuthConfig => {
         setCfg({
           googleClientId: body.data.googleClientId,
           googleRedirectUri: body.data.googleRedirectUri ?? null,
+          googleRedirectOn: String(body.data.googleRedirectOn ?? "false"),
         });
       })
       .catch(() => { /* sign-in stays hidden; password login still works */ });
@@ -102,7 +126,12 @@ interface Props {
 }
 
 export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError }: Props) => {
-  const { googleClientId: clientId, googleRedirectUri } = useAuthConfig();
+  const { googleClientId: clientId, googleRedirectUri, googleRedirectOn } = useAuthConfig();
+
+  // Redirect where the popup cannot work; popup where it does.
+  const useRedirect = Boolean(googleRedirectUri) && (
+    googleRedirectOn === "true" || (googleRedirectOn === "mobile" && isMobileLike())
+  );
   const holder = useRef<HTMLDivElement>(null);
   // Kept in a ref so re-renders never re-initialise GIS with a stale callback.
   const onSignedInRef = useRef(onSignedIn);
@@ -120,7 +149,7 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
 
         window.google.accounts.id.initialize({
           client_id: clientId,
-          ...(googleRedirectUri
+          ...(useRedirect
             ? { ux_mode: "redirect", login_uri: googleRedirectUri }
             : {}),
           // Never sign someone in without them asking.
@@ -180,7 +209,7 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
       .catch(err => onErrorRef.current?.(err.message));
 
     return () => { cancelled = true; };
-  }, [clientId, endpoint, googleRedirectUri]);
+  }, [clientId, endpoint, useRedirect, googleRedirectUri]);
 
   if (!clientId) return null;
 
