@@ -9,7 +9,14 @@ const { sendError } = require("./index");
  * in says nothing about which profile id you may touch.
  */
 const playerProfileAuthMiddleware = async (req, res, next) => {
-    const token = req.headers["x-player-token"] || req.body?.playerToken;
+    // Both names carry the same session token — there is one identity now. The
+    // player screens send `x-player-token`; everything built on lib/auth sends
+    // `x-session-token`, and only accepting the first made these endpoints
+    // reject a perfectly valid session.
+    const token = req.headers["x-player-token"]
+        || req.headers["x-session-token"]
+        || req.body?.playerToken
+        || req.body?.sessionToken;
     if (!token) return sendError(res, 401, "Please sign in to continue.");
 
     const account = await playerProfileService.getAccountByToken(token);
