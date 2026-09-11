@@ -14,7 +14,7 @@ userRouter.post("/google-login", userController.googleLoginUser);
 userRouter.post("/google-callback", userController.googleCallback);
 
 // Create User - Protected
-userRouter.post("/create", authMiddleware, userController.createUser);
+userRouter.post("/create", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.createUser);
 
 // Find someone to grant access to - boss/super_user only
 userRouter.get("/search", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.searchUsers);
@@ -29,18 +29,18 @@ userRouter.post("/logout", authMiddleware, userController.logoutUser);
 userRouter.post("/detail", authMiddleware, userController.getUserDetail);
 
 // Get Users Created by a User - Protected
-userRouter.post("/my-users", authMiddleware, userController.getUsersByCreator);
+userRouter.post("/my-users", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.getUsersByCreator);
 
 // Get Users in Hierarchy (created by user and their descendants) - Protected
-userRouter.post("/hierarchy", authMiddleware, userController.getUsersInHierarchy);
+userRouter.post("/hierarchy", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.getUsersInHierarchy);
 
 // Get All Users (boss only) - Protected
-userRouter.post("/all", authMiddleware, userController.getAllUsers);
+userRouter.post("/all", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.getAllUsers);
 
 // Update User - Protected
-userRouter.post("/update", authMiddleware, userController.updateUser);
+userRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.updateUser);
 
 // Delete/Deactivate User - Protected
-userRouter.post("/delete", authMiddleware, userController.deleteUser);
+userRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.deleteUser);
 
 module.exports = userRouter;

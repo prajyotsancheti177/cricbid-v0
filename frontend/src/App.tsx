@@ -83,14 +83,30 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
  * The server enforces this too — this only keeps the wrong screen off theirs.
  */
 const MANAGING_ROLES = ["boss", "super_user", "tournament_host"];
+const ADMIN_ROLES = ["boss", "super_user"];
 
-const ManageRoute = ({ children }: { children: React.ReactNode }) => {
-  const role = getStoredUser()?.role;
-  if (!MANAGING_ROLES.includes(String(role))) {
+/**
+ * A route only certain roles may open.
+ *
+ * Being signed in is not a permission. Everyone who signs in with Google is a
+ * `player`, so every admin screen needs to say which roles it is for — a player
+ * reaching tournament management, bulk upload or site analytics saw a real UI
+ * that was never theirs.
+ *
+ * The server enforces the same rules; this only keeps the wrong screen off
+ * their device.
+ */
+const RoleRoute = ({ allow, children }: { allow: string[]; children: React.ReactNode }) => {
+  const role = String(getStoredUser()?.role || "");
+  if (!allow.includes(role)) {
     return <Navigate to="/tournaments" replace />;
   }
   return <>{children}</>;
 };
+
+const ManageRoute = ({ children }: { children: React.ReactNode }) => (
+  <RoleRoute allow={MANAGING_ROLES}>{children}</RoleRoute>
+);
 
 // Page transition wrapper — fades + slides each route in
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -156,7 +172,16 @@ const App = () => (
               <Route path="/team/:teamId" element={<TeamDetail />} />
               <Route path="/register" element={<PlayerRegistration />} />
               <Route path="/register/public/:tournamentId" element={<PublicPlayerRegistration />} />
-              <Route path="/add-player" element={<AddPlayer />} />
+              <Route
+                path="/add-player"
+                element={
+                  <ProtectedRoute>
+                    <ManageRoute>
+                      <AddPlayer />
+                    </ManageRoute>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Login Route */}
               <Route path="/login" element={<Login />} />
@@ -166,7 +191,9 @@ const App = () => (
                 path="/tournaments/manage"
                 element={
                   <ProtectedRoute>
-                    <TournamentManagement />
+                    <ManageRoute>
+                      <TournamentManagement />
+                    </ManageRoute>
                   </ProtectedRoute>
                 }
               />
@@ -205,7 +232,9 @@ const App = () => (
                 path="/users"
                 element={
                   <ProtectedRoute>
-                    <UserManagement />
+                    <RoleRoute allow={ADMIN_ROLES}>
+                      <UserManagement />
+                    </RoleRoute>
                   </ProtectedRoute>
                 }
               />
@@ -213,7 +242,9 @@ const App = () => (
                 path="/bulk-upload"
                 element={
                   <ProtectedRoute>
-                    <BulkUpload />
+                    <ManageRoute>
+                      <BulkUpload />
+                    </ManageRoute>
                   </ProtectedRoute>
                 }
               />
@@ -221,7 +252,9 @@ const App = () => (
                 path="/analytics"
                 element={
                   <ProtectedRoute>
-                    <Analytics />
+                    <RoleRoute allow={ADMIN_ROLES}>
+                      <Analytics />
+                    </RoleRoute>
                   </ProtectedRoute>
                 }
               />
@@ -229,7 +262,9 @@ const App = () => (
                 path="/site-settings"
                 element={
                   <ProtectedRoute>
-                    <SiteSettingsPage />
+                    <RoleRoute allow={ADMIN_ROLES}>
+                      <SiteSettingsPage />
+                    </RoleRoute>
                   </ProtectedRoute>
                 }
               />
