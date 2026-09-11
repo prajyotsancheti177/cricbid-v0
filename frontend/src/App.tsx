@@ -44,7 +44,7 @@ import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
 import SiteSettingsPage from "./pages/SiteSettings";
 import { SiteSettingsProvider } from "@/lib/siteSettings";
-import { clearSession, getSessionToken, getStoredUser, installSessionExpiryHandler } from "@/lib/auth";
+import { clearSession, getSessionToken, installSessionExpiryHandler, useCurrentUser } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -97,8 +97,14 @@ const ADMIN_ROLES = ["boss", "super_user"];
  * their device.
  */
 const RoleRoute = ({ allow, children }: { allow: string[]; children: React.ReactNode }) => {
-  const role = String(getStoredUser()?.role || "");
-  if (!allow.includes(role)) {
+  const { user, ready } = useCurrentUser();
+
+  // Wait for the server's answer before turning anyone away. The stored role is
+  // a snapshot from sign-in, so somebody promoted since then would otherwise be
+  // bounced off a screen they now have every right to open.
+  if (!ready) return null;
+
+  if (!allow.includes(String(user?.role || ""))) {
     return <Navigate to="/tournaments" replace />;
   }
   return <>{children}</>;

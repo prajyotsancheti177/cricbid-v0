@@ -6,7 +6,7 @@ import {
 import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
-import { jsonAuthHeaders } from "@/lib/auth";
+import { getStoredUser, jsonAuthHeaders, useCurrentUser } from "@/lib/auth";
 
 export interface TournamentFeatures {
   whatsappNotifications?: boolean;
@@ -60,15 +60,14 @@ const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?
   { to: "settings", label: "Settings", icon: Settings },
 ];
 
-const getAuthUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("user") || "null");
-  } catch {
-    return null;
-  }
-};
+// Reads the same store the route gates use, revalidated against the server on
+// page load — so a freshly promoted super_user sees the admin sections without
+// having to sign out and back in.
+const getAuthUser = () => getStoredUser();
 
 const TournamentWorkspace = () => {
+  // Subscribe so the sidebar re-renders once the real role arrives.
+  useCurrentUser();
   const { tournamentId } = useParams();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState<WorkspaceTournament | null>(null);

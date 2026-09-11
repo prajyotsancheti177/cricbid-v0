@@ -10,6 +10,18 @@
  * place that knows how a request is authenticated.
  */
 
+import { useEffect, useReducer } from "react";
+import apiConfig from "@/config/apiConfig";
+
+const API_BASE = apiConfig.baseUrl;
+
+type Listener = () => void;
+const listeners = new Set<Listener>();
+const notify = () => listeners.forEach(fn => fn());
+
+let refreshPromise: Promise<StoredUser | null> | null = null;
+let refreshed = false;
+
 const TOKEN_KEY = "cricbid_session_token";
 const USER_KEY = "user";
 const AUTH_FLAG = "isAuthenticated";
@@ -52,6 +64,8 @@ export const storeSession = (user: StoredUser & { sessionToken?: string }) => {
 };
 
 export const clearSession = () => {
+  refreshPromise = null;
+  refreshed = false;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(PLAYER_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
@@ -129,4 +143,67 @@ export const installSessionExpiryHandler = () => {
 
     return response;
   };
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Keeping the stored user current
+ *
+ * The user object — including the role every screen gate reads — used to be
+ * written once at sign-in and never touched again. So promoting somebody in
+ * Grant access did nothing for a browser that was already signed in: the server
+ * knew they were a super_user, their browser still said `player`, and the app
+ * bounced them off every admin screen. The only cure was signing out and back
+ * in, which nobody would think to try.
+ *
+ * The role now comes from the server on every page load. One request, once,
+ * shared by every component that asks.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Pull the current user from the server and update what is stored. */
+export const refreshCurrentUser = (): Promise<StoredUser | null> => {
+  if (refreshPromise) return refreshPromise;
+
+  const token = getSessionToken();
+  if (!token) {
+    refreshed = true;
+    refreshPromise = Promise.resolve(null);
+    return refreshPromise;
+  }
+
+  refreshPromise = fetch(`${API_BASE}/api/user/detail`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({}),
+  })
+    .then(res => (res.ok ? res.json() : null))
+    .then(body => {
+      const fresh = body?.data as StoredUser | undefined;
+      if (!fresh) return getStoredUser();
+      // Keep whatever else was stored; the server is the authority on role.
+      const merged = { ...(getStoredUser() || {}), ...fresh };
+      localStorage.setItem(USER_KEY, JSON.stringify(merged));
+      return merged as StoredUser;
+    })
+    .catch(() => getStoredUser())   // offline: carry on with what we have
+    .finally(() => { refreshed = true; notify(); });
+
+  return refreshPromise;
+};
+
+/**
+ * The signed-in user, revalidated against the server once per page load.
+ *
+ * `ready` is false only until that first check settles, so a gate can wait
+ * rather than deny someone on a stale role.
+ */
+export const useCurrentUser = (): { user: StoredUser | null; ready: boolean } => {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+
+  useEffect(() => {
+    listeners.add(bump);
+    refreshCurrentUser();
+    return () => { listeners.delete(bump); };
+  }, []);
+
+  return { user: getStoredUser(), ready: refreshed || !getSessionToken() };
 };
