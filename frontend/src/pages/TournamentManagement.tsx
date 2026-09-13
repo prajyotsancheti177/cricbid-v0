@@ -102,13 +102,13 @@ export default function TournamentManagement() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="text-3xl font-bold flex items-center gap-2">
-                <Trophy className="h-8 w-8" />
+        <CardHeader className="p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div className="min-w-0">
+              <CardTitle className="text-xl md:text-3xl font-bold flex items-center gap-2">
+                <Trophy className="h-6 w-6 md:h-8 md:w-8 shrink-0" />
                 Tournament Management
               </CardTitle>
               <CardDescription className="mt-2">
@@ -117,13 +117,13 @@ export default function TournamentManagement() {
                   : "Manage all tournaments in the system"}
               </CardDescription>
             </div>
-            <Button onClick={() => { setEditingTournament(null); setFormDialogOpen(true); }} size="lg">
+            <Button onClick={() => { setEditingTournament(null); setFormDialogOpen(true); }} size="lg" className="w-full sm:w-auto">
               <Plus className="h-5 w-5 mr-2" />
               Create Tournament
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
           {tournaments.length === 0 ? (
             <div className="text-center py-12">
               <Trophy className="h-16 w-16 mx-auto text-gray-400 mb-4" />
@@ -133,6 +133,45 @@ export default function TournamentManagement() {
               </p>
             </div>
           ) : (
+            <>
+            {/* Phones: one card per tournament instead of a 7-column table */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {tournaments.map((tournament) => (
+                <div key={tournament._id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold leading-snug break-words">
+                        {tournament.name || "Unnamed Tournament"}
+                      </div>
+                      {!isTournamentHost && tournament.tournamentHostId?.name && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          Host: {tournament.tournamentHostId.name}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => navigate(`/tournament/${tournament._id}/manage/overview`)}
+                    >
+                      Manage
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {tournament.noOfTeams || 0} teams
+                    </span>
+                    <span>{tournament.minPlayersPerTeam || 0}-{tournament.maxPlayersPerTeam || 0} players/team</span>
+                    <span className="flex items-center gap-1">
+                      <Wallet className="h-3 w-3" />
+                      {tournament.totalBudget?.toLocaleString() || "0"} Pts
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -205,6 +244,8 @@ export default function TournamentManagement() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
