@@ -56,7 +56,7 @@ const AddPlayer = () => {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
+        const response = await fetch(`${apiConfig.baseUrl}/api/tournament/managed`, {
           method: "POST",
           headers: jsonAuthHeaders(),
         });

@@ -60,7 +60,7 @@ export default function TournamentManagement() {
   const fetchTournaments = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/managed`, {
         method: "POST",
         headers: jsonAuthHeaders(),
         body: JSON.stringify({

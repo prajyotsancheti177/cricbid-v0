@@ -11,6 +11,11 @@ tournamentRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'supe
 // Get All Tournaments (filtered by role) - Public (for viewing)
 tournamentRouter.post("/all", touranmentController.getAllTournaments);
 
+// Tournaments the signed-in user may manage - Protected. /all is public and
+// never knows who is asking, so management screens must use this instead:
+// a host gets only owned + granted tournaments, boss/super_user get all.
+tournamentRouter.post("/managed", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), touranmentController.getManagedTournaments);
+
 // Get Individual Tournament Detail - Public (for viewing)
 tournamentRouter.post("/detail", touranmentController.getTournamentDetail);
 

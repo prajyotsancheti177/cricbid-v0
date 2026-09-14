@@ -37,6 +37,17 @@ const getAllTournaments = async (req, res) => {
     }
 };
 
+const getManagedTournaments = async (req, res) => {
+    try {
+        const tournaments = req.userRole === 'tournament_host'
+            ? await tournamentService.getTournamentsByHost(req.userId)
+            : await tournamentService.getAllTournaments();
+        return sendSuccess(res, 200, "Tournaments fetched successfully", tournaments);
+    } catch (error) {
+        return sendError(res, 500, "Failed to fetch tournaments", error);
+    }
+};
+
 const getTournamentDetail = async (req, res) => {
     try {
         const { tournamentId } = req.body;
@@ -147,6 +158,7 @@ const uploadImage = async (req, res) => {
 module.exports = {
     addTournamnet,
     getAllTournaments,
+    getManagedTournaments,
     getTournamentDetail,
     updateTournament,
     deleteTournament,
