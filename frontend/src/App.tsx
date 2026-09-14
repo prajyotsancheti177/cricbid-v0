@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import AnalyticsTracker from "./components/AnalyticsTracker";
 import DemoPage from "./pages/demo/DemoPage";
+import GuidesPage from "./pages/guides/GuidesPage";
+import GuideClipPage from "./pages/guides/GuideClipPage";
 import Home from "./pages/Home";
 import Auction from "./pages/Auction";
 import LiveAuctionLobby from "./pages/LiveAuctionLobby";
@@ -159,6 +161,9 @@ const App = () => (
             <Route path="/" element={<Home />} />
             {/* Product demo — marketing page, standalone like the landing page */}
             <Route path="/demo" element={<DemoPage />} />
+            {/* How-to clip library */}
+            <Route path="/guides" element={<GuidesPage />} />
+            <Route path="/guides/:slug" element={<GuideClipPage />} />
             <Route path="/register/:tournamentId" element={<PublicPlayerRegistration />} />
             
             {/* Public Team Registration Page - Standalone */}

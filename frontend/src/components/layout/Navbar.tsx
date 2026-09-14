@@ -23,6 +23,7 @@ const PUBLIC_LINKS = [
   { path: "/", label: "Home" },
   { path: "/tournaments", label: "Tournaments" },
   { path: "/auction", label: "Live Auction" },
+  { path: "/guides", label: "How-to" },
 ];
 
 // Admin/account links — tucked into the right-side account menu (and the mobile
