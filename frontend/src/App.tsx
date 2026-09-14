@@ -9,6 +9,7 @@ import AnalyticsTracker from "./components/AnalyticsTracker";
 import DemoPage from "./pages/demo/DemoPage";
 import GuidesPage from "./pages/guides/GuidesPage";
 import GuideClipPage from "./pages/guides/GuideClipPage";
+import GuideVideosPage from "./pages/guides/GuideVideosPage";
 import Home from "./pages/Home";
 import Auction from "./pages/Auction";
 import LiveAuctionLobby from "./pages/LiveAuctionLobby";
@@ -163,6 +164,8 @@ const App = () => (
             <Route path="/demo" element={<DemoPage />} />
             {/* How-to clip library */}
             <Route path="/guides" element={<GuidesPage />} />
+            {/* Unlisted: not linked anywhere, noindex — preview of the exported videos */}
+            <Route path="/guide-videos" element={<GuideVideosPage />} />
             <Route path="/guides/:slug" element={<GuideClipPage />} />
             <Route path="/register/:tournamentId" element={<PublicPlayerRegistration />} />
             
