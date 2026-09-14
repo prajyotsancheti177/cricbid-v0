@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
+import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
@@ -112,6 +113,19 @@ const PublicPlayerRegistration = () => {
     setActiveProfile(null);
     setProfilePrefilled(false);
   };
+
+  // Photo picked but not yet confirmed in the crop dialog, and the untouched
+  // original so "Adjust" can re-crop from it rather than from a cropped copy.
+  const [photoToCrop, setPhotoToCrop] = useState<File | null>(null);
+  const [photoOriginal, setPhotoOriginal] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!(formData.photo instanceof File)) { setPhotoPreview(null); return; }
+    const url = URL.createObjectURL(formData.photo);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [formData.photo]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
@@ -623,7 +637,46 @@ const PublicPlayerRegistration = () => {
               {isFieldEnabled('photo') && (
                 <div className="space-y-2">
                   <Label htmlFor="photo">{fieldLabel('photo', 'Photo')} {isFieldRequired('photo') && '*'}</Label>
-                  <Input id="photo" type="file" accept="image/*" onChange={(e) => handleFileChange('photo', e.target.files?.[0])} required={isFieldRequired('photo')} />
+                  {photoPreview ? (
+                    <div className="flex items-center gap-3 rounded-md border p-2">
+                      <img src={photoPreview} alt="Selected photo" className="h-20 w-16 rounded object-cover" />
+                      <div className="flex flex-1 flex-wrap gap-2">
+                        {photoOriginal && (
+                          <Button type="button" variant="outline" size="sm" onClick={() => setPhotoToCrop(photoOriginal)}>
+                            Adjust
+                          </Button>
+                        )}
+                        <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('photo')?.click()}>
+                          Change photo
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {/* The picker opens the crop dialog; the value is reset so the
+                      same file can be picked again after cancelling. */}
+                  <Input
+                    id="photo"
+                    type="file"
+                    accept="image/*"
+                    className={photoPreview ? "hidden" : undefined}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      if (f.type.startsWith("image/")) setPhotoToCrop(f);
+                      else handleFileChange('photo', f);
+                    }}
+                    required={isFieldRequired('photo') && !formData.photo}
+                  />
+                  <PhotoCropDialog
+                    file={photoToCrop}
+                    onCancel={() => setPhotoToCrop(null)}
+                    onDone={(f) => {
+                      if (photoToCrop) setPhotoOriginal(photoToCrop);
+                      setPhotoToCrop(null);
+                      handleFileChange('photo', f);
+                    }}
+                  />
                 </div>
               )}
 
