@@ -60,10 +60,36 @@ const canManageTournament = async (userId, role, tournamentId) => {
  * be dropped in without changing their request shapes.
  */
 const requireTournamentAccess = async (req, res, next) => {
-    const tournamentId =
+    const claimed =
         req.body?.tournamentId || req.body?.touranmentId
         || req.params?.tournamentId || req.query?.tournamentId;
 
+    // Edits to one player or team (the player dialog, the sheet) send only that
+    // record's id. Without a tournament id every host was refused — only boss
+    // and super_user got through, as they skip the per-tournament check. So the
+    // tournament comes from the record itself, and it wins over any id the
+    // caller sent: otherwise a host could name their own tournament while
+    // editing someone else's player.
+    let owning = null;
+    try {
+        if (req.body?.playerId) {
+            const player = await prisma.player.findUnique({
+                where: { id: String(req.body.playerId) },
+                select: { touranmentId: true },
+            });
+            owning = player?.touranmentId || null;
+        } else if (req.body?.teamId && !claimed) {
+            const team = await prisma.team.findUnique({
+                where: { id: String(req.body.teamId) },
+                select: { touranmentId: true },
+            });
+            owning = team?.touranmentId || null;
+        }
+    } catch {
+        owning = null;
+    }
+
+    const tournamentId = owning || claimed;
     const allowed = await canManageTournament(req.userId, req.userRole, tournamentId);
     if (!allowed) {
         return res.status(403).json({
