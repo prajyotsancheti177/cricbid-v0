@@ -12,6 +12,13 @@ import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { authHeaders, jsonAuthHeaders } from "@/lib/auth";
+import { Plus } from "lucide-react";
+
+/** Offered as one-tap choices when creating a tournament. */
+const SUGGESTED_CATEGORIES = ["Icon", "Regular", "Marquee", "Batsman", "Bowler", "All-rounder", "Wicket keeper", "U17", "Female", "Owner"];
+
+/** The form keeps categories as "a, b, c"; this is the list behind it. */
+const categoryList = (value: string) => value.split(",").map((c) => c.trim()).filter(Boolean);
 
 export interface TournamentFormData {
   name: string;
@@ -119,6 +126,44 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       .catch(() => {});
   }, [open, canSelectHost]);
 
+  const [newCategory, setNewCategory] = useState("");
+  // Categories unticked during this edit stay on screen so they can be ticked back.
+  const [extraChoices, setExtraChoices] = useState<string[]>([]);
+  useEffect(() => { if (open) { setNewCategory(""); setExtraChoices([]); } }, [open]);
+
+  const selectedCategories = categoryList(formData.playerCategories);
+  const categoryChoices = Array.from(new Set([
+    ...selectedCategories,
+    ...extraChoices,
+    ...(tournament ? [] : SUGGESTED_CATEGORIES),
+  ]));
+
+  const writeCategories = (list: string[]) =>
+    setFormData((p) => {
+      const prices: { [k: string]: string } = {};
+      list.forEach((c) => { prices[c] = p.categoryBasePrices[c] || ""; });
+      return { ...p, playerCategories: list.join(", "), categoryBasePrices: prices };
+    });
+
+  const toggleCategory = (cat: string) => {
+    if (selectedCategories.includes(cat)) {
+      setExtraChoices((x) => (x.includes(cat) ? x : [...x, cat]));
+      writeCategories(selectedCategories.filter((c) => c !== cat));
+    } else {
+      writeCategories([...selectedCategories, cat]);
+    }
+  };
+
+  const addCategory = () => {
+    // Commas would split one category into several in the stored list.
+    const name = newCategory.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    if (!name) return;
+    const existing = categoryChoices.find((c) => c.toLowerCase() === name.toLowerCase());
+    const cat = existing || name;
+    if (!selectedCategories.includes(cat)) writeCategories([...selectedCategories, cat]);
+    setNewCategory("");
+  };
+
   const set = (field: keyof TournamentFormData, value: string) =>
     setFormData((p) => ({ ...p, [field]: value }));
 
@@ -133,7 +178,11 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       return;
     }
 
-    const categories = formData.playerCategories.split(",").map((c) => c.trim()).filter(Boolean);
+    const categories = categoryList(formData.playerCategories);
+    if (categories.length === 0) {
+      toast({ title: "Validation Error", description: "Tick at least one player category", variant: "destructive" });
+      return;
+    }
     const categoryBasePrices: { [k: string]: number } = {};
     for (const cat of categories) {
       const bp = formData.categoryBasePrices[cat];
@@ -262,34 +311,55 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="t-cats">Player Categories (comma-separated) *</Label>
-            <Input
-              id="t-cats"
-              placeholder="e.g., Batsman, Bowler, All-rounder, Wicket-keeper"
-              value={formData.playerCategories}
-              onChange={(e) => {
-                const cats = e.target.value;
-                const list = cats.split(",").map((c) => c.trim()).filter(Boolean);
-                const newPrices: { [k: string]: string } = {};
-                list.forEach((c) => { newPrices[c] = formData.categoryBasePrices[c] || ""; });
-                setFormData((p) => ({ ...p, playerCategories: cats, categoryBasePrices: newPrices }));
-              }}
-            />
-            <p className="text-xs text-muted-foreground">Separate multiple categories with commas</p>
-          </div>
+          <div className="grid gap-3 p-4 border rounded-lg bg-muted/40">
+            <div>
+              <Label className="font-semibold">Player Categories *</Label>
+              <p className="text-xs text-muted-foreground">Tick the categories this tournament uses, and set a base price for each.</p>
+            </div>
 
-          {formData.playerCategories.split(",").map((c) => c.trim()).filter(Boolean).length > 0 && (
-            <div className="grid gap-3 p-4 border rounded-lg bg-muted/40">
-              <Label className="font-semibold">Base Prices for Categories *</Label>
-              <div className="grid gap-4">
-                {formData.playerCategories.split(",").map((c) => c.trim()).filter(Boolean).map((cat, i) => (
-                  <div key={i} className="grid gap-2">
-                    <Label htmlFor={`bp-${i}`} className="text-sm font-semibold">{cat}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {categoryChoices.map((cat) => {
+                const on = selectedCategories.includes(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${on ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                  >
+                    <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"}`}>
+                      {on && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-2.5 w-2.5"><path strokeWidth="4" d="M20 6L9 17l-5-5" /></svg>}
+                    </span>
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add another category…"
+                value={newCategory}
+                className="h-9"
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+              />
+              <Button type="button" variant="outline" size="sm" className="h-9" onClick={addCategory} disabled={!newCategory.trim()}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+              </Button>
+            </div>
+
+            {selectedCategories.length > 0 ? (
+              <div className="grid gap-2 border-t pt-3">
+                <Label className="text-sm font-semibold">Base price per category *</Label>
+                {selectedCategories.map((cat, i) => (
+                  <div key={cat} className="grid grid-cols-[1fr_140px] items-center gap-3">
+                    <Label htmlFor={`bp-${i}`} className="truncate text-sm">{cat}</Label>
                     <Input
                       id={`bp-${i}`}
                       type="number"
                       placeholder="e.g., 500"
+                      className="h-9"
                       value={formData.categoryBasePrices[cat] || ""}
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, categoryBasePrices: { ...p.categoryBasePrices, [cat]: e.target.value } }))
@@ -298,9 +368,10 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">Enter the base auction price for each category</p>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-destructive">Tick at least one category.</p>
+            )}
+          </div>
 
           <div className="grid gap-3 p-4 border rounded-lg bg-muted/40">
             <Label className="font-semibold">Bid Increment Settings *</Label>

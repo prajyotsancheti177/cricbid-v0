@@ -516,13 +516,28 @@ const deletePlayer = async (playerId) => {
     }
 };
 
+/**
+ * Categories a player in this tournament can be given.
+ *
+ * The tournament's own list comes first, in its order. This used to be only
+ * the categories some player already had, so a newly added category (Jain
+ * Unity Cup's U17 and Female) never appeared in the player sheet's dropdown —
+ * and nobody could be moved into it, so it stayed missing forever. Categories
+ * still on players but since removed from the tournament are appended, so
+ * those players still show a valid value.
+ */
 const getPlayerCategories = async (touranmentId) => {
-    const rows = await prisma.player.findMany({
-        where: { touranmentId },
-        distinct: ['playerCategory'],
-        select: { playerCategory: true },
-    });
-    return rows.map((r) => r.playerCategory).filter((c) => c !== null && c !== undefined);
+    const [tournament, rows] = await Promise.all([
+        prisma.tournament.findUnique({ where: { id: touranmentId }, select: { playerCategories: true } }),
+        prisma.player.findMany({
+            where: { touranmentId },
+            distinct: ['playerCategory'],
+            select: { playerCategory: true },
+        }),
+    ]);
+    const configured = (tournament?.playerCategories || []).filter(Boolean);
+    const inUse = rows.map((r) => r.playerCategory).filter((c) => c !== null && c !== undefined && c !== '');
+    return [...new Set([...configured, ...inUse])];
 };
 
 const bulkCreatePlayers = async (playersData, touranmentId) => {
