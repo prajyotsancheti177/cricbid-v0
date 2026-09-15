@@ -96,6 +96,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const publicLink = `${window.location.origin}/register/public/${tournamentId}`;
+  const [tournamentCategories, setTournamentCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (isOpen && tournamentId) {
@@ -114,6 +115,10 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
         for (const key of Object.keys(defaultFields)) {
           mergedFields[key] = { ...defaultFields[key as keyof typeof defaultFields], ...(serverFields[key] || {}) };
         }
+        // Player Category options, when saved, are the subset of the
+        // tournament's categories the host allows; none saved means all.
+        setTournamentCategories(data.data.playerCategories || []);
+
         const loadedCustomFields = data.data.registrationFormConfig.customFields || [];
         const optedOut = data.data.registrationFormConfig.paymentProofOptOut === true;
         // On by default: tournaments configured before this existed get the
@@ -532,14 +537,77 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-3 h-3"><path strokeWidth="3" d="M20 6L9 17l-5-5"/></svg>
                              Auto-Injection value
                            </Label>
+                           {key === 'playerCategory' || key === 'skill' ? (
+                             // Same choices the visible dropdown offers, so a
+                             // hidden default can't be a typo like "regular ".
+                             <Select
+                               value={field.defaultValue || undefined}
+                               onValueChange={(v) => updateField(key, 'defaultValue', v)}
+                             >
+                               <SelectTrigger className="h-8 max-w-sm border-emerald-500/40 bg-background">
+                                 <SelectValue placeholder={key === 'skill' ? 'Choose a skill' : 'Choose a category'} />
+                               </SelectTrigger>
+                               <SelectContent>
+                                 {Array.from(new Set([
+                                   ...(key === 'playerCategory' ? tournamentCategories : (field.options || [])),
+                                   ...(field.defaultValue ? [String(field.defaultValue)] : []),
+                                 ])).map((opt) => (
+                                   <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                 ))}
+                               </SelectContent>
+                             </Select>
+                           ) : (
                            <Input 
                              value={field.defaultValue || ''} 
                              onChange={(e) => updateField(key, 'defaultValue', e.target.value)} 
                              className="h-8 max-w-sm border-emerald-200 focus-visible:ring-emerald-500 bg-emerald-50/50" 
                              placeholder={`Enter a forced default...`} 
                            />
+                           )}
                          </div>
                       )}
+
+                      {/* Player Category: pick which of the tournament's categories players may choose */}
+                      {key === 'playerCategory' && field.enabled && visibilityMode === 'public' && (() => {
+                         const allowed = field.options?.length ? field.options : tournamentCategories;
+                         const toggle = (cat: string) => {
+                           const next = allowed.includes(cat) ? allowed.filter(c => c !== cat) : [...allowed, cat];
+                           // Keep the tournament's order, and never save an empty list:
+                           // a dropdown with nothing to pick would block every registration.
+                           const ordered = tournamentCategories.filter(c => next.includes(c));
+                           if (ordered.length) updateField(key, 'options', ordered);
+                         };
+                         return (
+                         <div className="pl-4 mt-2 border-l-2 border-primary/20 space-y-2">
+                           <Label className="text-xs text-muted-foreground block">
+                             Categories players can choose ({allowed.filter(c => tournamentCategories.includes(c)).length} of {tournamentCategories.length})
+                           </Label>
+                           {tournamentCategories.length === 0 ? (
+                             <p className="text-xs text-muted-foreground">This tournament has no categories yet. Add them in Settings → Edit details.</p>
+                           ) : (
+                             <div className="flex flex-wrap gap-1.5">
+                               {tournamentCategories.map((cat) => {
+                                 const on = allowed.includes(cat);
+                                 return (
+                                   <button
+                                     key={cat}
+                                     type="button"
+                                     onClick={() => toggle(cat)}
+                                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${on ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground line-through opacity-70'}`}
+                                   >
+                                     <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground'}`}>
+                                       {on && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-2.5 w-2.5"><path strokeWidth="4" d="M20 6L9 17l-5-5"/></svg>}
+                                     </span>
+                                     {cat}
+                                   </button>
+                                 );
+                               })}
+                             </div>
+                           )}
+                           <p className="text-[11px] text-muted-foreground">Unticked categories won't appear on the registration form. At least one must stay selected.</p>
+                         </div>
+                         );
+                      })()}
 
                       {/* Skill dropdown options editor */}
                       {key === 'skill' && field.enabled && visibilityMode === 'public' && (

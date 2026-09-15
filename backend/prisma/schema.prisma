@@ -1071,3 +1071,34 @@ model UserSession {
   @@index([expiresAt])
   @@map("user_session")
 }
+
+/// Every refused player registration, so a player's "it didn't work" can be
+/// answered from one row. `errorId` is the short code shown on the form
+/// (e.g. RG-7KQ2MX) that the player can send to the organiser.
+model RegistrationError {
+  id String @id @default(cuid())
+
+  errorId String @unique
+
+  tournamentId String?
+
+  /// DUPLICATE_NAME | FILE_TOO_LARGE | UPLOAD_FAILED | MISSING_TOURNAMENT | NETWORK | UNKNOWN …
+  code    String
+  message String
+  /// server = refused by the API; client = failed before or outside it (413, network)
+  source  String @default("server")
+
+  httpStatus Int?
+  name       String?
+  mobile     String?
+  details    Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tournamentId, createdAt])
+  @@index([code, createdAt])
+  @@map("registration_error")
+}

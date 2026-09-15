@@ -3,13 +3,34 @@ const playerController = require('../controller/playerController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
 const { requireTournamentAccess } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
+const registrationErrors = require('../services/registrationErrorService');
 const playerRouter = express.Router();
 
 // Register New Player - Protected
 playerRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.registerPlayer);
 
 // Register New Player - Public (From customizable registration link)
-playerRouter.post("/register-public", uploadMiddleware.any(), playerController.registerPlayerPublic);
+// Multer's own errors (a file over the 10 MB limit, an S3 failure) never reach
+// the controller, so they are caught here and recorded like any other refusal.
+const registrationUpload = (req, res, next) => uploadMiddleware.any()(req, res, async (err) => {
+    if (!err) return next();
+    const code = registrationErrors.classify(err);
+    const body = req.body || {};
+    const errorId = await registrationErrors.record({
+        req, code, message: err.message, httpStatus: 400,
+        tournamentId: body.touranmentId || body.tournamentId, name: body.name, mobile: body.mobile,
+        details: { multerCode: err.code || null, field: err.field || null },
+    });
+    return res.status(400).json({
+        success: false,
+        message: registrationErrors.friendlyMessage(code, { name: body.name, maxMb: 10 }),
+        code, errorId, error: err.message,
+    });
+});
+
+playerRouter.post("/register-public", registrationUpload, playerController.registerPlayerPublic);
+// Public: failures the API never saw (nginx 413, network) reported by the form.
+playerRouter.post("/registration-error", playerController.reportRegistrationError);
 
 // Get All Player Details - Public (for viewing)
 playerRouter.post("/all", playerController.allPlayerDetails);

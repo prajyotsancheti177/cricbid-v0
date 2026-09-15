@@ -1,3 +1,4 @@
+const registrationErrors = require('../services/registrationErrorService');
 const prisma = require("../db/prisma");
 
 const playersService = require("../services/playerService");
@@ -35,6 +36,35 @@ const registerPlayer = async (req, res) => {
         return sendError(res, 400, "Failed to register player!", error)
     }
 }
+
+/**
+ * A failure the API never saw — nginx refusing a large upload, a dropped
+ * connection — reported by the form so it still gets an id and a row.
+ */
+const reportRegistrationError = async (req, res) => {
+    try {
+        const b = req.body || {};
+        const code = String(b.code || 'UNKNOWN').toUpperCase().replace(/[^A-Z_]/g, '').slice(0, 40) || 'UNKNOWN';
+        const errorId = await registrationErrors.record({
+            req,
+            code,
+            source: 'client',
+            message: b.message || '',
+            httpStatus: Number.isInteger(b.httpStatus) ? b.httpStatus : null,
+            tournamentId: b.tournamentId,
+            name: b.name,
+            mobile: b.mobile,
+            details: b.details && typeof b.details === 'object' ? b.details : undefined,
+        });
+        return res.status(201).json({
+            success: true,
+            errorId,
+            message: registrationErrors.friendlyMessage(code, { name: b.name }),
+        });
+    } catch (error) {
+        return sendError(res, 500, "Could not record the error", error);
+    }
+};
 
 const registerPlayerPublic = async (req, res) => {
     try {
@@ -160,7 +190,26 @@ const registerPlayerPublic = async (req, res) => {
 
         return sendSuccess(res, 201, "Player registered successfully!", player)
     } catch (error) {
-        return sendError(res, 400, "Failed to register player!", error)
+        // Record why, and tell the player why. The generic "Failed to register
+        // player!" left people retrying something that could never succeed.
+        const code = registrationErrors.classify(error);
+        const body = req.body || {};
+        const errorId = await registrationErrors.record({
+            req,
+            code,
+            message: error?.message || String(error),
+            httpStatus: 400,
+            tournamentId: body.touranmentId || body.tournamentId,
+            name: body.name,
+            mobile: body.mobile,
+        });
+        return res.status(400).json({
+            success: false,
+            message: registrationErrors.friendlyMessage(code, { name: (body.name || '').trim() }),
+            code,
+            errorId,
+            error: error?.message || null,
+        });
     }
 }
 
@@ -364,6 +413,7 @@ const getOverlayStats = async (req, res) => {
 }
 
 module.exports = {
+    reportRegistrationError,
     cricHeroesStats,
     registerPlayer,
     registerPlayerPublic,

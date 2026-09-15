@@ -24,6 +24,9 @@ const PublicPlayerRegistration = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Shown next to a refusal so the player can quote it; the row is in registration_error.
+  const [errorId, setErrorId] = useState("");
+  const [registeredAs, setRegisteredAs] = useState<{ name: string; serial?: number | null } | null>(null);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeProfile, setActiveProfile] = useState<any>(null);
@@ -339,6 +342,25 @@ const PublicPlayerRegistration = () => {
     return true;
   };
 
+  /** Show a failure the API didn't record itself, and record it so it has an id. */
+  const failWith = async (code: string, message: string, details: Record<string, unknown> = {}, httpStatus?: number) => {
+    setError(message);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/registration-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId, code, message, httpStatus,
+          name: formData.name?.trim(), mobile: formData.mobile, details,
+        }),
+      });
+      const data = await res.json();
+      if (data?.errorId) setErrorId(data.errorId);
+    } catch {
+      // Recording failed too (likely offline); the message alone still helps.
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -346,6 +368,7 @@ const PublicPlayerRegistration = () => {
 
     setSubmitting(true);
     setError("");
+    setErrorId("");
 
     try {
       const formPayload = new FormData();
@@ -392,45 +415,53 @@ const PublicPlayerRegistration = () => {
         formPayload.append('playerProfileId', activeProfile.id);
       }
 
-      const response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
-        method: 'POST',
-        // Omit Content-Type to let the browser set boundary correctly for FormData
-        headers: playerToken ? { 'x-player-token': playerToken } : undefined,
-        body: formPayload,
-      });
+      // nginx refuses anything over 10 MB before the API sees it, which the
+      // player would only experience as an unexplained failure. Catch it here.
+      let totalBytes = 0;
+      formPayload.forEach((v) => { if (v instanceof File) totalBytes += v.size; });
+      if (totalBytes > 9.5 * 1024 * 1024) {
+        await failWith('FILE_TOO_LARGE', 'The photo and screenshot together are too large. Please choose smaller images (under 10 MB in total).', { totalBytes });
+        return;
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
+          method: 'POST',
+          // Omit Content-Type to let the browser set boundary correctly for FormData
+          headers: playerToken ? { 'x-player-token': playerToken } : undefined,
+          body: formPayload,
+        });
+      } catch (netErr: any) {
+        await failWith('NETWORK', 'Could not reach the server. Please check your internet connection and try again.', { error: String(netErr?.message || netErr) });
+        return;
+      }
 
       if (!response.ok) {
-        let errorMessage = 'Registration failed. Please try again.';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          // Could not parse JSON error body
-        }
+        let data: any = null;
+        try { data = await response.json(); } catch { /* nginx error pages are HTML */ }
 
-        // Map common server errors to user-friendly messages
-        const lowerMsg = errorMessage.toLowerCase();
-        if (response.status === 413 || lowerMsg.includes('too large') || lowerMsg.includes('payload')) {
-          throw new Error('The uploaded file is too large. Please use a smaller image (max 10 MB).');
-        } else if (lowerMsg.includes('duplicate') || lowerMsg.includes('already exists') || lowerMsg.includes('already registered')) {
-          throw new Error('A player with this name or mobile number is already registered.');
-        } else if (lowerMsg.includes('tournament') && lowerMsg.includes('not found')) {
-          throw new Error('This tournament could not be found. The registration link may be invalid.');
+        if (data?.errorId) {
+          // The API recorded it and wrote the message for the player.
+          setError(data.message || 'Registration could not be completed.');
+          setErrorId(data.errorId);
+        } else if (response.status === 413) {
+          await failWith('FILE_TOO_LARGE', 'The photo or screenshot is too large. Please choose a smaller image (under 10 MB) and try again.', { totalBytes }, 413);
         } else {
-          throw new Error(errorMessage);
+          await failWith('UNKNOWN', data?.message || 'Registration could not be completed. Please try again.', { body: data }, response.status);
         }
+        return;
       }
 
+      const saved = await response.json().catch(() => null);
+      setRegisteredAs({ name: formData.name.trim(), serial: saved?.data?.auctionSerialNumber ?? null });
       setSuccess("Registration successful! Your player profile has been submitted.");
       setFormData({ name: "", age: "", gender: "", mobile: "", email: "", address: "", skill: "", playerCategory: "", photo: null, customFields: {} });
+      // The form is replaced by the confirmation; bring it into view so nobody
+      // scrolls back down to a blank form and registers twice.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      // Map network-level errors to user-friendly messages
-      const msg = err.message || '';
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network')) {
-        setError('Unable to connect to the server. Please check your internet connection and try again.');
-      } else {
-        setError(msg || 'Something went wrong. Please try again.');
-      }
+      await failWith('UNKNOWN', err?.message || 'Something went wrong. Please try again.', { error: String(err?.message || err) });
     } finally {
       setSubmitting(false);
     }
@@ -494,11 +525,21 @@ const PublicPlayerRegistration = () => {
           </CardHeader>
           <CardContent>
             {success ? (
-               <Alert className="border-green-500 bg-green-50 mb-6">
-                 <AlertDescription className="text-green-700 text-lg py-4 text-center">
-                   {success}
-                 </AlertDescription>
-               </Alert>
+               <div className="mb-6 rounded-xl border-2 border-green-500 bg-green-500/10 p-6 text-center">
+                 <CheckCircle2 className="mx-auto mb-3 h-14 w-14 text-green-500" />
+                 <p className="text-2xl font-bold text-foreground">You're registered!</p>
+                 {registeredAs?.name && (
+                   <p className="mt-2 text-lg text-foreground">
+                     {registeredAs.name}
+                     {registeredAs.serial != null && <span className="text-muted-foreground"> · Registration #{registeredAs.serial}</span>}
+                   </p>
+                 )}
+                 <p className="mt-3 text-muted-foreground">{success}</p>
+                 <p className="mt-4 rounded-md bg-background/60 p-3 text-sm font-medium text-foreground">
+                   Please don't submit the form again — your registration is already saved.
+                   Take a screenshot of this screen for your records.
+                 </p>
+               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -628,7 +669,13 @@ const PublicPlayerRegistration = () => {
                   <Select value={formData.playerCategory} onValueChange={(v) => handleInputChange('playerCategory', v)} required={isFieldRequired('playerCategory')}>
                     <SelectTrigger><SelectValue placeholder={`Select ${fieldLabel('playerCategory', 'Category')}`} /></SelectTrigger>
                     <SelectContent>
-                      {playerCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                      {(() => {
+                        // Only the categories the organiser ticked, and only ones the
+                        // tournament still has; nothing ticked means all of them.
+                        const allowed: string[] = config?.fields?.playerCategory?.options || [];
+                        const shown = allowed.length ? playerCategories.filter(c => allowed.includes(c)) : playerCategories;
+                        return (shown.length ? shown : playerCategories).map((cat: string) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>);
+                      })()}
                     </SelectContent>
                   </Select>
                 </div>
@@ -761,7 +808,16 @@ const PublicPlayerRegistration = () => {
 
               {error && (
                 <Alert className="border-destructive">
-                  <AlertDescription className="text-destructive">{error}</AlertDescription>
+                  <AlertTitle className="text-destructive">Registration not completed</AlertTitle>
+                  <AlertDescription className="text-destructive">
+                    {error}
+                    {errorId && (
+                      <span className="mt-2 block text-sm text-foreground/80">
+                        Error ID: <span className="select-all font-mono font-semibold">{errorId}</span>
+                        {" "}— share this with the organiser if you need help.
+                      </span>
+                    )}
+                  </AlertDescription>
                 </Alert>
               )}
 
