@@ -44,6 +44,11 @@ const registerPlayer = async (req, res) => {
 const reportRegistrationError = async (req, res) => {
     try {
         const b = req.body || {};
+        // The endpoint is public; a report that names no tournament is noise
+        // (or someone poking at it) and should not become a row.
+        if (!b.tournamentId || typeof b.tournamentId !== 'string') {
+            return sendError(res, 400, "tournamentId is required");
+        }
         const code = String(b.code || 'UNKNOWN').toUpperCase().replace(/[^A-Z_]/g, '').slice(0, 40) || 'UNKNOWN';
         const errorId = await registrationErrors.record({
             req,
