@@ -31,6 +31,11 @@ const friendlyMessage = (code, { name, maxMb } = {}) => {
     switch (code) {
         case 'DUPLICATE_NAME':
             return `${name ? `"${name}"` : 'This player'} is already registered for this tournament with this phone number. If this is a different player who happens to have the same name, register them with their own phone number.`;
+        // Namesakes are allowed when their phone numbers differ, so this is the
+        // case where no number was collected and there is nothing to tell two
+        // players of the same name apart.
+        case 'DUPLICATE_NAME_NO_PHONE':
+            return `${name ? `"${name}"` : 'This player'} is already registered for this tournament. If this is a different player with the same name, ask the organiser to add them — this form cannot tell two players apart without a phone number.`;
         case 'FILE_TOO_LARGE':
             return `A photo or screenshot is too large. Each file must be under ${maxMb || 10} MB — please choose a smaller image and try again.`;
         case 'UPLOAD_FAILED':
@@ -51,7 +56,8 @@ const classify = (error) => {
     const lower = msg.toLowerCase();
     if (error?.code === 'LIMIT_FILE_SIZE' || lower.includes('file too large')) return 'FILE_TOO_LARGE';
     if (error?.name === 'MulterError' || lower.includes('s3') || lower.includes('upload')) return 'UPLOAD_FAILED';
-    if (lower.includes('already registered')) return 'DUPLICATE_NAME';
+    if (lower.includes('with this phone number') && lower.includes('already registered')) return 'DUPLICATE_NAME';
+    if (lower.includes('already registered')) return 'DUPLICATE_NAME_NO_PHONE';
     if (lower.includes('tournament id is required')) return 'MISSING_TOURNAMENT';
     if (lower.includes('foreign key') || lower.includes('tournament not found')) return 'TOURNAMENT_NOT_FOUND';
     return 'UNKNOWN';
