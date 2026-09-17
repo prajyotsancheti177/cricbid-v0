@@ -56,13 +56,39 @@ const formatPlayer = (p, tournament) => {
     return s;
 };
 
+/**
+ * A phone number reduced to what identifies it: digits only, and just the last
+ * ten of them. The same person types their number as "9876543210", "98765
+ * 43210" and "+91 9876543210", and all three have to count as one number or
+ * the duplicate check is trivially bypassed by adding a country code.
+ */
+const normaliseMobile = (value) => {
+    const digits = String(value ?? '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
 const registerPlayer = async (playerInput) => {
     const name = (playerInput.name || '').trim();
-    const existing = await prisma.player.findFirst({
-        where: { touranmentId: playerInput.touranmentId, name },
+    const mobile = normaliseMobile(playerInput.mobile);
+
+    // Namesakes are ordinary in a local tournament — two Rahul Sharmas turn up
+    // every season, and refusing the second one sent a real player away. The
+    // phone number is what tells them apart, so only the same name AND the same
+    // number counts as the same person registering twice. When no number was
+    // collected at all there is nothing to tell them apart by, so the old
+    // name-only rule still applies.
+    const namesakes = await prisma.player.findMany({
+        where: {
+            touranmentId: playerInput.touranmentId,
+            name: { equals: name, mode: 'insensitive' },
+        },
+        select: { id: true, mobile: true },
     });
-    if (existing) {
-        throw new Error(`A player with the exact name "${name}" is already registered in this tournament!`);
+    const duplicate = namesakes.find((p) => normaliseMobile(p.mobile) === mobile);
+    if (duplicate) {
+        throw new Error(mobile
+            ? `A player named "${name}" with this phone number is already registered in this tournament!`
+            : `A player with the exact name "${name}" is already registered in this tournament!`);
     }
 
     let finalSerialNumber = toInt(playerInput.auctionSerialNumber);

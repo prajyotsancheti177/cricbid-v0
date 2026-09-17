@@ -30,7 +30,7 @@ const clip = (value, max) => {
 const friendlyMessage = (code, { name, maxMb } = {}) => {
     switch (code) {
         case 'DUPLICATE_NAME':
-            return `${name ? `"${name}"` : 'This player'} is already registered for this tournament. You don't need to register again — contact the organiser if something needs changing.`;
+            return `${name ? `"${name}"` : 'This player'} is already registered for this tournament with this phone number. If this is a different player who happens to have the same name, register them with their own phone number.`;
         case 'FILE_TOO_LARGE':
             return `A photo or screenshot is too large. Each file must be under ${maxMb || 10} MB — please choose a smaller image and try again.`;
         case 'UPLOAD_FAILED':
