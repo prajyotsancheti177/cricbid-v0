@@ -70,7 +70,9 @@ export const AccessManager = ({ currentUser }: { currentUser: { _id: string; rol
 
   useEffect(() => {
     if (!currentUser?._id) return;
-    fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
+    // The managed list, not the public one: a private tournament is missing
+    // from /all by design, and it is exactly the kind you need to grant.
+    fetch(`${apiConfig.baseUrl}/api/tournament/managed`, {
       method: "POST",
       headers,
       body: JSON.stringify({ userId: currentUser._id }),
