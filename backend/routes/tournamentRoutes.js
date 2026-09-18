@@ -1,7 +1,7 @@
 const express = require('express');
 const touranmentController = require('../controller/touranmentController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
-const { requireTournamentAccess } = require('../utils/tournamentAccess');
+const { requireTournamentAccess, requireTournamentVisible } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const tournamentRouter = express.Router();
 
@@ -17,7 +17,7 @@ tournamentRouter.post("/all", touranmentController.getAllTournaments);
 tournamentRouter.post("/managed", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), touranmentController.getManagedTournaments);
 
 // Get Individual Tournament Detail - Public (for viewing)
-tournamentRouter.post("/detail", touranmentController.getTournamentDetail);
+tournamentRouter.post("/detail", requireTournamentVisible, touranmentController.getTournamentDetail);
 
 // Update Tournament - Protected
 tournamentRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.updateTournament);
@@ -32,7 +32,7 @@ tournamentRouter.get("/hosts", authMiddleware, roleMiddleware(['boss', 'super_us
 tournamentRouter.post("/export", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.exportTournamentData);
 
 // Get Public Registration Config - Public
-tournamentRouter.get("/:id/registration-config", touranmentController.getRegistrationConfig);
+tournamentRouter.get("/:id/registration-config", requireTournamentVisible, touranmentController.getRegistrationConfig);
 
 // Update Registration Config - Protected
 tournamentRouter.post("/update-registration-config", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.updateRegistrationConfig);

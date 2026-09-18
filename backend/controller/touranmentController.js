@@ -41,7 +41,7 @@ const getManagedTournaments = async (req, res) => {
     try {
         const tournaments = req.userRole === 'tournament_host'
             ? await tournamentService.getTournamentsByHost(req.userId)
-            : await tournamentService.getAllTournaments();
+            : await tournamentService.getManagedTournamentsForAdmin(req.userId);
         return sendSuccess(res, 200, "Tournaments fetched successfully", tournaments);
     } catch (error) {
         return sendError(res, 500, "Failed to fetch tournaments", error);

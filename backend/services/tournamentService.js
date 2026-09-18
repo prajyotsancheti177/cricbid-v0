@@ -62,7 +62,11 @@ const createTournament = async (tournamentData, creatorId, creatorRole) => {
  */
 const getAllTournaments = async () => {
     try {
-        const tournaments = await prisma.tournament.findMany({ orderBy: { createdAt: 'desc' } });
+        // Private tournaments never appear on a public list.
+        const tournaments = await prisma.tournament.findMany({
+            where: { isPrivate: false },
+            orderBy: { createdAt: 'desc' },
+        });
         return tournaments.map(serializeTournament);
     } catch (error) {
         console.error("Error in getAllTournaments service:", error);
@@ -73,6 +77,30 @@ const getAllTournaments = async () => {
 /**
  * Get tournaments by host (for tournament_host users)
  */
+/**
+ * Tournaments an admin may manage: every public one, plus the private ones
+ * they own or were granted. Without this a boss would lose sight of their own
+ * private tournament, since the public list now excludes it.
+ */
+const getManagedTournamentsForAdmin = async (userId) => {
+    try {
+        const tournaments = await prisma.tournament.findMany({
+            where: {
+                OR: [
+                    { isPrivate: false },
+                    { tournamentHostId: userId },
+                    { access: { some: { userId } } },
+                ],
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        return tournaments.map(serializeTournament);
+    } catch (error) {
+        console.error("Error in getManagedTournamentsForAdmin service:", error);
+        throw error;
+    }
+};
+
 const getTournamentsByHost = async (hostId) => {
     try {
         // Owned OR granted. A host keeps the tournaments they created and gains
@@ -340,6 +368,7 @@ const updateRegistrationConfig = async (tournamentId, configData, userId) => {
 module.exports = {
     createTournament,
     getAllTournaments,
+    getManagedTournamentsForAdmin,
     getTournamentsByHost,
     getTournamentDetail,
     updateTournament,

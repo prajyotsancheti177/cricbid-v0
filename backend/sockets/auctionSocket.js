@@ -7,6 +7,7 @@ const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
 const whatsappService = require("../services/whatsappService");
 const prisma = require("../db/prisma");
+const { canViewTournament, resolveOptionalUser } = require('../utils/tournamentAccess');
 const eventService = require("../services/eventService");
 
 // Store interval IDs for viewer history sampling per tournament
@@ -70,6 +71,18 @@ module.exports = (io) => {
   auctionNamespace.on("connection", (socket) => {
     console.log(`Socket connected: ${socket.id}`);
 
+    // Who is on this socket, from the token the client sends when connecting.
+    // Only private tournaments depend on it; everything else stays open.
+    const identity = resolveOptionalUser({ headers: { 'x-session-token': socket.handshake.auth?.token } })
+      .then((who) => { socket.data.userId = who.userId; socket.data.role = who.role; return who; })
+      .catch(() => ({ userId: null, role: null }));
+
+    /** True when this socket is allowed to see this tournament at all. */
+    const mayView = async (tournamentId) => {
+      const who = await identity;
+      return canViewTournament(who.userId, who.role, tournamentId);
+    };
+
     // List active auctions
     socket.on("auction:list", async () => {
       try {
@@ -78,7 +91,10 @@ module.exports = (io) => {
         // Enrich with tournament names and hostId
         const enriched = await Promise.all(active.map(async (a) => {
           try {
-            const t = await prisma.tournament.findUnique({ where: { id: a.tournamentId }, select: { name: true, tournamentHostId: true } });
+            const t = await prisma.tournament.findUnique({ where: { id: a.tournamentId }, select: { name: true, tournamentHostId: true, isPrivate: true } });
+            // A private tournament's auction is not advertised to anyone who
+            // cannot see the tournament itself.
+            if (t?.isPrivate && !(await mayView(a.tournamentId))) return null;
             return {
               ...a,
               tournamentName: t ? t.name : 'Unknown Tournament',
@@ -89,7 +105,7 @@ module.exports = (io) => {
           }
         }));
 
-        socket.emit("auction:list", enriched);
+        socket.emit("auction:list", enriched.filter(Boolean));
       } catch (err) {
         console.error("Error listing auctions:", err);
         socket.emit("auction:error", "Failed to list auctions");
@@ -213,6 +229,12 @@ module.exports = (io) => {
         ipAddress = socket.handshake.headers['x-forwarded-for'] ||
           socket.handshake.address ||
           socket.request?.connection?.remoteAddress;
+      }
+
+      // Someone holding the room link still has to be allowed to see it.
+      if (!(await mayView(tournamentId))) {
+        socket.emit("auction:error", "This auction is not available");
+        return;
       }
 
       socket.join(tournamentId);

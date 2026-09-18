@@ -1,21 +1,21 @@
 const express = require('express');
 const teamController = require('../controller/teamController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
-const { requireTournamentAccess } = require('../utils/tournamentAccess');
+const { requireTournamentAccess, requireTournamentVisible } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const teamRouter = express.Router();
 
 // Register New Team - Public (for public team registration form)
-teamRouter.post("/register-public", uploadMiddleware.any(), teamController.registerTeamPublic);
+teamRouter.post("/register-public", requireTournamentVisible, uploadMiddleware.any(), teamController.registerTeamPublic);
 
 // Register New Team - Protected
 teamRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.addTeam);
 
 // Get All Team Details - Public (for viewing)
-teamRouter.post("/all", teamController.getTournamentTeamsReport);
+teamRouter.post("/all", requireTournamentVisible, teamController.getTournamentTeamsReport);
 
 // Get Individual Team Detail - Public (for viewing)
-teamRouter.post("/detail", teamController.getTeamReport);
+teamRouter.post("/detail", requireTournamentVisible, teamController.getTeamReport);
 
 // Update Individual Team - Protected (multipart: uploadMiddleware must run
 // before authMiddleware, since only multer populates req.body for multipart requests)
@@ -34,10 +34,10 @@ teamRouter.post("/topup-history", authMiddleware, roleMiddleware(['boss', 'super
 teamRouter.post("/topup-delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.deleteTeamBudgetTopup);
 
 // Get All Team Names - Public (for viewing)
-teamRouter.post("/names", teamController.getTeamNames);
+teamRouter.post("/names", requireTournamentVisible, teamController.getTeamNames);
 
 // Get All Team Names and Budget - Public (for viewing)
-teamRouter.post("/names-budget", teamController.getTeamNamesAndBudget);
+teamRouter.post("/names-budget", requireTournamentVisible, teamController.getTeamNamesAndBudget);
 
 // Bulk Create Teams - Protected
 teamRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.bulkCreateTeams);

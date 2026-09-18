@@ -1,7 +1,7 @@
 const express = require('express');
 const playerController = require('../controller/playerController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
-const { requireTournamentAccess } = require('../utils/tournamentAccess');
+const { requireTournamentAccess, requireTournamentVisible } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const registrationErrors = require('../services/registrationErrorService');
 const playerRouter = express.Router();
@@ -28,15 +28,15 @@ const registrationUpload = (req, res, next) => uploadMiddleware.any()(req, res, 
     });
 });
 
-playerRouter.post("/register-public", registrationUpload, playerController.registerPlayerPublic);
+playerRouter.post("/register-public", requireTournamentVisible, registrationUpload, playerController.registerPlayerPublic);
 // Public: failures the API never saw (nginx 413, network) reported by the form.
 playerRouter.post("/registration-error", playerController.reportRegistrationError);
 
 // Get All Player Details - Public (for viewing)
-playerRouter.post("/all", playerController.allPlayerDetails);
+playerRouter.post("/all", requireTournamentVisible, playerController.allPlayerDetails);
 
 // Get Individual Player Detail - Public (for viewing)
-playerRouter.post("/detail", playerController.getPlayerDetail);
+playerRouter.post("/detail", requireTournamentVisible, playerController.getPlayerDetail);
 
 // Update Individual Player Details - Protected
 playerRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.updatePlayer);
@@ -45,10 +45,10 @@ playerRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user
 playerRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.deletePlayer);
 
 // CricHeroes stats for a tournament's players - Public (for viewing)
-playerRouter.get("/cricheroes-stats/:tournamentId", playerController.cricHeroesStats);
+playerRouter.get("/cricheroes-stats/:tournamentId", requireTournamentVisible, playerController.cricHeroesStats);
 
 // Get All Player Categories - Public (for viewing)
-playerRouter.post("/categories", playerController.getPlayerCategories);
+playerRouter.post("/categories", requireTournamentVisible, playerController.getPlayerCategories);
 
 // Bulk Create Players - Protected
 playerRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkCreatePlayers);
@@ -81,6 +81,6 @@ playerRouter.post("/undo", authMiddleware, roleMiddleware(['boss', 'super_user',
 playerRouter.post("/sync-to-sheet", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.syncToSheet);
 
 // Get Overlay Stats - Public (for overlay marquee and top players)
-playerRouter.post("/overlay-stats", playerController.getOverlayStats);
+playerRouter.post("/overlay-stats", requireTournamentVisible, playerController.getOverlayStats);
 
 module.exports = playerRouter;

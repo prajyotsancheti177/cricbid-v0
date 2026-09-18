@@ -61,14 +61,14 @@ model User {
   password String?
   role     Role    @default(player)
 
-  emailVerified    Boolean   @default(false)
+  emailVerified Boolean @default(false)
 
   // Set the first time this user signs in with Google. A host is never created
   // by signing in — the Google account is matched to a user an administrator
   // already made — so this records the link rather than establishing identity.
   googleSub String? @unique
-  isActive Boolean @default(true)
-  logo     String?
+  isActive  Boolean @default(true)
+  logo      String?
 
   // permissions{} object flattened to columns
   canCreateSuperUser      Boolean @default(false)
@@ -110,6 +110,12 @@ model Tournament {
   minPlayersPerTeam Int?
   totalBudget       Int?
   auctionDate       DateTime? // when the auction itself is scheduled/held (distinct from createdAt)
+
+  // A private tournament is visible only to its owner and the people granted
+  // access — not to other admins, not on the public lists, and not to anyone
+  // holding a link. Used for the testing tournament, so trying things out
+  // cannot touch or expose a real event.
+  isPrivate Boolean @default(false)
 
   playerCategories       String[] // Postgres text[]
   categoryBasePrices     Json? // Map<string, number>
@@ -199,8 +205,6 @@ model TeamBudgetTopup {
   @@map("team_budget_topup")
 }
 
-
-
 // A player. Not a login — see PlayerAccount.
 //
 // `mobile` is deliberately NOT unique: siblings registered by one parent share
@@ -213,7 +217,7 @@ model PlayerProfile {
   // existed. Unowned on purpose — handing one to whoever signs in with a
   // matching email or number would be an account takeover with extra steps.
   userId String?
-  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name    String?
   age     Int?

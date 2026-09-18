@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import apiConfig from "@/config/apiConfig";
+import { getSessionToken } from "@/lib/auth";
 
 // Create singleton socket instance
 let socket: Socket | null = null;
@@ -11,6 +12,9 @@ export const getSocket = (): Socket => {
             reconnection: true,
             reconnectionAttempts: 5,
             timeout: 20000,
+            // Identifies the viewer, so a private tournament's room can tell an
+            // invited person from a stranger with the link.
+            auth: { token: getSessionToken() },
         });
 
         socket.on("connect", () => {
@@ -25,6 +29,9 @@ export const getSocket = (): Socket => {
             console.log("Socket disconnected:", reason);
         });
     }
+    // The token can arrive after the socket was created (signing in without a
+    // reload), so refresh it on every hand-out.
+    socket.auth = { token: getSessionToken() };
     return socket;
 };
 

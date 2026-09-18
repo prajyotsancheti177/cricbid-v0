@@ -36,12 +36,12 @@ const isAdminRole = (role) => role === 'boss' || role === 'super_user';
  */
 const canManageTournament = async (userId, role, tournamentId) => {
     if (!userId || !canManageAnything(role)) return false;
-    if (isAdminRole(role)) return true;
-    if (!tournamentId) return false;
+    // No tournament named: only an admin can be acting on "any" tournament.
+    if (!tournamentId) return isAdminRole(role);
 
     const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { tournamentHostId: true },
+        select: { tournamentHostId: true, isPrivate: true },
     });
     if (!tournament) return false;
     if (String(tournament.tournamentHostId) === String(userId)) return true;
@@ -50,7 +50,113 @@ const canManageTournament = async (userId, role, tournamentId) => {
         where: { userId_tournamentId: { userId, tournamentId } },
         select: { id: true },
     });
+    if (granted) return true;
+
+    // A private tournament belongs to the people named on it. The boss and
+    // super_user shortcut deliberately does not apply, or every admin account
+    // would see the one tournament meant to be unseen.
+    return !tournament.isPrivate && isAdminRole(role);
+};
+
+/**
+ * Whether this caller may SEE the tournament at all.
+ *
+ * Everything public — the tournament list, a tournament's detail, its players,
+ * teams, registration form and auction room — is readable by anyone. That is
+ * right for a real event and wrong for a private one, so those endpoints ask
+ * this first.
+ *
+ * An unknown tournament returns true: the handler's own "not found" is a better
+ * answer than a permission error, and it leaks nothing.
+ */
+const canViewTournament = async (userId, role, tournamentId) => {
+    if (!tournamentId) return true;
+
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { isPrivate: true, tournamentHostId: true },
+    });
+    if (!tournament) return true;
+    if (!tournament.isPrivate) return true;
+    if (!userId) return false;
+    if (String(tournament.tournamentHostId) === String(userId)) return true;
+
+    const granted = await prisma.tournamentAccess.findUnique({
+        where: { userId_tournamentId: { userId, tournamentId } },
+        select: { id: true },
+    });
     return Boolean(granted);
+};
+
+/**
+ * Who is calling a PUBLIC endpoint.
+ *
+ * These routes have no authMiddleware in front — they must keep working for
+ * someone signed out — so the session token is read here when one is sent.
+ * Nothing is trusted from the body: an unreadable or expired token is simply
+ * treated as signed out.
+ */
+const resolveOptionalUser = async (req) => {
+    if (req.userId) return { userId: req.userId, role: req.userRole };
+
+    const token = req.headers['x-session-token'] || req.headers['x-player-token'];
+    if (!token) return { userId: null, role: null };
+
+    try {
+        const session = await prisma.userSession.findUnique({
+            where: { token: String(token) },
+            select: { expiresAt: true, user: { select: { id: true, role: true, isActive: true } } },
+        });
+        if (!session || session.expiresAt.getTime() < Date.now()) return { userId: null, role: null };
+        if (!session.user || !session.user.isActive) return { userId: null, role: null };
+        return { userId: session.user.id, role: session.user.role };
+    } catch {
+        return { userId: null, role: null };
+    }
+};
+
+/** The tournament a public request is about, including via a player or team id. */
+const tournamentIdFromRequest = async (req) => {
+    const direct = req.body?.tournamentId || req.body?.touranmentId
+        || req.params?.tournamentId || req.params?.id || req.query?.tournamentId;
+    if (direct) return String(direct);
+
+    if (req.body?.playerId) {
+        const player = await prisma.player.findUnique({
+            where: { id: String(req.body.playerId) },
+            select: { touranmentId: true },
+        }).catch(() => null);
+        if (player?.touranmentId) return player.touranmentId;
+    }
+    if (req.body?.teamId) {
+        const team = await prisma.team.findUnique({
+            where: { id: String(req.body.teamId) },
+            select: { touranmentId: true },
+        }).catch(() => null);
+        if (team?.touranmentId) return team.touranmentId;
+    }
+    return null;
+};
+
+/**
+ * Guard for a public read. Answers "not found" rather than "not allowed", so a
+ * private tournament does not announce its own existence to a stranger holding
+ * the link.
+ */
+const requireTournamentVisible = async (req, res, next) => {
+    try {
+        const tournamentId = await tournamentIdFromRequest(req);
+        const { userId, role } = await resolveOptionalUser(req);
+
+        if (await canViewTournament(userId, role, tournamentId)) return next();
+
+        return res.status(404).json({
+            success: false,
+            message: "Tournament not found",
+        });
+    } catch (error) {
+        return res.status(404).json({ success: false, message: "Tournament not found" });
+    }
 };
 
 /**
@@ -105,5 +211,8 @@ module.exports = {
     canManageAnything,
     isAdminRole,
     canManageTournament,
+    canViewTournament,
+    resolveOptionalUser,
     requireTournamentAccess,
+    requireTournamentVisible,
 };
