@@ -4,7 +4,7 @@ import apiConfig from "@/config/apiConfig";
 import { getSelectedTournamentId } from "@/lib/tournamentUtils";
 import { jsonAuthHeaders } from "@/lib/auth";
 
-interface RawPlayer {
+export interface RawPlayer {
   name?: string;
   age?: number | string;
   mobile?: number | string;
@@ -460,7 +460,7 @@ const UNASSIGNED_GROUP = "Available Players";
  * the "Available Players" section — at that point the leftovers are not on offer
  * any more, so printing them alongside the squads is misleading.
  */
-const MIN_SOLD_PER_TEAM = 4;
+const MIN_SOLD_PER_TEAM = 6;
 /** Sold, but with no team on record — older tournaments carry data like this. */
 const SOLD_NO_TEAM_GROUP = "Sold Players";
 
@@ -473,6 +473,11 @@ export interface PlayerCardsOptions {
   cardsPerPage?: number;
   /** For "category" and "overall": how many players each section shows. */
   topN?: number;
+  /**
+   * Print the players nobody bought. Omitted, it follows the squad-size rule
+   * in `suggestIncludeUnsold`.
+   */
+  includeUnsold?: boolean;
 }
 
 /**
@@ -525,6 +530,55 @@ function isAuctionComplete(
   return [...soldPerTeam.values()].every((n) => n >= MIN_SOLD_PER_TEAM);
 }
 
+async function fetchPlayers(tournamentId: string): Promise<RawPlayer[]> {
+  const res = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({ touranmentId: tournamentId }),
+  });
+  if (!res.ok) throw new Error("Failed to fetch data for PDF export");
+  const body = await res.json();
+  return body.data ?? [];
+}
+
+async function fetchTeams(tournamentId: string): Promise<{ _id: string; name?: string }[]> {
+  const res = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({ touranmentId: tournamentId }),
+  });
+  if (!res.ok) return [];
+  const body = await res.json();
+  return body.data?.[0]?.teams ?? [];
+}
+
+/**
+ * Whether the unsold players are still worth printing.
+ *
+ * True until every squad holds MIN_SOLD_PER_TEAM players: while teams are
+ * still short, the leftovers are who is left to buy. Once the squads are
+ * filled they are nobody's shortlist any more.
+ *
+ * The export screen reads this to set its checkbox, and the export itself
+ * falls back to it when the caller says nothing. Anything unreadable errs
+ * towards including them — an extra section is easier to notice than a
+ * missing one.
+ */
+export async function suggestIncludeUnsold(
+  tournamentId: string,
+  players?: RawPlayer[]
+): Promise<boolean> {
+  try {
+    const [list, teams] = await Promise.all([
+      players ? Promise.resolve(players) : fetchPlayers(tournamentId),
+      fetchTeams(tournamentId),
+    ]);
+    return !isAuctionComplete(teams, list);
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Fetches every player in a tournament and generates a "player card" style PDF.
  *
@@ -551,39 +605,15 @@ export async function exportPlayerCardsPdf(
 
   // Read the player list rather than team rosters: an unsold player belongs to
   // no team, so team rosters cannot see them at all.
-  const playersRes = await fetch(`${apiConfig.baseUrl}/api/player/all`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ touranmentId: tournamentId }),
-  });
+  const fetchedPlayers = await fetchPlayers(tournamentId);
 
-  if (!playersRes.ok) {
-    throw new Error("Failed to fetch data for PDF export");
-  }
+  // The caller decides whether the unsold players are printed; with no answer
+  // from them, fall back to the squad-size rule.
+  const includeUnsold = options.includeUnsold ?? (await suggestIncludeUnsold(tournamentId, fetchedPlayers));
 
-  const playersData = await playersRes.json();
-  const allPlayersRaw: RawPlayer[] = playersData.data ?? [];
-
-  // Only the team-wise export needs to know whether the auction has finished.
-  // If the team list can't be read, fall through as "not complete" so the
-  // available players are still printed rather than silently dropped.
-  let auctionComplete = false;
-  if (grouping === "team") {
-    try {
-      const teamsRes = await fetch(`${apiConfig.baseUrl}/api/team/all`, {
-        method: "POST",
-        headers: jsonAuthHeaders(),
-        body: JSON.stringify({ touranmentId: tournamentId }),
-      });
-      if (teamsRes.ok) {
-        const teamsData = await teamsRes.json();
-        const teams = teamsData.data?.[0]?.teams ?? [];
-        auctionComplete = isAuctionComplete(teams, allPlayersRaw);
-      }
-    } catch {
-      /* leave auctionComplete false */
-    }
-  }
+  const allPlayersRaw: RawPlayer[] = includeUnsold
+    ? fetchedPlayers
+    : fetchedPlayers.filter((p) => p.sold);
 
   // Bucket the players into sections according to the chosen grouping.
   const groupOrder: string[] = [];
@@ -621,8 +651,8 @@ export async function exportPlayerCardsPdf(
     // Teams first, then the catch-all groups. Once every squad is filled the
     // unsold players are no longer "available", so that section is dropped;
     // sold players with no team on record still belong in the document.
-    const trailing = auctionComplete ? [SOLD_NO_TEAM_GROUP] : [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP];
-    const excluded = auctionComplete ? [UNASSIGNED_GROUP] : [];
+    const trailing = includeUnsold ? [SOLD_NO_TEAM_GROUP, UNASSIGNED_GROUP] : [SOLD_NO_TEAM_GROUP];
+    const excluded = includeUnsold ? [] : [UNASSIGNED_GROUP];
     groupedTeams = [
       ...groupOrder.filter((n) => !trailing.includes(n) && !excluded.includes(n)).map(toGroup),
       ...trailing.filter((n) => byGroup.has(n)).map(toGroup),

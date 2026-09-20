@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,9 @@ import { Download, FileDown, Upload, Loader2, LockKeyhole, Trophy, IdCard } from
 import { useToast } from "@/hooks/use-toast";
 import { exportTeamsPdf } from "@/lib/exportTeamsPdf";
 import { exportAuctionReport } from "@/lib/exportAuctionReport";
-import { exportPlayerCardsPdf, type CardsGrouping } from "@/lib/exportPlayerCardsPdf";
+import { exportPlayerCardsPdf, type CardsGrouping, suggestIncludeUnsold } from "@/lib/exportPlayerCardsPdf";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
@@ -53,6 +54,24 @@ const TournamentDataSection = () => {
   const [cardsGrouping, setCardsGrouping] = useState<CardsGrouping>("team");
   const [cardsPerPage, setCardsPerPage] = useState("12");
   const [cardsTopN, setCardsTopN] = useState("5");
+  // Ticked while the squads are still short of players — then the leftovers are
+  // who is left to buy. Once every team is full it starts unticked. The host can
+  // always override it.
+  const [includeUnsold, setIncludeUnsold] = useState(true);
+  const [unsoldDefaultKnown, setUnsoldDefaultKnown] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!tournament?._id) return;
+    suggestIncludeUnsold(tournament._id)
+      .then((suggested) => {
+        if (cancelled) return;
+        setIncludeUnsold(suggested);
+        setUnsoldDefaultKnown(true);
+      })
+      .catch(() => { if (!cancelled) setUnsoldDefaultKnown(true); });
+    return () => { cancelled = true; };
+  }, [tournament?._id]);
   const [reportBusy, setReportBusy] = useState(false);
   const [syncingToSheet, setSyncingToSheet] = useState(false);
 
@@ -117,6 +136,7 @@ const TournamentDataSection = () => {
         grouping: cardsGrouping,
         cardsPerPage: cardsGrouping === "team" ? perPage : Math.min(topN, 15),
         topN,
+        includeUnsold,
       });
       toast({ title: "Downloaded", description: "Player cards PDF exported successfully" });
     } catch (e) {
@@ -255,6 +275,25 @@ const TournamentDataSection = () => {
                     </p>
                   </div>
                 )}
+              </div>
+
+              <div className="flex items-start gap-3 rounded-lg border border-border p-3 sm:max-w-xl">
+                <Checkbox
+                  id="includeUnsold"
+                  checked={includeUnsold}
+                  onCheckedChange={(v) => setIncludeUnsold(v === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="includeUnsold" className="cursor-pointer">Include unsold players</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {unsoldDefaultKnown
+                      ? includeUnsold
+                        ? "Some teams still have fewer than 6 players, so the unsold players are included under \"Available Players\"."
+                        : "Every team already has 6 or more players, so only sold players are included."
+                      : "Checking how full the squads are…"}
+                  </p>
+                </div>
               </div>
 
               <Button onClick={handleExportPlayerCards} disabled={cardsBusy} variant="outline" className="gap-2">

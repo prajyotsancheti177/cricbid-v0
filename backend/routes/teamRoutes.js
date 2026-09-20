@@ -6,7 +6,7 @@ const uploadMiddleware = require('../utils/uploadMiddleware');
 const teamRouter = express.Router();
 
 // Register New Team - Public (for public team registration form)
-teamRouter.post("/register-public", requireTournamentVisible, uploadMiddleware.any(), teamController.registerTeamPublic);
+teamRouter.post("/register-public", uploadMiddleware.any(), requireTournamentVisible, teamController.registerTeamPublic);
 
 // Register New Team - Protected
 teamRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.addTeam);

@@ -28,7 +28,7 @@ const registrationUpload = (req, res, next) => uploadMiddleware.any()(req, res, 
     });
 });
 
-playerRouter.post("/register-public", requireTournamentVisible, registrationUpload, playerController.registerPlayerPublic);
+playerRouter.post("/register-public", registrationUpload, requireTournamentVisible, playerController.registerPlayerPublic);
 // Public: failures the API never saw (nginx 413, network) reported by the form.
 playerRouter.post("/registration-error", playerController.reportRegistrationError);
 

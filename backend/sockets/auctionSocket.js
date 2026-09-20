@@ -7,7 +7,7 @@ const tournamentService = require("../services/tournamentService");
 const auctionRoomSessionService = require("../services/auctionRoomSessionService");
 const whatsappService = require("../services/whatsappService");
 const prisma = require("../db/prisma");
-const { canViewTournament, resolveOptionalUser } = require('../utils/tournamentAccess');
+const { canViewTournament, canManageTournament, resolveOptionalUser } = require('../utils/tournamentAccess');
 const eventService = require("../services/eventService");
 
 // Store interval IDs for viewer history sampling per tournament
@@ -302,18 +302,22 @@ module.exports = (io) => {
           });
         }
 
-        // Gate: only tournament owner or admin may claim auctioneer role
+        // Gate: only people who may manage this tournament can host its auction.
+        //
+        // This used to accept the owner and admins alone, which left out the
+        // co-hosts granted access in user management: they were refused the
+        // auctioneer role, and since teams are loaded only for an auctioneer,
+        // the auction room showed them no teams at all.
         if (userId && tournamentOwnerId) {
           let user = null;
           try { user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }); } catch (_) {}
-          const isAdmin = user && ['boss', 'super_user'].includes(user.role);
-          const isOwner = tournamentOwnerId === userId;
-          if (!isAdmin && !isOwner) {
+          const allowed = user && await canManageTournament(userId, user.role, tournamentId);
+          if (!allowed) {
             // Revoke the just-set auctioneer
             auctionStateManager.setAuctioneer(tournamentId, null, null);
             return socket.emit("auction:error", {
               code: 'UNAUTHORIZED',
-              message: 'Only the tournament owner or an admin can host the auction',
+              message: 'You do not have permission to host this auction',
             });
           }
         }
