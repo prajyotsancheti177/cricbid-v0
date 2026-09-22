@@ -82,7 +82,16 @@ export function resolvePaymentMode(panel?: PaymentPanelConfig | null): PaymentMo
  * name containing `&pa=attacker@ybl` would inject a second payee parameter and
  * redirect the payment.
  */
-export function buildUpiUri(panel: PaymentPanelConfig): string | null {
+export interface UpiUriOptions {
+  /**
+   * Include the configured fee. Set false for the "open without the amount"
+   * fallback: some apps refuse an amount-carrying intent to a personal UPI ID
+   * while accepting the same payee with the amount typed by hand.
+   */
+  includeAmount?: boolean;
+}
+
+export function buildUpiUri(panel: PaymentPanelConfig, options: UpiUriOptions = {}): string | null {
   const payeeAddress = normalizeUpiId(panel.upiId);
   if (!payeeAddress) return null;
 
@@ -103,9 +112,12 @@ export function buildUpiUri(panel: PaymentPanelConfig): string | null {
   // hand went through. Rather than hand the player a button that cannot work,
   // no link is offered until a fee is configured — the QR and the copyable UPI
   // ID still cover a tournament whose fee varies by category.
+  const includeAmount = options.includeAmount !== false;
   const amount = parseUpiAmount(panel.amount);
-  if (amount === null) return null;
-  params.push(`am=${encodeURIComponent(amount.toFixed(2))}`);
+  if (includeAmount) {
+    if (amount === null) return null;
+    params.push(`am=${encodeURIComponent(amount.toFixed(2))}`);
+  }
 
   params.push("cu=INR");
 

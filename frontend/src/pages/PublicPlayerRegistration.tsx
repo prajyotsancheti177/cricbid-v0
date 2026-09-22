@@ -254,11 +254,13 @@ const PublicPlayerRegistration = () => {
   const paymentPanel = config?.paymentPanel;
   const paymentMode = resolvePaymentMode(paymentPanel);
   const showQr = !!(paymentPanel?.qrImage) && (paymentMode === 'qr' || paymentMode === 'both');
-  const upiUri = (paymentMode === 'upi' || paymentMode === 'both') && paymentPanel
-    ? buildUpiUri(paymentPanel)
-    : null;
+  const showUpiLinks = (paymentMode === 'upi' || paymentMode === 'both') && !!paymentPanel;
+  /** The normal link: payee, name and the fee filled in. */
+  const upiUri = showUpiLinks ? buildUpiUri(paymentPanel!) : null;
+  /** Same payee, no amount — for apps that refuse a pre-filled amount. */
+  const upiUriNoAmount = showUpiLinks ? buildUpiUri(paymentPanel!, { includeAmount: false }) : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
-  const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUri || !!paymentPanel?.text);
+  const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
 
   const copyUpiId = async () => {
     try {
@@ -771,13 +773,22 @@ const PublicPlayerRegistration = () => {
                       offered and copying the ID remains the way to pay. */}
                   {paymentPanel?.upiId && (
                     <div className="space-y-2 pt-3 border-t border-primary/20">
-                      {upiUri && (
+                      {(upiUri || upiUriNoAmount) && (
                         <a
-                          href={upiUri}
+                          href={upiUri || upiUriNoAmount || undefined}
                           className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
                         >
                           <Smartphone className="w-4 h-4" />
                           Pay with any UPI app
+                        </a>
+                      )}
+
+                      {/* Some apps refuse an intent that carries an amount to a
+                          personal UPI ID, while the same payee with the amount
+                          typed in goes through. This is the way out of that. */}
+                      {upiUri && upiUriNoAmount && (
+                        <a href={upiUriNoAmount} className="block text-sm text-primary underline underline-offset-2">
+                          Payment refused? Open your UPI app without the amount
                         </a>
                       )}
                       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -795,7 +806,7 @@ const PublicPlayerRegistration = () => {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {upiUri
+                        {upiUri || upiUriNoAmount
                           ? "The button opens your UPI app on a phone. On a computer, copy the UPI ID above and pay from your phone."
                           : "Copy the UPI ID above and pay from your UPI app."}
                       </p>
