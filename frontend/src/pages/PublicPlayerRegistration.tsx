@@ -265,12 +265,22 @@ const PublicPlayerRegistration = () => {
   // OS, so the button appears to do nothing. Android understands `intent://`,
   // which goes through the intent system instead and finds the UPI apps.
   const android = isAndroid();
+
+  // The amount is deliberately NOT pre-filled by default. The QR codes that
+  // these tournaments actually collect money through carry only the payee and
+  // their name — Google Pay's own business QR here is
+  // `upi://pay?pa=...&pn=Iffy%20Merchant&aid=...` — and an amount-carrying link
+  // to the same payee has been refused on real phones while the identical
+  // payee, with the amount typed in, goes through. So the main button opens the
+  // app ready to pay, and the fee is shown next to it to type in.
   const payHref = showUpiLinks
-    ? (android ? buildUpiIntentUri(paymentPanel!) : upiUri) || (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false }) : upiUriNoAmount)
-    : null;
-  const payHrefNoAmount = showUpiLinks
     ? (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false }) : upiUriNoAmount)
     : null;
+  /** Optional: the same payment with the fee filled in, for apps that accept it. */
+  const payHrefExact = showUpiLinks
+    ? (android ? buildUpiIntentUri(paymentPanel!) : upiUri)
+    : null;
+  const feeLabel = paymentPanel?.amount ? `₹${paymentPanel.amount}` : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
   const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
 
@@ -800,9 +810,7 @@ const PublicPlayerRegistration = () => {
                       {android && (
                         <div className="flex flex-wrap gap-2">
                           {UPI_APPS.map((app) => {
-                            const href =
-                              buildUpiIntentUri(paymentPanel!, {}, app.pkg) ||
-                              buildUpiIntentUri(paymentPanel!, { includeAmount: false }, app.pkg);
+                            const href = buildUpiIntentUri(paymentPanel!, { includeAmount: false }, app.pkg);
                             return href ? (
                               <a
                                 key={app.key}
@@ -819,10 +827,19 @@ const PublicPlayerRegistration = () => {
                       {/* Some apps refuse an intent that carries an amount to a
                           personal UPI ID, while the same payee with the amount
                           typed in goes through. This is the way out of that. */}
-                      {payHref && payHrefNoAmount && payHref !== payHrefNoAmount && (
-                        <a href={payHrefNoAmount} className="block text-sm text-primary underline underline-offset-2">
-                          Payment refused? Open your UPI app without the amount
-                        </a>
+                      {feeLabel && (
+                        <p className="text-sm font-medium text-foreground">
+                          Enter {feeLabel} in your UPI app.
+                          {payHrefExact && payHrefExact !== payHref && (
+                            <>
+                              {" "}
+                              <a href={payHrefExact} className="text-primary underline underline-offset-2">
+                                Or open it with {feeLabel} already filled in
+                              </a>
+                              .
+                            </>
+                          )}
+                        </p>
                       )}
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-muted-foreground">UPI ID:</span>
