@@ -13,6 +13,7 @@ import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
 import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
+import { authHeaders } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
 
@@ -71,7 +72,12 @@ const PublicPlayerRegistration = () => {
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/${tournamentId}/registration-config`);
+      // Send the session when there is one: a private tournament's form is
+      // refused to strangers, and without this its own host could not open or
+      // test their own registration link.
+      const response = await fetch(`${apiConfig.baseUrl}/api/tournament/${tournamentId}/registration-config`, {
+        headers: authHeaders(),
+      });
       const data = await response.json();
       
       if (response.ok && data.data) {
@@ -759,15 +765,21 @@ const PublicPlayerRegistration = () => {
                     )}
                   </div>
 
-                  {upiUri && (
+                  {/* The UPI ID is shown whenever there is one. The button needs a
+                      complete link (payee, name and amount) — without those the
+                      UPI apps refuse it as a bank-limit error, so no button is
+                      offered and copying the ID remains the way to pay. */}
+                  {paymentPanel?.upiId && (
                     <div className="space-y-2 pt-3 border-t border-primary/20">
-                      <a
-                        href={upiUri}
-                        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
-                      >
-                        <Smartphone className="w-4 h-4" />
-                        Pay with any UPI app
-                      </a>
+                      {upiUri && (
+                        <a
+                          href={upiUri}
+                          className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+                        >
+                          <Smartphone className="w-4 h-4" />
+                          Pay with any UPI app
+                        </a>
+                      )}
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-muted-foreground">UPI ID:</span>
                         <code className="px-2 py-1 rounded bg-background border font-mono text-foreground break-all">
@@ -783,8 +795,9 @@ const PublicPlayerRegistration = () => {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        The button opens your UPI app on a phone. On a computer, copy the UPI ID above
-                        and pay from your phone.
+                        {upiUri
+                          ? "The button opens your UPI app on a phone. On a computer, copy the UPI ID above and pay from your phone."
+                          : "Copy the UPI ID above and pay from your UPI app."}
                       </p>
                     </div>
                   )}

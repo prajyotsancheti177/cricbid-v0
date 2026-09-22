@@ -925,7 +925,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Payee name (optional)</Label>
+                          <Label>Payee name *</Label>
                           <Input
                             placeholder="e.g. Rebirth Cricket Club"
                             maxLength={80}
@@ -935,22 +935,32 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                           <p className="text-xs text-muted-foreground">
                             Shown in the player's UPI app. Always confirm it matches your account name.
                           </p>
+                          {showUpiFields && !(config.paymentPanel?.payeeName || '').trim() && (
+                            <p className="text-sm text-destructive">
+                              Required — UPI apps refuse a link with no payee name, reporting it as a bank limit error.
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Amount (optional)</Label>
+                          <Label>Amount *</Label>
                           <Input
                             type="number"
                             min={1}
                             max={100000}
-                            placeholder="Leave blank to let players enter the amount"
+                            placeholder="e.g. 600"
                             value={config.paymentPanel?.amount ?? ''}
                             onChange={(e) => updatePaymentPanel({ amount: e.target.value })}
                           />
                           <p className="text-xs text-muted-foreground">
-                            Pre-fills the amount, but players can still edit it in their UPI app before paying —
+                            Pre-fills the amount. Players can still edit it in their UPI app before paying —
                             the link does not confirm that money arrived.
                           </p>
+                          {showUpiFields && !String(config.paymentPanel?.amount ?? '').trim() && (
+                            <p className="text-sm text-destructive">
+                              Required — a payment link with no amount is rejected by UPI apps.
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}

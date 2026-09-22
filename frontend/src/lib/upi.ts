@@ -16,6 +16,10 @@ const VPA_REGEX = /^[a-zA-Z0-9._-]{2,64}@[a-zA-Z][a-zA-Z0-9.-]{1,63}$/;
 const PHONE_REGEX = /^[6-9]\d{9}$/;
 
 export const MAX_UPI_AMOUNT = 100000;
+/** Payee name length accepted across UPI apps. */
+export const MAX_UPI_NAME = 50;
+/** Transaction notes longer than this are rejected by some apps. */
+export const MAX_UPI_NOTE = 50;
 
 export type PaymentMode = "qr" | "upi" | "both";
 
@@ -71,7 +75,8 @@ export function resolvePaymentMode(panel?: PaymentPanelConfig | null): PaymentMo
 }
 
 /**
- * Returns the UPI deep link for a panel, or null when the payee is unusable.
+ * Returns the UPI deep link for a panel, or null when it cannot be built —
+ * an unusable payee, or no amount configured.
  *
  * Every value is URI-encoded. This is security-critical: without it a payee
  * name containing `&pa=attacker@ybl` would inject a second payee parameter and
@@ -81,18 +86,50 @@ export function buildUpiUri(panel: PaymentPanelConfig): string | null {
   const payeeAddress = normalizeUpiId(panel.upiId);
   if (!payeeAddress) return null;
 
-  const params: string[] = [`pa=${encodeURIComponent(payeeAddress)}`];
+  // `pa` and `pn` are mandatory in the UPI Linking Specification. A link
+  // missing one is not reported as malformed by the UPI apps — GPay and
+  // PhonePe answer with a generic "you have exceeded the bank limit for this
+  // payment", which sends people hunting for a bank problem that does not
+  // exist. Typing the same UPI ID by hand works, which is the tell.
+  const params: string[] = [
+    // `@` is left as-is: it is legal in a query string and every real-world UPI
+    // link carries it literally, while some apps mishandle the escaped `%40`.
+    `pa=${encodeURIComponent(payeeAddress).replace(/%40/g, "@")}`,
+    `pn=${encodeURIComponent((panel.payeeName ?? "").trim() || payeeNameFromVpa(payeeAddress))}`,
+  ];
 
-  const payeeName = (panel.payeeName ?? "").trim();
-  if (payeeName) params.push(`pn=${encodeURIComponent(payeeName)}`);
-
+  // `am` is mandatory too. A link without it is what produced "you have
+  // exceeded the bank limit for this payment" while the same UPI ID typed by
+  // hand went through. Rather than hand the player a button that cannot work,
+  // no link is offered until a fee is configured — the QR and the copyable UPI
+  // ID still cover a tournament whose fee varies by category.
   const amount = parseUpiAmount(panel.amount);
-  if (amount !== null) params.push(`am=${encodeURIComponent(amount.toFixed(2))}`);
-
-  const note = (panel.text ?? "").trim();
-  if (note) params.push(`tn=${encodeURIComponent(note.slice(0, 80))}`);
+  if (amount === null) return null;
+  params.push(`am=${encodeURIComponent(amount.toFixed(2))}`);
 
   params.push("cu=INR");
 
+  // The note is the host's own payment instructions, which run to several
+  // lines and carry "/", "-" and brackets. Apps parse the note strictly and
+  // reject what they dislike, again as a "limit" error, so it is reduced to
+  // one short plain line and dropped entirely if nothing usable survives.
+  const note = safeUpiNote(panel.text);
+  if (note) params.push(`tn=${encodeURIComponent(note)}`);
+
   return `upi://pay?${params.join("&")}`;
+}
+
+/** A usable payee name when the host left the field blank: "gaurav.surana-1" → "gaurav surana". */
+function payeeNameFromVpa(vpa: string): string {
+  const local = vpa.split("@")[0].replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+  return (local || "Payee").slice(0, MAX_UPI_NAME);
+}
+
+/** One plain line, letters/digits/space/dot/dash only, short enough for every app. */
+export function safeUpiNote(raw?: string | null): string {
+  return String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/[^A-Za-z0-9 .-]/g, "")
+    .trim()
+    .slice(0, MAX_UPI_NOTE);
 }

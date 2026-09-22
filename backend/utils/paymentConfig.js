@@ -102,8 +102,18 @@ const sanitizePaymentPanel = (panel) => {
             throw new Error("Enter a valid UPI ID (name@bank) or 10-digit mobile number");
         }
         sanitized.upiId = upiId;
+        // Payee name and amount are mandatory in the UPI Linking Specification.
+        // A link without them is refused by the UPI apps as "you have exceeded
+        // the bank limit for this payment", so they are required here rather
+        // than left to produce a link that cannot pay.
         sanitized.payeeName = cleanText(panel.payeeName, MAX_PAYEE_NAME);
+        if (!sanitized.payeeName) {
+            throw new Error("Enter the name money is being paid to — UPI apps reject a link without it");
+        }
         sanitized.amount = parseAmount(panel.amount);
+        if (sanitized.amount === undefined) {
+            throw new Error("Enter the registration fee — UPI apps reject a payment link without an amount");
+        }
     } else {
         sanitized.upiId = "";
     }
