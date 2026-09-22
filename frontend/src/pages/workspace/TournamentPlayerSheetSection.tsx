@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/form/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered, History, Undo2,
+  Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered, History, Undo2, Trash2,
   ArrowUp, ChevronsUpDown,
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
@@ -111,6 +111,9 @@ const TournamentPlayerSheetSection = () => {
   const [verifying, setVerifying] = useState(false);
   const [resequence, setResequence] = useState<{ changes: { id: string; name: string; from: number | null; to: number }[]; total: number } | null>(null);
   const [resequencing, setResequencing] = useState(false);
+  /** Players the host has asked to delete, held while they confirm. */
+  const [deleteTarget, setDeleteTarget] = useState<SheetPlayer[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyBatches, setHistoryBatches] = useState<HistoryBatch[] | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -387,6 +390,66 @@ const TournamentPlayerSheetSection = () => {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Could not update", variant: "destructive" });
     } finally {
       setVerifying(false);
+    }
+  };
+
+  /**
+   * Delete the players being confirmed.
+   *
+   * One request each: there is no bulk delete endpoint, and doing them
+   * separately means a row that cannot be deleted does not take the rest of
+   * the batch down with it.
+   */
+  const runDelete = async () => {
+    if (!deleteTarget?.length) return;
+    setDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        deleteTarget.map(async (player) => {
+          const res = await fetch(`${apiConfig.baseUrl}/api/player/delete`, {
+            method: "POST",
+            headers: jsonAuthHeaders(),
+            body: JSON.stringify({ playerId: player._id }),
+          });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.message || body.error || "Could not delete");
+          }
+          return player._id;
+        })
+      );
+
+      const removed = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+        .map((r) => r.value);
+      const failed = results.length - removed.length;
+
+      if (removed.length) {
+        setPlayers(prev => prev.filter(p => !removed.includes(p._id)));
+        setSelected(prev => {
+          const next = new Set(prev);
+          removed.forEach(id => next.delete(id));
+          return next;
+        });
+      }
+      setDeleteTarget(null);
+
+      if (failed) {
+        toast({
+          title: "Partly done",
+          description: `${removed.length} deleted, ${failed} could not be deleted`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: removed.length === 1 ? "Player deleted" : `${removed.length} players deleted`,
+          description: "Serial numbers are unchanged — use “Fix serial numbers” to close the gaps.",
+        });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not delete", variant: "destructive" });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -737,6 +800,10 @@ const TournamentPlayerSheetSection = () => {
                   onClick={() => setVerified([...selected], false)}>
             <RotateCcw className="h-3.5 w-3.5" /> Mark pending
           </Button>
+          <Button size="sm" variant="destructive" className="gap-1.5" disabled={verifying}
+                  onClick={() => setDeleteTarget(players.filter(p => selected.has(p._id)))}>
+            <Trash2 className="h-3.5 w-3.5" /> Delete {selected.size}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
         </div>
       ) : (
@@ -1019,6 +1086,52 @@ const TournamentPlayerSheetSection = () => {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* delete confirmation — deletions are not in the history trail, so this
+          is the only place to change your mind */}
+      <Dialog open={!!deleteTarget} onOpenChange={() => { if (!deleting) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogTitle>
+            {deleteTarget?.length === 1 ? "Delete this player?" : `Delete ${deleteTarget?.length} players?`}
+          </DialogTitle>
+
+          <div className="max-h-[240px] overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
+            {deleteTarget?.map(p => (
+              <div key={p._id} className="flex items-center gap-3 px-3 py-1.5 text-[13px]">
+                <span className="text-muted-foreground tabular-nums w-9">#{p.auctionSerialNumber ?? "—"}</span>
+                <span className="flex-1 truncate">{p.name || "Unnamed player"}</span>
+                {p.sold && (
+                  <span className="shrink-0 text-xs font-medium text-amber-500">
+                    sold to {p.teamName || "a team"}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {(deleteTarget?.filter(p => p.sold).length ?? 0) > 0 && (
+            <p className="text-sm text-amber-500">
+              {deleteTarget!.filter(p => p.sold).length === 1
+                ? "One of these players has already been sold."
+                : `${deleteTarget!.filter(p => p.sold).length} of these players have already been sold.`}
+              {" "}Deleting them takes them out of the squad and puts what they went for back in the team's purse.
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            This cannot be undone from History — deletions are not recorded there. Serial numbers stay as they are,
+            leaving a gap; use “Fix serial numbers” afterwards if you want them closed up.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={runDelete} disabled={deleting} className="gap-1.5">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete {deleteTarget?.length}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
