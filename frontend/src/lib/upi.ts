@@ -145,3 +145,51 @@ export function safeUpiNote(raw?: string | null): string {
     .trim()
     .slice(0, MAX_UPI_NOTE);
 }
+
+/** Package names of the UPI apps worth offering by name. */
+export const UPI_APPS = [
+  { key: "gpay", label: "Google Pay", pkg: "com.google.android.apps.nbu.paisa.user" },
+  { key: "phonepe", label: "PhonePe", pkg: "com.phonepe.app" },
+  { key: "paytm", label: "Paytm", pkg: "net.one97.paytm" },
+] as const;
+
+/**
+ * The same payment as an Android `intent://` URL.
+ *
+ * A plain `upi://` link is handled by the browser, and in-app browsers — the
+ * one inside WhatsApp, Instagram or Facebook, where a shared registration link
+ * is usually opened — refuse to hand custom schemes to the OS. An intent URL
+ * goes through the Android intent system instead, so the UPI apps are found.
+ *
+ * Without `pkg` Android shows the chooser ("any UPI app"); with it the payment
+ * opens in that one app, which is the most reliable route out of a WebView.
+ *
+ * Deliberately no `mc` or `tr`: `mc` is a merchant category code, which a
+ * personal UPI ID is not entitled to claim, and a `tr` that is the same for
+ * every player is read as a repeated transaction and refused.
+ */
+export function buildUpiIntentUri(
+  panel: PaymentPanelConfig,
+  options: UpiUriOptions = {},
+  pkg?: string
+): string | null {
+  const upi = buildUpiUri(panel, options);
+  if (!upi) return null;
+
+  const payload = upi.slice("upi://".length);
+  const extras = [
+    "Intent",
+    "scheme=upi",
+    "action=android.intent.action.VIEW",
+    "category=android.intent.category.BROWSABLE",
+    ...(pkg ? [`package=${pkg}`] : []),
+    "end",
+  ];
+  return `intent://${payload}#${extras.join(";")}`;
+}
+
+/** True on Android, where intent URLs are understood. */
+export function isAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android/i.test(navigator.userAgent);
+}

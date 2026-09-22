@@ -12,7 +12,7 @@ import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartph
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
-import { buildUpiUri, resolvePaymentMode } from "@/lib/upi";
+import { buildUpiUri, buildUpiIntentUri, isAndroid, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
 import { authHeaders } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
@@ -259,6 +259,18 @@ const PublicPlayerRegistration = () => {
   const upiUri = showUpiLinks ? buildUpiUri(paymentPanel!) : null;
   /** Same payee, no amount — for apps that refuse a pre-filled amount. */
   const upiUriNoAmount = showUpiLinks ? buildUpiUri(paymentPanel!, { includeAmount: false }) : null;
+
+  // In-app browsers — WhatsApp, Instagram, Facebook, where a shared
+  // registration link is usually opened — refuse to hand a `upi://` link to the
+  // OS, so the button appears to do nothing. Android understands `intent://`,
+  // which goes through the intent system instead and finds the UPI apps.
+  const android = isAndroid();
+  const payHref = showUpiLinks
+    ? (android ? buildUpiIntentUri(paymentPanel!) : upiUri) || (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false }) : upiUriNoAmount)
+    : null;
+  const payHrefNoAmount = showUpiLinks
+    ? (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false }) : upiUriNoAmount)
+    : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
   const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
 
@@ -773,9 +785,9 @@ const PublicPlayerRegistration = () => {
                       offered and copying the ID remains the way to pay. */}
                   {paymentPanel?.upiId && (
                     <div className="space-y-2 pt-3 border-t border-primary/20">
-                      {(upiUri || upiUriNoAmount) && (
+                      {payHref && (
                         <a
-                          href={upiUri || upiUriNoAmount || undefined}
+                          href={payHref}
                           className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
                         >
                           <Smartphone className="w-4 h-4" />
@@ -783,11 +795,32 @@ const PublicPlayerRegistration = () => {
                         </a>
                       )}
 
+                      {/* Naming the app is the most reliable route out of an
+                          in-app browser, where the chooser itself may not open. */}
+                      {android && (
+                        <div className="flex flex-wrap gap-2">
+                          {UPI_APPS.map((app) => {
+                            const href =
+                              buildUpiIntentUri(paymentPanel!, {}, app.pkg) ||
+                              buildUpiIntentUri(paymentPanel!, { includeAmount: false }, app.pkg);
+                            return href ? (
+                              <a
+                                key={app.key}
+                                href={href}
+                                className="px-3 py-1.5 rounded-lg border border-primary/40 text-sm font-medium text-primary hover:bg-primary/10"
+                              >
+                                {app.label}
+                              </a>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+
                       {/* Some apps refuse an intent that carries an amount to a
                           personal UPI ID, while the same payee with the amount
                           typed in goes through. This is the way out of that. */}
-                      {upiUri && upiUriNoAmount && (
-                        <a href={upiUriNoAmount} className="block text-sm text-primary underline underline-offset-2">
+                      {payHref && payHrefNoAmount && payHref !== payHrefNoAmount && (
+                        <a href={payHrefNoAmount} className="block text-sm text-primary underline underline-offset-2">
                           Payment refused? Open your UPI app without the amount
                         </a>
                       )}
@@ -806,7 +839,7 @@ const PublicPlayerRegistration = () => {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {upiUri || upiUriNoAmount
+                        {payHref
                           ? "The button opens your UPI app on a phone. On a computer, copy the UPI ID above and pay from your phone."
                           : "Copy the UPI ID above and pay from your UPI app."}
                       </p>
