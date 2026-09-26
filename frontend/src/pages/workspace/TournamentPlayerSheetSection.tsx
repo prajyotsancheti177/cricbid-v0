@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Check, Columns3, Loader2, LockKeyhole, Search, X, Pencil, ImageIcon, RotateCcw, Download, ListOrdered, History, Undo2, Trash2,
-  ArrowUp, ChevronsUpDown,
+  ArrowUp, ChevronsUpDown, Clock,
 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
@@ -64,6 +64,18 @@ interface HistoryBatch {
   sample: { playerName: string | null; field: string; oldValue: string | null; newValue: string | null }[];
 }
 
+/** One recorded change to a single player. */
+interface PlayerChangeRow {
+  id: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  at: string;
+  actor: string | null;
+  isUndo: boolean;
+  label: string | null;
+}
+
 const NOTE_IDS = ["cf_note_1", "cf_note_2", "cf_note_3"];
 const MAX_NOTES = NOTE_IDS.length;
 
@@ -115,6 +127,9 @@ const TournamentPlayerSheetSection = () => {
   const [deleteTarget, setDeleteTarget] = useState<SheetPlayer[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /** The player whose own history is on screen, and their changes. */
+  const [historyPlayer, setHistoryPlayer] = useState<SheetPlayer | null>(null);
+  const [playerChanges, setPlayerChanges] = useState<PlayerChangeRow[] | null>(null);
   const [historyBatches, setHistoryBatches] = useState<HistoryBatch[] | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -492,6 +507,25 @@ const TournamentPlayerSheetSection = () => {
     }
   };
 
+  /** Everything ever changed on one player. */
+  const openPlayerHistory = async (player: SheetPlayer) => {
+    setHistoryPlayer(player);
+    setPlayerChanges(null);
+    try {
+      const res = await fetch(`${apiConfig.baseUrl}/api/player/history`, {
+        method: "POST",
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ touranmentId: tournament._id, playerId: player._id, limit: 200 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not load history");
+      setPlayerChanges(data.data || []);
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Could not load history", variant: "destructive" });
+      setPlayerChanges([]);
+    }
+  };
+
   const loadHistory = async () => {
     setHistoryOpen(true);
     setHistoryBatches(null);
@@ -755,7 +789,33 @@ const TournamentPlayerSheetSection = () => {
     );
   }
 
-  const gridTemplate = `36px ${shown.map(c => `${c.width}px`).join(" ")}`;
+  /** A readable name for a changed field — the sheet's own column label where there is one. */
+  const fieldLabel = (key: string) => {
+    const col = columns.find(c => c.key === key);
+    if (col) return col.label;
+    const extras: Record<string, string> = {
+      paymentVerified: "Payment",
+      sold: "Sold",
+      amtSold: "Sold for",
+      teamId: "Team",
+      photo: "Photo",
+      auctionStatus: "Auction status",
+    };
+    return extras[key] || key;
+  };
+
+  /** Values as the sheet shows them, so an empty cell reads as empty rather than blank. */
+  const displayValue = (key: string, value: string | null) => {
+    if (value === null || value === "") return "(empty)";
+    if (key === "paymentVerified" || key === "sold" || key === "auctionStatus") {
+      const yes = value === "true";
+      if (key === "paymentVerified") return yes ? "Verified" : "Pending";
+      return yes ? "Yes" : "No";
+    }
+    return value;
+  };
+
+  const gridTemplate = `36px ${shown.map(c => `${c.width}px`).join(" ")} 44px`;
 
   return (
     <div className="space-y-4">
@@ -944,6 +1004,11 @@ const TournamentPlayerSheetSection = () => {
               );
             })}
 
+            <div className="sticky top-0 z-20 bg-muted/70 backdrop-blur border-b border-border h-9 grid place-items-center"
+                 title="Who changed what">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+
             {/* rows */}
             {rows.map(p => {
               const pending = p.paymentVerified === false;
@@ -976,6 +1041,19 @@ const TournamentPlayerSheetSection = () => {
                       </div>
                     );
                   })}
+                  <div className={cn("border-b border-border/60 h-9 grid place-items-center",
+                    pending && "bg-orange-500/[0.06]",
+                    selected.has(p._id) && "bg-primary/10")}>
+                    <button
+                      type="button"
+                      onClick={() => openPlayerHistory(p)}
+                      title={`History for ${p.name || "this player"}`}
+                      aria-label={`History for ${p.name || "this player"}`}
+                      className="rounded p-1 text-muted-foreground opacity-40 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -1132,6 +1210,57 @@ const TournamentPlayerSheetSection = () => {
               Delete {deleteTarget?.length}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* One player's own trail — what changed, when, and who did it. */}
+      <Dialog open={!!historyPlayer} onOpenChange={() => { setHistoryPlayer(null); setPlayerChanges(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogTitle>
+            History — {historyPlayer?.name || "Player"}
+            {historyPlayer?.auctionSerialNumber != null && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">#{historyPlayer.auctionSerialNumber}</span>
+            )}
+          </DialogTitle>
+
+          {playerChanges === null ? (
+            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
+            </div>
+          ) : playerChanges.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground">
+              No changes recorded. Nothing has been edited since this player registered — what you see in the sheet
+              is exactly what came in through the form.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {playerChanges.length} change{playerChanges.length === 1 ? "" : "s"}, newest first.
+              </p>
+              <div className="max-h-[420px] overflow-y-auto rounded-lg border border-border divide-y divide-border/60">
+                {playerChanges.map((c) => (
+                  <div key={c.id} className="px-3 py-2 text-[13px]">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-semibold">{fieldLabel(c.field)}</span>
+                      <span className="text-muted-foreground line-through">{displayValue(c.field, c.oldValue)}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="font-medium text-foreground">{displayValue(c.field, c.newValue)}</span>
+                      {c.isUndo && (
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-500">
+                          undo
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {new Date(c.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                      {" · "}
+                      {c.actor || "not recorded"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

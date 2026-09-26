@@ -75,6 +75,40 @@ const diff = (before, after) => {
 /**
  * Recent actions, newest first, grouped into the batches a host sees.
  */
+/**
+ * Every recorded change to one player, newest first.
+ *
+ * The batch view answers "what happened in this tournament"; this answers
+ * "what happened to this player", which is the question asked when a single
+ * row looks wrong — and the empty answer matters just as much, since it means
+ * the value has stood untouched since the player registered.
+ */
+const listPlayerChanges = async (tournamentId, playerId, { limit = 200 } = {}) => {
+    const rows = await prisma.playerChange.findMany({
+        where: { tournamentId, playerId },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+    });
+
+    const actorIds = [...new Set(rows.map((r) => r.actorUserId).filter(Boolean))];
+    const actors = actorIds.length
+        ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, email: true } })
+        : [];
+    const actorById = new Map(actors.map((u) => [u.id, u.name || u.email]));
+
+    return rows.map((r) => ({
+        id: r.id,
+        field: r.field,
+        oldValue: r.oldValue,
+        newValue: r.newValue,
+        at: r.createdAt,
+        actor: r.actorUserId ? (actorById.get(r.actorUserId) || "Unknown user") : null,
+        isUndo: !!r.undoOfBatchId,
+        label: r.batchLabel,
+        batchId: r.batchId,
+    }));
+};
+
 const listBatches = async (tournamentId, { limit = 40 } = {}) => {
     const rows = await prisma.playerChange.findMany({
         where: { tournamentId },
@@ -125,4 +159,4 @@ const listBatches = async (tournamentId, { limit = 40 } = {}) => {
     }));
 };
 
-module.exports = { record, diff, listBatches, newBatchId, encode, TRACKED };
+module.exports = { record, diff, listBatches, listPlayerChanges, newBatchId, encode, TRACKED };

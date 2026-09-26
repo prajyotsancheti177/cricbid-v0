@@ -380,8 +380,17 @@ const resequenceSerials = async (req, res) => {
 /** Recent actions on this tournament's players, newest first. */
 const getPlayerHistory = async (req, res) => {
     try {
-        const { touranmentId, limit } = req.body;
+        const { touranmentId, playerId, limit } = req.body;
         if (!touranmentId) throw new Error("Tournament ID is required");
+
+        // One player's own trail, for the history button on their row.
+        if (playerId) {
+            const changes = await playerHistoryService.listPlayerChanges(
+                touranmentId, String(playerId), { limit: Number(limit) || 200 }
+            );
+            return sendSuccess(res, 200, `${changes.length} change(s)`, changes);
+        }
+
         const batches = await playerHistoryService.listBatches(touranmentId, { limit: Number(limit) || 40 });
         return sendSuccess(res, 200, `${batches.length} recent action(s)`, batches);
     } catch (error) {
