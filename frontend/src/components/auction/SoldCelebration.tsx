@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
 import { auctionSounds } from "@/lib/auctionSounds";
 
 interface SoldCelebrationProps {
@@ -45,141 +44,17 @@ export const SoldCelebration = ({
       if (animationEnabled) {
         setIsVisible(true);
 
-        // ========== MASSIVE CONFETTI CELEBRATION ==========
-        const duration = 4000;
-        const animationEnd = Date.now() + duration;
-
-        // Colors for celebration
-        const colors = ['#a855f7', '#ec4899', '#f97316', '#fbbf24', '#22c55e', '#3b82f6'];
-
-        // Initial big burst from center
-        confetti({
-          particleCount: 150,
-          spread: 100,
-          origin: { x: 0.5, y: 0.5 },
-          colors: colors,
-          startVelocity: 55,
-          gravity: 0.8,
-          scalar: 1.2,
-          ticks: 100,
-        });
-
-        // Side cannons burst
-        const sideTimeout = setTimeout(() => {
-          // Left cannon
-          confetti({
-            particleCount: 100,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0, y: 0.6 },
-            colors: colors,
-            startVelocity: 60,
-          });
-          // Right cannon
-          confetti({
-            particleCount: 100,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1, y: 0.6 },
-            colors: colors,
-            startVelocity: 60,
-          });
-        }, 200);
-        timeoutsRef.current.push(sideTimeout);
-
-        // Star burst from top
-        const starTimeout = setTimeout(() => {
-          confetti({
-            particleCount: 80,
-            spread: 180,
-            origin: { x: 0.5, y: 0 },
-            colors: colors,
-            startVelocity: 35,
-            gravity: 1.2,
-            shapes: ['star'],
-            scalar: 1.5,
-          });
-        }, 400);
-        timeoutsRef.current.push(starTimeout);
-
-        // Continuous rain effect
-        intervalRef.current = setInterval(() => {
-          const timeLeft = animationEnd - Date.now();
-
-          if (timeLeft <= 0) {
-            cleanup();
-            const hideTimeout = setTimeout(() => setIsVisible(false), 1000);
-            timeoutsRef.current.push(hideTimeout);
-            return;
-          }
-
-          // Random bursts from multiple positions
-          const origins = [
-            { x: 0.1, y: 0.1 },
-            { x: 0.9, y: 0.1 },
-            { x: 0.2, y: 0.8 },
-            { x: 0.8, y: 0.8 },
-            { x: 0.5, y: 0.2 },
-          ];
-
-          const randomOrigin = origins[Math.floor(Math.random() * origins.length)];
-
-          // Regular confetti shower
-          confetti({
-            particleCount: 30,
-            spread: 100,
-            origin: randomOrigin,
-            colors: colors,
-            startVelocity: 25,
-            gravity: 0.6,
-            ticks: 80,
-          });
-
-          // Occasional big bursts
-          if (Math.random() > 0.6) {
-            confetti({
-              particleCount: 60,
-              spread: 120,
-              origin: { x: Math.random(), y: Math.random() * 0.3 },
-              colors: colors,
-              startVelocity: 40,
-              shapes: ['circle', 'square'],
-              scalar: 1.3,
-            });
-          }
-
-          // Star sparkles
-          if (Math.random() > 0.7) {
-            confetti({
-              particleCount: 20,
-              spread: 360,
-              origin: { x: 0.5, y: 0.5 },
-              colors: ['#fbbf24', '#ffffff'],
-              shapes: ['star'],
-              scalar: 0.8,
-              startVelocity: 20,
-              gravity: 0.3,
-            });
-          }
-        }, 100);
-
-        // Final firework burst
-        const fireworkTimeout = setTimeout(() => {
-          for (let i = 0; i < 5; i++) {
-            const burstTimeout = setTimeout(() => {
-              confetti({
-                particleCount: 80,
-                spread: 360,
-                origin: { x: 0.2 + (i * 0.15), y: 0.3 + (Math.random() * 0.2) },
-                colors: colors,
-                startVelocity: 30,
-                ticks: 50,
-              });
-            }, i * 100);
-            timeoutsRef.current.push(burstTimeout);
-          }
-        }, 2500);
-        timeoutsRef.current.push(fireworkTimeout);
+        // The confetti that used to cover the screen here has been removed.
+        // The overlay below is the whole celebration now.
+        //
+        // The confetti interval was also what took the overlay back down: it
+        // ran until the 4s mark and then hid it a second later. Removing the
+        // particles without keeping that timing would have left the SOLD card
+        // on screen forever, so the same 4s + 1s is kept as one timer.
+        const SHOW_MS = 4000;
+        const FADE_MS = 1000;
+        const hideTimeout = setTimeout(() => setIsVisible(false), SHOW_MS + FADE_MS);
+        timeoutsRef.current.push(hideTimeout);
 
         return cleanup;
       }
