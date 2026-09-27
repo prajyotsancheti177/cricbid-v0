@@ -20,13 +20,49 @@
  *   CLAUDE_BIN           default "claude"
  */
 
-const { execFile } = require("node:child_process");
+const { execFile, execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const API = (process.env.CRICBID_API || "https://cricbid.online").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_RUNNER_TOKEN;
 const REPO = process.env.AGENT_REPO_DIR || path.resolve(__dirname, "../..");
-const CLAUDE = process.env.CLAUDE_BIN || "claude";
+/**
+ * Where the Claude Code CLI lives.
+ *
+ * The desktop app does not put `claude` on PATH, so a machine that plainly has
+ * Claude can still fail with a bare ENOENT. Look in the usual places and say
+ * something useful when there is nothing to find.
+ */
+const resolveClaude = () => {
+  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
+  try {
+    execFileSync("which", ["claude"], { stdio: "ignore" });
+    return "claude";
+  } catch { /* not on PATH — try the known install locations */ }
+
+  const candidates = [
+    path.join(os.homedir(), ".claude/local/claude"),
+    path.join(os.homedir(), ".local/bin/claude"),
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+  ];
+  return candidates.find((c) => fs.existsSync(c)) || null;
+};
+
+const CLAUDE = resolveClaude();
+
+const MISSING_CLI = `
+The Claude Code CLI was not found, so requests cannot be planned or run.
+
+  npm install -g @anthropic-ai/claude-code
+  claude            # once, to sign in
+
+Then start the runner again. Already installed somewhere unusual?
+Point at it with CLAUDE_BIN=/full/path/to/claude.
+Use --stub to move the queue along without Claude at all.
+`.trim();
 const STUB = process.argv.includes("--stub");
 const WATCH = process.argv.includes("--watch");
 const POLL_MS = Number(process.env.AGENT_POLL_MS || 15000);
@@ -63,7 +99,14 @@ const runClaude = (prompt, { allowedTools, timeoutMs = 20 * 60 * 1000 }) =>
     if (allowedTools) args.push("--allowedTools", allowedTools);
 
     execFile(CLAUDE, args, { cwd: REPO, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err && !stdout) return reject(new Error(`${CLAUDE} failed: ${String(stderr || err.message).slice(0, 500)}`));
+      if (err && !stdout) {
+        const detail = String(stderr || err.message);
+        return reject(new Error(
+          detail.includes("ENOENT")
+            ? "The Claude Code CLI could not be started — install it with: npm install -g @anthropic-ai/claude-code"
+            : `${CLAUDE} failed: ${detail.slice(0, 500)}`
+        ));
+      }
       try {
         const envelope = JSON.parse(stdout);
         resolve(String(envelope.result ?? stdout));
@@ -200,7 +243,11 @@ const pass = async () => {
     console.error("AGENT_RUNNER_TOKEN is not set — the queue would refuse this runner.");
     process.exit(1);
   }
-  console.log(`[runner] api=${API} repo=${REPO}${STUB ? " (stub mode)" : ""}`);
+  if (!CLAUDE && !STUB) {
+    console.error(MISSING_CLI);
+    process.exit(1);
+  }
+  console.log(`[runner] api=${API} repo=${REPO} claude=${CLAUDE || "(stub)"}${STUB ? " (stub mode)" : ""}`);
 
   if (!WATCH) {
     const did = await pass();
