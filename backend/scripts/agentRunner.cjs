@@ -98,7 +98,10 @@ const runClaude = (prompt, { allowedTools, timeoutMs = 20 * 60 * 1000 }) =>
     const args = ["-p", prompt, "--output-format", "json"];
     if (allowedTools) args.push("--allowedTools", allowedTools);
 
-    execFile(CLAUDE, args, { cwd: REPO, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+    // stdin is closed: with a pipe open the CLI waits three seconds for input
+    // that is never coming.
+    const options = { cwd: REPO, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] };
+    execFile(CLAUDE, args, options, (err, stdout, stderr) => {
       if (err && !stdout) {
         const detail = String(stderr || err.message);
         return reject(new Error(
@@ -108,9 +111,15 @@ const runClaude = (prompt, { allowedTools, timeoutMs = 20 * 60 * 1000 }) =>
         ));
       }
       try {
-        const envelope = JSON.parse(stdout);
+        // The envelope carries the CLI's own failures — "Not logged in" among
+        // them — which would otherwise surface as an unreadable plan.
+        const envelope = JSON.parse(stdout.slice(stdout.indexOf("{")));
+        if (envelope.is_error) {
+          return reject(new Error(`Claude Code: ${String(envelope.result || "failed").slice(0, 300)}`));
+        }
         resolve(String(envelope.result ?? stdout));
-      } catch {
+      } catch (parseErr) {
+        if (parseErr instanceof Error && parseErr.message.startsWith("Claude Code:")) return reject(parseErr);
         resolve(String(stdout));
       }
     });
@@ -191,14 +200,18 @@ const planOne = async () => {
   console.log(`[plan] ${request._id}: ${request.requestText.slice(0, 80)}`);
 
   try {
+    let lastAnswer = "";
     const plan = STUB
       ? stubPlan(request)
-      : extractJson(await runClaude(planPrompt(request), {
+      : extractJson(lastAnswer = await runClaude(planPrompt(request), {
           // Planning reads; it does not need permission to write anything.
           allowedTools: "Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(node:*)",
         }));
 
-    if (!plan) throw new Error("Could not read a plan out of the answer");
+    if (!plan) {
+      const answer = STUB ? "" : lastAnswer.slice(0, 600);
+      throw new Error(`Could not read a plan out of the answer. It said: ${answer || "(nothing)"}`);
+    }
     await post("/runner/plan", { requestId: request._id, plan, kind: plan.kind });
     console.log(`[plan] ${request._id}: awaiting approval`);
   } catch (e) {
@@ -214,11 +227,12 @@ const executeOne = async () => {
   console.log(`[run ] ${request._id}: ${request.requestText.slice(0, 80)}`);
 
   try {
+    let lastAnswer = "";
     const result = STUB
       ? { ok: true, summary: "Stub run — nothing was done", changed: 0 }
-      : extractJson(await runClaude(executePrompt(request), { allowedTools: undefined }));
+      : extractJson(lastAnswer = await runClaude(executePrompt(request), { allowedTools: undefined }));
 
-    if (!result) throw new Error("Could not read a result out of the answer");
+    if (!result) throw new Error(`Could not read a result out of the answer. It said: ${(lastAnswer || "").slice(0, 600) || "(nothing)"}`);
     await post("/runner/result", {
       requestId: request._id,
       result,
