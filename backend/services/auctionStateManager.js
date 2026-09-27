@@ -5,7 +5,7 @@
  */
 
 const prisma = require("../db/prisma");
-const { computeMaxBiddableAmount } = require("./teamService");
+const { computeMaxBiddableAmount, describeCategoryLimit } = require("./teamService");
 
 // Store active auctions by tournamentId
 const activeAuctions = new Map();
@@ -172,14 +172,28 @@ const getAuctionState = (tournamentId) => {
     // auction mutates remainingBudget and playersCount as players sell, and a
     // cached maxBiddableAmount beside them went stale — showing a team a cap
     // higher than the budget it had left.
-    teams: (auction.teams || []).map((t) => (
+    // The cap depends on who is on the block: winning a Female uses up a
+    // Female slot, which changes what finishing the squad costs.
+    teams: (auction.teams || []).map((t) => {
       // A team restored from a snapshot written before minBasePrice was carried
       // has nothing to reserve against; recomputing would reserve 0 and hand
       // out a cap that is too HIGH, so the stored figure is kept instead.
-      t && t.minBasePrice != null
-        ? { ...t, maxBiddableAmount: computeMaxBiddableAmount(t) }
-        : t
-    )),
+      if (!t || t.minBasePrice == null) return t;
+      const currentPlayerCategory = auction.currentPlayer
+        ? auction.currentPlayer.playerCategory
+        : null;
+      return {
+        ...t,
+        maxBiddableAmount: computeMaxBiddableAmount({ ...t, currentPlayerCategory }),
+        // Advisory only. Bidding past a cap stays possible on purpose; this
+        // just says why the number went red.
+        categoryLimitReached: describeCategoryLimit({
+          playersByCategory: t.playersByCategory,
+          categoryLimits: t.categoryLimits,
+          category: currentPlayerCategory,
+        }),
+      };
+    }),
     playerNumber: auction.playerNumber,
     bidPrice: auction.bidPrice,
     hasAuctioneer: !!auction.auctioneerSocketId,

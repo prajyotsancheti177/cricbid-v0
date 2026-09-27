@@ -15,11 +15,84 @@ const sumSpent = (players) => players.reduce((acc, p) => acc + (p.amtSold || 0),
  * cached on the team object, while the live auction updated the numbers it was
  * derived from and left the cached figure behind — so a team could be shown a
  * max bid larger than the budget it actually had left.
+ *
+ * Without per-category limits the reserve is the cheapest base price in the
+ * tournament times the slots left. With limits switched on it is instead the
+ * cheapest *legal* way to finish the squad: a team capped at one U17 and one
+ * Female cannot fill six slots with 100-point Females, and reserving as though
+ * it could handed out a cap that left it unable to field a legal eleven.
+ *
+ * Counts already bought are respected, so a team that has used its one Female
+ * reserves against the next cheapest category instead. The player on the block
+ * counts too, because the whole calculation assumes that bid is won.
  */
-const computeMaxBiddableAmount = ({ remainingBudget, playersCount, minPlayersPerTeam, minBasePrice }) => {
+const computeMaxBiddableAmount = (input) => {
+    const {
+        remainingBudget = 0,
+        playersCount = 0,
+        minPlayersPerTeam = 0,
+        minBasePrice = 0,
+        playersByCategory = null,
+        categoryLimits = null,
+        categoryBasePrices = null,
+        currentPlayerCategory = null,
+    } = input || {};
+
     const slotsToFill = Math.max(0, (minPlayersPerTeam || 0) - (playersCount || 0) - 1);
-    const reservedAmount = (minBasePrice || 0) * slotsToFill;
+    if (slotsToFill === 0) return Math.max(0, remainingBudget || 0);
+
+    const limitsOn = !!(categoryLimits && categoryLimits.enabled && categoryBasePrices);
+    if (!limitsOn) {
+        return Math.max(0, (remainingBudget || 0) - (minBasePrice || 0) * slotsToFill);
+    }
+
+    // Assume the current bid is won, so its category has already been consumed.
+    const bought = { ...(playersByCategory || {}) };
+    if (currentPlayerCategory) bought[currentPlayerCategory] = (bought[currentPlayerCategory] || 0) + 1;
+
+    const limits = categoryLimits.limits || {};
+    const choices = Object.keys(categoryBasePrices)
+        .map((category) => {
+            const price = Number(categoryBasePrices[category]);
+            const rawMax = limits[category] ? limits[category].max : null;
+            const max = rawMax === null || rawMax === undefined || rawMax === "" ? null : Number(rawMax);
+            const allowance = max === null || !Number.isFinite(max)
+                ? Infinity
+                : Math.max(0, max - (bought[category] || 0));
+            return { category, price: Number.isFinite(price) ? price : 0, allowance };
+        })
+        .filter((c) => c.allowance > 0 && c.price > 0)
+        .sort((a, b) => a.price - b.price);
+
+    let left = slotsToFill;
+    let reservedAmount = 0;
+    for (const choice of choices) {
+        if (left <= 0) break;
+        const take = Math.min(left, choice.allowance);
+        reservedAmount += take * choice.price;
+        left -= take;
+    }
+
     return Math.max(0, (remainingBudget || 0) - reservedAmount);
+};
+
+/**
+ * Whether this team has already filled its allowance for a category.
+ *
+ * Bidding is never blocked on this — the auction deliberately lets a host bid
+ * past every cap — so this exists only to say plainly what the problem is.
+ * Returns null when there is nothing to report.
+ */
+const describeCategoryLimit = ({ playersByCategory, categoryLimits, category }) => {
+    if (!category || !categoryLimits || !categoryLimits.enabled) return null;
+    const limit = (categoryLimits.limits || {})[category];
+    const rawMax = limit ? limit.max : null;
+    if (rawMax === null || rawMax === undefined || rawMax === "") return null;
+    const max = Number(rawMax);
+    if (!Number.isFinite(max)) return null;
+    const have = (playersByCategory || {})[category] || 0;
+    if (have < max) return null;
+    return `${category} limit reached (${have} of ${max})`;
 };
 
 // attach basePrice to a serialized player from the tournament's categoryBasePrices map
@@ -84,6 +157,9 @@ const getTournamentTeamsReport = async (touranmentId) => {
     const basePriceValues = Object.values(categoryBasePrices);
     const minBasePrice = basePriceValues.length > 0 ? Math.min(...basePriceValues) : 0;
     const minPlayersPerTeam = tournament.minPlayersPerTeam || 0;
+    // Per-category caps live in the tournament's features blob, so switching
+    // them on needs no migration. Off unless a host turns them on.
+    const categoryLimits = (tournament.features && tournament.features.categoryLimits) || null;
 
     const teamsOut = teams.map((t) => {
         const players = t.players.map((p) => withBasePrice(p, categoryBasePrices));
@@ -92,11 +168,19 @@ const getTournamentTeamsReport = async (touranmentId) => {
         const remainingBudget = (tournament.totalBudget || 0) + totalToppedUp - totalSpent;
 
         const playersAlreadyBought = players.length;
+        const playersByCategory = players.reduce((acc, p) => {
+            const c = p.playerCategory;
+            if (c) acc[c] = (acc[c] || 0) + 1;
+            return acc;
+        }, {});
         const maxBiddableAmount = computeMaxBiddableAmount({
             remainingBudget,
             playersCount: playersAlreadyBought,
             minPlayersPerTeam,
             minBasePrice,
+            playersByCategory,
+            categoryLimits,
+            categoryBasePrices,
         });
 
         return {
@@ -113,8 +197,13 @@ const getTournamentTeamsReport = async (touranmentId) => {
             maxBiddableAmount,
             playersCount: playersAlreadyBought,
             // Carried so the live auction can recompute maxBiddableAmount
-            // itself instead of trusting the value above to stay true.
+            // itself instead of trusting the value above to stay true. The
+            // limit-aware figure also depends on who is on the block, which
+            // only the auction knows.
             minBasePrice,
+            playersByCategory,
+            categoryLimits,
+            categoryBasePrices,
         };
     });
 
@@ -415,6 +504,7 @@ const deleteAllTeamsByTournament = async (tournamentId) => {
 
 module.exports = {
     computeMaxBiddableAmount,
+    describeCategoryLimit,
     addTeam,
     getTournamentTeamsReport,
     getTeamReport,
