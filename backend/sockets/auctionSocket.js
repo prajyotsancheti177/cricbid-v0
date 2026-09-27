@@ -21,6 +21,25 @@ module.exports = (io) => {
   // returns to the selection screen — handled by the caller before this runs).
   const RESULT_ANIMATION_MS = 3000;
 
+  // Take a socket out of whatever room it was in before it joins another one.
+  //
+  // socket.join() is additive and the browser reuses one socket across page
+  // navigation, so a host who moved from one auction to another stayed a member
+  // of BOTH rooms: every sold/unsold/state emit for the tournament they had
+  // left still reached them, and because the client applies any auction:state
+  // it receives, their screen jumped to the other auction. It also left them
+  // counted as a viewer of a room they were no longer watching.
+  const leaveCurrentRoom = (socket, nextTournamentId = null) => {
+    const previous = socket.tournamentId;
+    if (!previous || previous === nextTournamentId) return;
+
+    socket.leave(previous);
+    const viewerCount = auctionStateManager.removeViewer(previous, socket.id);
+    auctionNamespace.to(previous).emit("auction:viewerCount", viewerCount);
+    auctionRoomSessionService.updateViewerCount(previous, viewerCount);
+    socket.tournamentId = null;
+  };
+
   const autoAdvanceNextPlayer = (tournamentId, socket, auctionRaw) => {
     const category = auctionRaw.selectedCategory || 'All';
     const orderMode = auctionRaw.auctionMode === 'serial' ? 'serial' : 'random';
@@ -237,6 +256,7 @@ module.exports = (io) => {
         return;
       }
 
+      leaveCurrentRoom(socket, tournamentId);
       socket.join(tournamentId);
       socket.tournamentId = tournamentId;
       socket.viewerUserId = userId;
@@ -322,6 +342,7 @@ module.exports = (io) => {
           }
         }
 
+        leaveCurrentRoom(socket, tournamentId);
         socket.join(tournamentId);
         socket.tournamentId = tournamentId;
 
@@ -824,6 +845,12 @@ module.exports = (io) => {
     socket.on("overlay:layout_change", ({ tournamentId, layout }) => {
       console.log(`[overlay] Layout change to "${layout}" for tournament ${tournamentId}`);
       auctionNamespace.to(tournamentId).emit("overlay:layout_change", { layout });
+    });
+
+    // Leave a room without closing the socket, so navigating away from an
+    // auction stops that room's events reaching this browser.
+    socket.on("auction:leave", () => {
+      leaveCurrentRoom(socket);
     });
 
     // Disconnect

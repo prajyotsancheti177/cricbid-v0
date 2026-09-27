@@ -61,7 +61,13 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
         const onDisconnect = () => setIsConnected(false);
 
         const onStateUpdate = (state: AuctionState) => {
-            // console.log("Received auction state:", state);
+            // Only ever show this tournament's auction. The socket is a
+            // singleton shared across page navigation, so state for a room this
+            // browser used to be in can still arrive; applying it made the
+            // screen jump to whichever OTHER auction happened to sell a player.
+            // The server now removes us from the old room, but this keeps a
+            // stray event from repainting the room even so.
+            if (state?.tournamentId && state.tournamentId !== tournamentId) return;
             setAuctionState(state);
         };
 
@@ -145,8 +151,10 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
             socket.off("auction:sold", onSold);
             socket.off("auction:info", onInfo);
 
-            // Don't disconnect here because moving between pages might need connection
-            // But for now, let's keep it alive
+            // Keep the connection — other pages reuse it — but stop being a
+            // member of this auction's room, so leaving the page really does
+            // stop its events arriving.
+            socket.emit("auction:leave");
         };
     }, [tournamentId, userId, toast]);
 
