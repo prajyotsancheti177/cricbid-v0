@@ -12,6 +12,7 @@ import { BidSlabEditor, BidSlab } from "@/components/auction/BidSlabEditor";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { authHeaders, jsonAuthHeaders } from "@/lib/auth";
+import { Switch } from "@/components/ui/switch";
 import { Plus } from "lucide-react";
 
 /** Offered as one-tap choices when creating a tournament. */
@@ -30,6 +31,16 @@ export interface TournamentFormData {
   auctionDate: string;
   playerCategories: string;
   categoryBasePrices: { [key: string]: string };
+  /** Cap how many players of each category one team may buy. */
+  categoryLimitsEnabled: boolean;
+  /** Per category, the max as typed. Blank means no limit. */
+  categoryMaxima: { [key: string]: string };
+  /**
+   * Everything else already in the tournament's features blob. Carried
+   * untouched and merged back on save: the API replaces `features` wholesale,
+   * so submitting only the limits would silently wipe the other flags.
+   */
+  otherFeatures: Record<string, unknown>;
   bidIncrementSlabs: BidSlab[];
 }
 
@@ -50,6 +61,8 @@ export interface TournamentForForm {
   auctionDate?: string | null;
   playerCategories?: string[];
   categoryBasePrices?: { [key: string]: number };
+  /** The tournament's features blob, whatever shape the caller types it as. */
+  features?: unknown;
   bidIncrementSlabs?: BidSlab[];
 }
 
@@ -62,6 +75,7 @@ const BLANK_FORM: TournamentFormData = {
   name: "", tournamentHostId: "", noOfTeams: "", maxPlayersPerTeam: "",
   minPlayersPerTeam: "", totalBudget: "", auctionDate: "", playerCategories: "",
   categoryBasePrices: {}, bidIncrementSlabs: DEFAULT_SLABS,
+  categoryLimitsEnabled: false, categoryMaxima: {}, otherFeatures: {},
 };
 
 // Tournament.auctionDate is stored as a full DateTime; the <input type="date">
@@ -78,6 +92,16 @@ function toFormData(t: TournamentForForm): TournamentFormData {
   if (t.categoryBasePrices) {
     Object.entries(t.categoryBasePrices).forEach(([k, v]) => { basePrices[k] = String(v); });
   }
+  const features: Record<string, unknown> = (t.features && typeof t.features === "object")
+    ? { ...(t.features as Record<string, unknown>) }
+    : {};
+  const limitConfig = (features.categoryLimits || {}) as { enabled?: boolean; limits?: Record<string, { max?: number | string }> };
+  delete features.categoryLimits;
+  const maxima: { [key: string]: string } = {};
+  Object.entries(limitConfig.limits || {}).forEach(([cat, rule]) => {
+    if (rule && rule.max !== null && rule.max !== undefined && rule.max !== "") maxima[cat] = String(rule.max);
+  });
+
   return {
     name: t.name || "",
     tournamentHostId: typeof t.tournamentHostId === "object"
@@ -90,6 +114,9 @@ function toFormData(t: TournamentForForm): TournamentFormData {
     playerCategories: t.playerCategories?.join(", ") || "",
     categoryBasePrices: basePrices,
     bidIncrementSlabs: t.bidIncrementSlabs ?? DEFAULT_SLABS,
+    categoryLimitsEnabled: !!limitConfig.enabled,
+    categoryMaxima: maxima,
+    otherFeatures: features,
   };
 }
 
@@ -193,6 +220,39 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       categoryBasePrices[cat] = Number(bp);
     }
 
+    // Per-category caps. A blank box means "no limit", so only the categories
+    // actually given a number are stored.
+    const limits: { [k: string]: { max: number } } = {};
+    if (formData.categoryLimitsEnabled) {
+      for (const cat of categories) {
+        const raw = (formData.categoryMaxima[cat] ?? "").trim();
+        if (raw === "") continue;
+        const max = Number(raw);
+        if (!Number.isInteger(max) || max < 0) {
+          toast({ title: "Validation Error", description: `Max players for ${cat} must be a whole number (or blank for no limit)`, variant: "destructive" });
+          return;
+        }
+        limits[cat] = { max };
+      }
+
+      // A squad that cannot legally be filled would starve the auction, so it
+      // is caught here rather than surfacing as a stuck room later.
+      const capped = Object.keys(limits);
+      const uncapped = categories.filter((c) => !capped.includes(c));
+      if (uncapped.length === 0) {
+        const ceiling = capped.reduce((a, c) => a + limits[c].max, 0);
+        const squad = Number(formData.minPlayersPerTeam);
+        if (ceiling < squad) {
+          toast({
+            title: "These limits cannot be met",
+            description: `The caps allow at most ${ceiling} players per team, but a squad needs ${squad}. Raise a cap or leave one category unlimited.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     const payload: Record<string, unknown> = {
       name: formData.name,
       noOfTeams: Number(formData.noOfTeams),
@@ -203,6 +263,12 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
       playerCategories: categories,
       categoryBasePrices,
       bidIncrementSlabs: formData.bidIncrementSlabs,
+      // Merged, never replaced: the API writes `features` wholesale, so the
+      // flags this form does not manage have to be sent back with it.
+      features: {
+        ...formData.otherFeatures,
+        categoryLimits: { enabled: formData.categoryLimitsEnabled, limits },
+      },
       userId: user._id,
       userRole: user.role,
       ...(canSelectHost && { tournamentHostId: formData.tournamentHostId }),
@@ -370,6 +436,56 @@ const TournamentFormDialog = ({ open, onOpenChange, tournament, onSuccess }: Pro
               </div>
             ) : (
               <p className="text-xs text-destructive">Tick at least one category.</p>
+            )}
+
+            {selectedCategories.length > 0 && (
+              <div className="grid gap-3 border-t pt-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <Label htmlFor="t-cat-limits" className="text-sm font-semibold">
+                      Limit players per category
+                    </Label>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Cap how many of each category one team may buy — say one Under-17
+                      and one Female. This also tightens the max bid, because a team
+                      must keep back enough to finish its squad legally.
+                    </p>
+                  </div>
+                  <Switch
+                    id="t-cat-limits"
+                    checked={formData.categoryLimitsEnabled}
+                    onCheckedChange={(v) => setFormData((p) => ({ ...p, categoryLimitsEnabled: v }))}
+                  />
+                </div>
+
+                {formData.categoryLimitsEnabled && (
+                  <div className="grid gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Leave a box empty for no limit.
+                    </p>
+                    {selectedCategories.map((cat, i) => (
+                      <div key={cat} className="grid grid-cols-[1fr_140px] items-center gap-3">
+                        <Label htmlFor={`cl-${i}`} className="truncate text-sm">{cat}</Label>
+                        <Input
+                          id={`cl-${i}`}
+                          type="number"
+                          min={0}
+                          placeholder="No limit"
+                          className="h-9"
+                          value={formData.categoryMaxima[cat] ?? ""}
+                          onChange={(e) =>
+                            setFormData((p) => ({ ...p, categoryMaxima: { ...p.categoryMaxima, [cat]: e.target.value } }))
+                          }
+                        />
+                      </div>
+                    ))}
+                    <p className="text-xs text-muted-foreground">
+                      A team that is already over a cap is not blocked from bidding —
+                      the auction room shows the breach instead.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
