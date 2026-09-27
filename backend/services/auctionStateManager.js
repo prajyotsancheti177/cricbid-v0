@@ -5,6 +5,7 @@
  */
 
 const prisma = require("../db/prisma");
+const { computeMaxBiddableAmount } = require("./teamService");
 
 // Store active auctions by tournamentId
 const activeAuctions = new Map();
@@ -167,7 +168,18 @@ const getAuctionState = (tournamentId) => {
     currentBid: auction.currentBid,
     leadingTeam: auction.leadingTeam,
     teamBids: auction.teamBids,
-    teams: auction.teams,
+    // Derived here rather than trusted from the stored team object: the
+    // auction mutates remainingBudget and playersCount as players sell, and a
+    // cached maxBiddableAmount beside them went stale — showing a team a cap
+    // higher than the budget it had left.
+    teams: (auction.teams || []).map((t) => (
+      // A team restored from a snapshot written before minBasePrice was carried
+      // has nothing to reserve against; recomputing would reserve 0 and hand
+      // out a cap that is too HIGH, so the stored figure is kept instead.
+      t && t.minBasePrice != null
+        ? { ...t, maxBiddableAmount: computeMaxBiddableAmount(t) }
+        : t
+    )),
     playerNumber: auction.playerNumber,
     bidPrice: auction.bidPrice,
     hasAuctioneer: !!auction.auctioneerSocketId,
@@ -414,6 +426,8 @@ const markSold = (tournamentId) => {
   if (winningTeam) {
     winningTeam.playersCount = (winningTeam.playersCount || 0) + 1;
     winningTeam.remainingBudget = (winningTeam.remainingBudget || 0) - result.amount;
+    // maxBiddableAmount is deliberately NOT patched here — getAuctionState
+    // derives it from the two fields above, so it cannot fall out of step.
   }
 
   // Increment player number

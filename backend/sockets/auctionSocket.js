@@ -21,6 +21,36 @@ module.exports = (io) => {
   // returns to the selection screen — handled by the caller before this runs).
   const RESULT_ANIMATION_MS = 3000;
 
+  // How long a team list may be reused before it is re-read from the database.
+  const TEAMS_TTL_MS = 10000;
+  const lastTeamsRefresh = new Map();
+
+  // Re-read the teams (budgets, player counts) from the database.
+  //
+  // The live room used to do this in only two places: auction:start and after a
+  // SOLD result. So an icon assigned from the player sheet, a budget top-up, or
+  // an unsold round left the room showing figures from whenever the auction was
+  // started — a team that had already bought a player still showed a full purse
+  // and all of its slots free.
+  //
+  // Never throws: a failed refresh leaves the previous figures in place, which
+  // is the old behaviour, rather than aborting the caller mid-result.
+  const refreshTeams = async (tournamentId, { force = false } = {}) => {
+    const last = lastTeamsRefresh.get(tournamentId) || 0;
+    if (!force && Date.now() - last < TEAMS_TTL_MS) return false;
+
+    try {
+      const report = await teamService.getTournamentTeamsReport(tournamentId);
+      const teams = report && report.length > 0 ? report[0].teams : [];
+      auctionStateManager.updateTeams(tournamentId, teams);
+      lastTeamsRefresh.set(tournamentId, Date.now());
+      return true;
+    } catch (err) {
+      console.error(`Could not refresh teams for ${tournamentId}:`, err.message);
+      return false;
+    }
+  };
+
   // Take a socket out of whatever room it was in before it joins another one.
   //
   // socket.join() is additive and the browser reuses one socket across page
@@ -279,6 +309,9 @@ module.exports = (io) => {
       auctionRoomSessionService.recordViewerJoin(tournamentId, userId, ipAddress);
       auctionRoomSessionService.updateViewerCount(tournamentId, viewerCount);
 
+      // Anyone arriving gets current budgets, not the ones from auction start.
+      await refreshTeams(tournamentId);
+
       const safeState = auctionStateManager.getAuctionState(tournamentId);
       socket.emit("auction:state", safeState);
       auctionNamespace.to(tournamentId).emit("auction:viewerCount", viewerCount);
@@ -501,6 +534,10 @@ module.exports = (io) => {
           );
         }
 
+        // Between players is the natural moment to pick up anything changed
+        // outside the room — a player assigned from the sheet, a budget top-up.
+        await refreshTeams(tournamentId);
+
         const selResult = auctionStateManager.selectPlayer(tournamentId, player, bidIncrementSlabs);
 
         if (selResult.success) {
@@ -691,10 +728,9 @@ module.exports = (io) => {
           console.error("Error updating sold player:", error);
         }
 
-        // Fetch updated teams to sync budget changes
-        const teamsReport = await teamService.getTournamentTeamsReport(tournamentId);
-        const teams = teamsReport && teamsReport.length > 0 ? teamsReport[0].teams : [];
-        auctionStateManager.updateTeams(tournamentId, teams);
+        // Fetch updated teams to sync budget changes. Forced: a sale has just
+        // changed a budget, so the TTL must not hold the old figures.
+        await refreshTeams(tournamentId, { force: true });
 
         // Broadcast updated state (cleared player, updated teams)
         const newState = auctionStateManager.getAuctionState(tournamentId);
@@ -820,7 +856,11 @@ module.exports = (io) => {
           tournamentId,
         }).catch(e => console.error('[WhatsApp] unsold notification error:', e.message));
 
-        // Broadcast updated state
+        // Broadcast updated state. An unsold result changes no budget, but this
+        // used to be the one path that refreshed nothing, so a room producing
+        // only unsold rounds never picked up changes made outside it.
+        await refreshTeams(tournamentId);
+
         const newState = auctionStateManager.getAuctionState(tournamentId);
         auctionNamespace.to(tournamentId).emit("auction:state", newState);
 

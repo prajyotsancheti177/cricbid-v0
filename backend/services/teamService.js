@@ -4,6 +4,24 @@ const eventService = require("./eventService");
 
 const sumSpent = (players) => players.reduce((acc, p) => acc + (p.amtSold || 0), 0);
 
+/**
+ * The most a team may bid on the player currently in front of them.
+ *
+ * A team must finish with minPlayersPerTeam players, so it has to keep back
+ * enough to buy the slots it will still be short of AFTER winning this player
+ * — hence the -1. See docs/FORMULA_CORRECTION.md.
+ *
+ * This is the ONE place the formula lives. It used to be computed here and then
+ * cached on the team object, while the live auction updated the numbers it was
+ * derived from and left the cached figure behind — so a team could be shown a
+ * max bid larger than the budget it actually had left.
+ */
+const computeMaxBiddableAmount = ({ remainingBudget, playersCount, minPlayersPerTeam, minBasePrice }) => {
+    const slotsToFill = Math.max(0, (minPlayersPerTeam || 0) - (playersCount || 0) - 1);
+    const reservedAmount = (minBasePrice || 0) * slotsToFill;
+    return Math.max(0, (remainingBudget || 0) - reservedAmount);
+};
+
 // attach basePrice to a serialized player from the tournament's categoryBasePrices map
 const withBasePrice = (player, categoryBasePrices) => {
     const s = serializePlayer(player);
@@ -74,9 +92,12 @@ const getTournamentTeamsReport = async (touranmentId) => {
         const remainingBudget = (tournament.totalBudget || 0) + totalToppedUp - totalSpent;
 
         const playersAlreadyBought = players.length;
-        const slotsToFill = Math.max(0, minPlayersPerTeam - playersAlreadyBought - 1);
-        const reservedAmount = minBasePrice * slotsToFill;
-        const maxBiddableAmount = Math.max(0, remainingBudget - reservedAmount);
+        const maxBiddableAmount = computeMaxBiddableAmount({
+            remainingBudget,
+            playersCount: playersAlreadyBought,
+            minPlayersPerTeam,
+            minBasePrice,
+        });
 
         return {
             _id: String(t.id), // string for strict equality in state manager
@@ -91,6 +112,9 @@ const getTournamentTeamsReport = async (touranmentId) => {
             minPlayersPerTeam: tournament.minPlayersPerTeam,
             maxBiddableAmount,
             playersCount: playersAlreadyBought,
+            // Carried so the live auction can recompute maxBiddableAmount
+            // itself instead of trusting the value above to stay true.
+            minBasePrice,
         };
     });
 
@@ -390,6 +414,7 @@ const deleteAllTeamsByTournament = async (tournamentId) => {
 };
 
 module.exports = {
+    computeMaxBiddableAmount,
     addTeam,
     getTournamentTeamsReport,
     getTeamReport,
