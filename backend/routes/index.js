@@ -16,6 +16,7 @@ const matchRouter   = require('./matchRoutes');
 const scoringRouter = require('./scoringRoutes');
 const bookingRouter = require('./bookingRoutes');
 const siteSettingsRouter = require('./siteSettingsRoutes');
+const agentRequestRouter = require('./agentRequestRoutes');
 
 // Mount routes with their base paths
 router.use("/user", userRouter);
@@ -32,5 +33,6 @@ router.use("/match", matchRouter);
 router.use("/scoring", scoringRouter);
 router.use("/booking", bookingRouter);
 router.use("/site-settings", siteSettingsRouter);
+router.use("/agent-request", agentRequestRouter);
 
 module.exports = router;

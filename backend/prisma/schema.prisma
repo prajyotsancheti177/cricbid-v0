@@ -1106,3 +1106,36 @@ model RegistrationError {
   @@index([code, createdAt])
   @@map("registration_error")
 }
+
+/// A request typed into the Assistant page: "export a CSV", "renumber these
+/// players", "hide that button". An agent plans it, a human approves the plan,
+/// and only then is anything done. The row is the whole audit trail.
+model AgentRequest {
+  id String @id @default(cuid())
+
+  /// Scope. Most requests are about one tournament; some are site-wide.
+  tournamentId String?
+
+  requestText String
+
+  /// data = changes or reads rows; code = changes the site and ends in a PR.
+  kind   String @default("unknown")
+  /// pending → planning → awaiting_approval → approved → running → done | failed
+  /// (or rejected, when the plan is turned down)
+  status String @default("pending")
+
+  /// What the agent proposes: summary, steps, affected rows, diff.
+  plan   Json?
+  /// What actually happened: files written, rows changed, links.
+  result Json?
+  error  String?
+
+  createdByUserId  String?
+  approvedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@map("agent_request")
+}

@@ -27,5 +27,10 @@ module.exports = {
      * mode needs its callback registered under the OAuth client's Authorised
      * redirect URIs — without that Google refuses the request outright.
      */
+    /**
+     * Shared secret the Assistant runner presents. Unset means the runner
+     * endpoints stay closed, so this code is inert until it is configured.
+     */
+    agentRunnerToken: process.env.AGENT_RUNNER_TOKEN || null,
     googleRedirectMode: (String(process.env.GOOGLE_REDIRECT_MODE || 'mobile').toLowerCase()),
 }

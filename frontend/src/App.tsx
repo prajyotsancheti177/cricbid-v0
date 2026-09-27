@@ -37,6 +37,7 @@ import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 import Analytics from "./pages/analytics/AnalyticsPage";
+import AssistantRequests from "./pages/AssistantRequests";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
@@ -268,6 +269,16 @@ const App = () => (
                   <ProtectedRoute>
                     <RoleRoute allow={ADMIN_ROLES}>
                       <Analytics />
+                    </RoleRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/assistant"
+                element={
+                  <ProtectedRoute>
+                    <RoleRoute allow={ADMIN_ROLES}>
+                      <AssistantRequests />
                     </RoleRoute>
                   </ProtectedRoute>
                 }
