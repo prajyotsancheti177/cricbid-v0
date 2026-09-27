@@ -131,7 +131,7 @@ const TournamentDataSection = () => {
     setCardsBusy(true);
     try {
       const perPage = Math.min(Math.max(parseInt(cardsPerPage, 10) || 12, 1), 30);
-      const topN = Math.min(Math.max(parseInt(cardsTopN, 10) || 5, 1), 50);
+      const topN = Math.min(Math.max(parseInt(cardsTopN, 10) || 5, 1), 500);
       await exportPlayerCardsPdf(tournament.name || "Tournament", tournament._id, {
         grouping: cardsGrouping,
         cardsPerPage: cardsGrouping === "team" ? perPage : Math.min(topN, 15),
@@ -265,13 +265,15 @@ const TournamentDataSection = () => {
                       id="cardsTopN"
                       type="number"
                       min={1}
-                      max={50}
+                      max={500}
                       value={cardsTopN}
                       onChange={(e) => setCardsTopN(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
                       Ranked by sold amount, then base price, then serial number — so before the
-                      auction this is simply the first N in serial order.
+                      auction this is simply the first N in serial order. Set it above the size of
+                      your biggest category to include everyone; a few hundred photo cards make a
+                      large PDF that takes a while to build.
                     </p>
                   </div>
                 )}
