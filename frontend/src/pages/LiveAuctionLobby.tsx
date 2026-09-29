@@ -11,7 +11,7 @@ import { getSocket } from "@/lib/socket";
 import apiConfig from "@/config/apiConfig";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Plus, Gavel, Radio, Trash2 } from "lucide-react";
-import { jsonAuthHeaders } from "@/lib/auth";
+import { jsonAuthHeaders, getSessionToken } from "@/lib/auth";
 
 interface ActiveAuction {
     tournamentId: string;
@@ -242,7 +242,7 @@ export default function LiveAuctionLobby() {
                                                                 const socket = getSocket();
                                                                 socket.emit("auction:delete", {
                                                                     tournamentId: auction.tournamentId,
-                                                                    userId: user._id
+                                                                    sessionToken: getSessionToken()
                                                                 });
                                                             }
                                                         }}

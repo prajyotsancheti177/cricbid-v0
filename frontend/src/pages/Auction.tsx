@@ -65,6 +65,11 @@ const Auction = () => {
   // Auth & Context
   const userStr = localStorage.getItem("user");
   const user = userStr ? JSON.parse(userStr) : null;
+  // Only a managing role is offered the host controls. This is a courtesy, not
+  // the protection: the server authorises every claim against the session
+  // token's role, so hiding the button cannot be the thing that stops a player.
+  // Viewers keep full access to the room — they just are not offered the seat.
+  const canHost = ["boss", "super_user", "tournament_host"].includes(String(user?.role || ""));
   // const tournamentId = getSelectedTournamentId(); // Legacy usage replaced by params
 
   // Redirect if not logged in (viewers might be allowed but we check user object validity)
@@ -362,7 +367,7 @@ const Auction = () => {
               : "Waiting for the auctioneer to start the session."}
           </p>
 
-          {!isAuctioneer && user && (
+          {!isAuctioneer && canHost && (
             <Button onClick={handleStartAuction} size="lg" className="w-full">
               Start Auction as Host
             </Button>

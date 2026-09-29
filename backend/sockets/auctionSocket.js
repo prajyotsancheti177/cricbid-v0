@@ -126,6 +126,39 @@ module.exports = (io) => {
       .then((who) => { socket.data.userId = who.userId; socket.data.role = who.role; return who; })
       .catch(() => ({ userId: null, role: null }));
 
+    /**
+     * Who is really on this socket, resolved fresh from a session token.
+     *
+     * Never from a client-supplied userId. The auction used to take the userId
+     * out of the event payload and authorise on it, which meant the browser got
+     * to say who it was. A player-role account conducted three results in a live
+     * auction that way.
+     *
+     * Re-resolved per action rather than reused from connect, so signing in
+     * after the socket opened still works, and a deactivated account stops
+     * working without waiting for a reconnect. One indexed lookup.
+     */
+    const resolveActor = async (payloadToken) => {
+      const token = payloadToken || socket.handshake.auth?.token;
+      if (!token) return { userId: null, role: null };
+      try {
+        return await resolveOptionalUser({ headers: { 'x-session-token': token } });
+      } catch (_) {
+        return { userId: null, role: null };
+      }
+    };
+
+    /**
+     * May this socket run this tournament's auction? Fails closed.
+     * `player` never passes: canManageTournament requires a managing role.
+     */
+    const mayManage = async (tournamentId, payloadToken) => {
+      const who = await resolveActor(payloadToken);
+      if (!who.userId || !who.role) return { ok: false, who };
+      const ok = await canManageTournament(who.userId, who.role, tournamentId);
+      return { ok, who };
+    };
+
     /** True when this socket is allowed to see this tournament at all. */
     const mayView = async (tournamentId) => {
       const who = await identity;
@@ -162,57 +195,20 @@ module.exports = (io) => {
     });
 
     // Delete Auction Room (Host/Admin only)
-    socket.on("auction:delete", async ({ tournamentId, userId }) => {
+    socket.on("auction:delete", async ({ tournamentId, sessionToken }) => {
       try {
-        console.log(`[auction:delete] Request received - tournamentId: ${tournamentId}, userId: ${userId}`);
-
-
-        let canDelete = false;
-        let skipAnalytics = false;
-
-        // If no userId provided or user not found, still allow deletion but skip analytics
-        if (!userId) {
-          console.log(`[auction:delete] No userId provided - allowing deletion, skipping analytics`);
-          canDelete = true;
-          skipAnalytics = true;
-        } else {
-          // Try to find user
-          const user = await prisma.user.findUnique({ where: { id: userId } });
-          console.log(`[auction:delete] User lookup result:`, user ? `Found: ${user.name} (${user.role})` : 'Not found');
-
-          if (!user) {
-            // User not found in DB (maybe different database) - allow deletion, skip analytics
-            console.log(`[auction:delete] User not found in DB - allowing deletion, skipping analytics`);
-            canDelete = true;
-            skipAnalytics = true;
-          } else {
-            // User found - check permissions
-            const isAdmin = ['boss', 'super_user'].includes(user.role);
-
-            if (isAdmin) {
-              canDelete = true;
-            } else {
-              // For non-admin users, verify tournament exists and user is the host
-              const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-
-              if (!tournament) {
-                // Tournament deleted, but non-admin can still delete their orphan room
-                canDelete = true;
-              } else {
-                const isHost = String(tournament.tournamentHostId) === userId;
-                if (isHost) {
-                  canDelete = true;
-                } else {
-                  return socket.emit("auction:error", "Unauthorized: Only host or admin can delete room");
-                }
-              }
-            }
-          }
+        // This handler used to fail open in two ways: no userId meant "allow and
+        // skip analytics", and a userId that matched no row meant the same. So
+        // anyone at all could close any live auction room. Identity now comes
+        // from the session token and must carry permission over this
+        // tournament.
+        const { ok, who } = await mayManage(tournamentId, sessionToken);
+        if (!ok) {
+          console.warn(`[auction] refused room delete on ${tournamentId} by ${who.userId || 'anonymous'}`);
+          return socket.emit("auction:error", "Unauthorized: Only the host or an admin can delete this room");
         }
-
-        if (!canDelete) {
-          return socket.emit("auction:error", "Unable to delete room");
-        }
+        const userId = who.userId;
+        console.log(`[auction] room delete on ${tournamentId} by ${userId} (${who.role})`);
 
         // Proceed with deletion
         auctionStateManager.cleanupAuction(tournamentId);
@@ -224,13 +220,12 @@ module.exports = (io) => {
           eventData: { tournamentId, auctioneerUserId: userId || null },
         }).catch(() => {});
 
-        // End session analytics (only if we have valid user context)
-        if (!skipAnalytics) {
-          try {
-            await auctionRoomSessionService.endSession(tournamentId);
-          } catch (analyticsErr) {
-            console.error(`[auction:delete] Analytics error (non-blocking):`, analyticsErr);
-          }
+        // End session analytics. Always runs now: the caller is always a known,
+        // permitted user, so there is no "no user context" case to skip for.
+        try {
+          await auctionRoomSessionService.endSession(tournamentId);
+        } catch (analyticsErr) {
+          console.error(`[auction:delete] Analytics error (non-blocking):`, analyticsErr);
         }
 
         // Clear sampling interval
@@ -296,11 +291,18 @@ module.exports = (io) => {
       // This allows the UI to show the "Start Auction" button
       const auctionRaw = auctionStateManager.getOrCreateAuction(tournamentId);
 
-      // Check reconnection or role
-      if (userId && auctionRaw.auctioneerUserId === userId) {
-        // Update socket ID for the auctioneer
-        auctionStateManager.setAuctioneer(tournamentId, socket.id, userId);
-        socket.emit("auction:role", "auctioneer");
+      // Re-seat a reconnecting auctioneer.
+      //
+      // This used to hand the seat to anyone whose client-supplied userId
+      // matched the current auctioneer's — no role check at all. It now
+      // re-checks permission against the socket's own session token, so a
+      // matching id is not on its own enough to take over.
+      if (auctionRaw.auctioneerUserId) {
+        const { ok, who } = await mayManage(tournamentId);
+        if (ok && who.userId === auctionRaw.auctioneerUserId) {
+          auctionStateManager.setAuctioneer(tournamentId, socket.id, who.userId);
+          socket.emit("auction:role", "auctioneer");
+        }
       }
 
       const viewerCount = auctionStateManager.addViewer(tournamentId, socket.id);
@@ -318,24 +320,36 @@ module.exports = (io) => {
     });
 
     // Start/Initialize Auction (Auctioneer only)
-    socket.on("auction:start", async ({ tournamentId, userId }) => {
+    socket.on("auction:start", async ({ tournamentId, sessionToken }) => {
       try {
         // Check state BEFORE setting auctioneer (which toggles isActive)
         const preState = auctionStateManager.getAuctionState(tournamentId);
         const wasActive = preState && preState.isActive;
 
-        // Here you would optimally verify userId with a user service or token
-        // For now, we trust the client (as per user instruction "One person for now to keep it simple")
+        // PERMISSION FIRST, then the claim.
+        //
+        // This used to be the other way round: the seat was taken, and only then
+        // was the claimant checked — which left a window where isAuctioneer()
+        // was already true for someone who was about to be refused, and the
+        // refusal then emptied the seat rather than leaving the incumbent in it.
+        // The check was also wrapped in `if (userId && tournamentOwnerId)`, so a
+        // missing userId skipped it altogether. Now nothing is claimed until the
+        // actor is known and allowed, and identity comes from their session
+        // token rather than from a userId the browser chose to send.
+        const { ok, who } = await mayManage(tournamentId, sessionToken);
+        if (!ok) {
+          console.warn(`[auction] refused host claim on ${tournamentId} by ${who.userId || 'anonymous'} (role=${who.role || 'none'})`);
+          return socket.emit("auction:error", {
+            code: 'UNAUTHORIZED',
+            message: who.userId
+              ? 'You do not have permission to host this auction'
+              : 'Please sign in as the host to run this auction',
+          });
+        }
+        const userId = who.userId;
 
-        // Check tournament ownership before allowing host claim
-        let tournamentOwnerId = null;
+        // Resolve the existing auctioneer's name for conflict messages
         let existingHostName = null;
-        try {
-          const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { tournamentHostId: true } });
-          if (t) tournamentOwnerId = String(t.tournamentHostId);
-        } catch (_) {}
-
-        // Try to resolve existing auctioneer's display name for conflict messages
         const preAuction = auctionStateManager.getOrCreateAuction(tournamentId);
         if (preAuction.auctioneerUserId && preAuction.auctioneerUserId !== userId) {
           try {
@@ -354,26 +368,7 @@ module.exports = (io) => {
             hostName: existingHostName || 'Another user',
           });
         }
-
-        // Gate: only people who may manage this tournament can host its auction.
-        //
-        // This used to accept the owner and admins alone, which left out the
-        // co-hosts granted access in user management: they were refused the
-        // auctioneer role, and since teams are loaded only for an auctioneer,
-        // the auction room showed them no teams at all.
-        if (userId && tournamentOwnerId) {
-          let user = null;
-          try { user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }); } catch (_) {}
-          const allowed = user && await canManageTournament(userId, user.role, tournamentId);
-          if (!allowed) {
-            // Revoke the just-set auctioneer
-            auctionStateManager.setAuctioneer(tournamentId, null, null);
-            return socket.emit("auction:error", {
-              code: 'UNAUTHORIZED',
-              message: 'You do not have permission to host this auction',
-            });
-          }
-        }
+        console.log(`[auction] host claimed on ${tournamentId} by ${userId} (${who.role})`);
 
         leaveCurrentRoom(socket, tournamentId);
         socket.join(tournamentId);
@@ -675,10 +670,15 @@ module.exports = (io) => {
     });
 
     // Mark Sold
-    socket.on("auction:sold", async ({ tournamentId, userId }) => {
+    socket.on("auction:sold", async ({ tournamentId }) => {
       if (!auctionStateManager.isAuctioneer(tournamentId, socket.id)) {
         return socket.emit("auction:error", "Unauthorized");
       }
+
+      // Attribution comes from the seat, which was granted only after a
+      // permission check — not from a userId in the payload, which the browser
+      // chose and which therefore could name anyone.
+      const userId = (auctionStateManager.getOrCreateAuction(tournamentId) || {}).auctioneerUserId || null;
 
       const result = auctionStateManager.markSold(tournamentId);
 
@@ -800,10 +800,15 @@ module.exports = (io) => {
     });
 
     // Mark Unsold
-    socket.on("auction:unsold", async ({ tournamentId, userId }) => {
+    socket.on("auction:unsold", async ({ tournamentId }) => {
       if (!auctionStateManager.isAuctioneer(tournamentId, socket.id)) {
         return socket.emit("auction:error", "Unauthorized");
       }
+
+      // Attribution comes from the seat, which was granted only after a
+      // permission check — not from a userId in the payload, which the browser
+      // chose and which therefore could name anyone.
+      const userId = (auctionStateManager.getOrCreateAuction(tournamentId) || {}).auctioneerUserId || null;
 
       const result = auctionStateManager.markUnsold(tournamentId);
 

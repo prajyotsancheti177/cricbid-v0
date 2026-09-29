@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSocket, disconnectSocket } from "@/lib/socket";
+import { getSessionToken } from "@/lib/auth";
 import { Player, Team } from "@/types/auction";
 import { useToast } from "@/hooks/use-toast";
 
@@ -160,9 +161,12 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
 
     // Actions
     const startAuction = useCallback(() => {
-        if (!tournamentId || !userId) return;
-        socketRef.current.emit("auction:start", { tournamentId, userId });
-    }, [tournamentId, userId]);
+        if (!tournamentId) return;
+        // The server authorises on this token, not on a userId we send it, and it
+        // re-reads the role from the database each time. Sent explicitly as well
+        // as in the handshake so signing in after the socket opened still works.
+        socketRef.current.emit("auction:start", { tournamentId, sessionToken: getSessionToken() });
+    }, [tournamentId]);
 
     const selectPlayer = useCallback((playerId?: string, category?: string, orderMode?: 'random' | 'serial') => {
         if (!tournamentId) return;
