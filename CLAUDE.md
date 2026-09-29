@@ -108,18 +108,39 @@ Routes: `/` match list, `/scorecard/:matchId` (public), `/login`, `/schedule-bui
 
 ## Auth — read before touching anything security-adjacent
 
-Auth is **deliberately weak / placeholder**, and it's known:
+**This section described a spoofable `x-user-id` scheme until 2026-09-29. That is gone.**
+REST is genuinely authenticated now; the socket layer is the part with history.
 
-- `backend/utils/authMiddleware.js` does not verify tokens. It accepts a `userId` from body,
-  query, or `x-user-id` header. `roleMiddleware` likewise trusts a client-supplied `x-user-role`.
-  Both are trivially spoofable. The file says JWT is the intended replacement.
-- Frontends gate on `localStorage`: `isAuthenticated === "true"` (frontend),
-  `scoring_auth === "true"` (scoring).
-- Roles: `boss`, `super_user`, `tournament_host` (`Role` enum). Bootstrap: `scripts/createBossUser.js`.
+- `backend/utils/authMiddleware.js` authenticates by **session token** — a 32-byte random
+  value in the `user_session` table, sent as `x-session-token` (or `x-player-token`, the
+  same token). `req.userId` always comes from the token. A body's `userId` is still read by
+  some services for business logic but **establishes nothing about identity**.
+  `isActive` is checked on every request, so deactivating an account takes effect at once.
+- `roleMiddleware` checks the role **read from the database** for that session, not a header.
+- Login (`userService.loginUser`) verifies the password and refuses inactive accounts. Sessions
+  are per device, so signing in on a phone does not sign out a laptop. Google sign-in creates
+  an account with role `player` — assume most accounts are players.
+- Roles: `boss`, `super_user`, `tournament_host`, `player` (`Role` enum). `MANAGING_ROLES`
+  (the first three) is the line that matters; **`player` can manage nothing**.
+  Bootstrap: `scripts/createBossUser.js`.
+- Tournament-level permission is `canManageTournament` / `canViewTournament` in
+  `utils/tournamentAccess.js`: the host, or a `tournament_access` grant. For a **private**
+  tournament the boss/super_user shortcut deliberately does **not** apply.
 - `PlayerProfile` has its own separate mobile-based auth path (`playerProfileAuthMiddleware.js`).
 
-Don't present these as secure, and don't assume a fix is out of scope — but do flag the blast
-radius before rewriting the auth model.
+### The socket layer is the one that bit us
+
+`sockets/auctionSocket.js` has no middleware, so each handler authorises itself. A player-role
+account once conducted three results in a live auction because the handlers took `userId`
+straight from the event payload and the permission check was skippable.
+
+**Rules for anything added there:** resolve the actor with `resolveActor` / `mayManage` (session
+token, re-read per action) and never authorise on a payload `userId`; check permission **before**
+mutating state, never after; never let a failed check clear the auctioneer seat; and audit the
+attempt via `eventService.trackEvent`, because pm2 logs rotate.
+
+Note the auctioneer seat empties on every restart and on any auctioneer disconnect, so "the seat
+is free" is a normal condition, not proof that the claimant is the host.
 
 ## Conventions
 

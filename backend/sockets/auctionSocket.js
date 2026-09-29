@@ -159,6 +159,28 @@ module.exports = (io) => {
       return { ok, who };
     };
 
+    /**
+     * Record who took, or tried to take, control of an auction.
+     *
+     * Socket actions were invisible: when a player-role account conducted three
+     * results, there was no way to establish how it got the seat. Written to
+     * user_event so it survives a log rotation and can be queried per
+     * tournament. Fire-and-forget — auditing must never block the auction.
+     */
+    const auditSeat = (eventType, tournamentId, who, extra) => {
+      eventService.trackEvent({
+        userId: who.userId || null,
+        tournamentId: tournamentId || null,
+        eventType,
+        eventData: {
+          role: who.role || null,
+          socketId: socket.id,
+          ipAddress: socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || null,
+          ...extra,
+        },
+      }).catch(() => {});
+    };
+
     /** True when this socket is allowed to see this tournament at all. */
     const mayView = async (tournamentId) => {
       const who = await identity;
@@ -204,10 +226,12 @@ module.exports = (io) => {
         // tournament.
         const { ok, who } = await mayManage(tournamentId, sessionToken);
         if (!ok) {
+          auditSeat("auction_room_delete_refused", tournamentId, who, {});
           console.warn(`[auction] refused room delete on ${tournamentId} by ${who.userId || 'anonymous'}`);
           return socket.emit("auction:error", "Unauthorized: Only the host or an admin can delete this room");
         }
         const userId = who.userId;
+        auditSeat("auction_room_deleted", tournamentId, who, {});
         console.log(`[auction] room delete on ${tournamentId} by ${userId} (${who.role})`);
 
         // Proceed with deletion
@@ -338,6 +362,9 @@ module.exports = (io) => {
         // token rather than from a userId the browser chose to send.
         const { ok, who } = await mayManage(tournamentId, sessionToken);
         if (!ok) {
+          // Durable, not just a log line: pm2 logs rotate, and "who tried to
+          // take the seat" is the question that was unanswerable last time.
+          auditSeat("auction_host_refused", tournamentId, who, { reason: who.userId ? 'not_permitted' : 'no_session' });
           console.warn(`[auction] refused host claim on ${tournamentId} by ${who.userId || 'anonymous'} (role=${who.role || 'none'})`);
           return socket.emit("auction:error", {
             code: 'UNAUTHORIZED',
@@ -368,6 +395,7 @@ module.exports = (io) => {
             hostName: existingHostName || 'Another user',
           });
         }
+        auditSeat("auction_host_claimed", tournamentId, who, { wasActive: !!wasActive });
         console.log(`[auction] host claimed on ${tournamentId} by ${userId} (${who.role})`);
 
         leaveCurrentRoom(socket, tournamentId);
