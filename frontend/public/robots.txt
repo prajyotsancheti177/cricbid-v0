@@ -1,20 +1,22 @@
+# Crawling is open on purpose.
+#
+# The app screens used to be listed here as Disallow, which Search Console then
+# reported two ways: "Blocked by robots.txt", and — the one that matters —
+# "Indexed, though blocked by robots.txt". A disallowed page can still be
+# indexed when something links to it; Google simply indexes the bare URL with
+# no content, and because it is not allowed to fetch the page it can never see
+# a noindex telling it to stop.
+#
+# So the block is gone and those pages now serve `noindex` instead (see
+# frontend/src/components/seo/RouteMeta.tsx, which is default-deny: anything not
+# on its allowlist is noindex). Blocking here would hide that instruction.
+#
+# Do not reintroduce Disallow for a page you want OUT of the index. It does the
+# opposite.
+
 User-agent: *
 Allow: /
 
-# Block authenticated app pages — no SEO value, require login
-Disallow: /tournaments
-Disallow: /auction
-Disallow: /players
-Disallow: /teams
-Disallow: /analytics
-Disallow: /add-player
-Disallow: /bulk-upload
-
-# Allow public pages
-Allow: /$
-Allow: /login
-Allow: /privacy-policy
-Allow: /delete-account
-
-Sitemap: https://www.cricbid.online/sitemap.xml
+# The bare host is canonical — www 301s to it — so the sitemaps say so too.
+Sitemap: https://cricbid.online/sitemap.xml
 Sitemap: https://scoring.cricbid.online/sitemap.xml

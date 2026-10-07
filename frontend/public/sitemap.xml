@@ -1,37 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Only pages that belong in search results, on the canonical host.
+
+  These used to be listed as https://www.cricbid.online/..., which 301s to the
+  bare host — so every entry pointed at a redirect rather than at the page
+  itself. The list must also stay in step with the allowlist in
+  frontend/src/components/seo/RouteMeta.tsx: a URL that is noindex has no place
+  in a sitemap, and /guide-videos is deliberately absent because it is unlisted.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
 
-  <!-- Homepage — India's #1 Cricket Auction Software -->
+  <!-- Homepage — cricket auction software -->
   <url>
-    <loc>https://www.cricbid.online/</loc>
-    <lastmod>2026-07-01</lastmod>
+    <loc>https://cricbid.online/</loc>
+    <lastmod>2026-10-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 
-  <!-- Login Page -->
+  <!-- Interactive demo auction -->
   <url>
-    <loc>https://www.cricbid.online/login</loc>
-    <lastmod>2026-07-01</lastmod>
+    <loc>https://cricbid.online/demo</loc>
+    <lastmod>2026-10-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- How-to guides -->
+  <url>
+    <loc>https://cricbid.online/guides</loc>
+    <lastmod>2026-10-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Login -->
+  <url>
+    <loc>https://cricbid.online/login</loc>
+    <lastmod>2026-10-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
-  <!-- Privacy Policy -->
+  <!-- Terms -->
   <url>
-    <loc>https://www.cricbid.online/privacy-policy</loc>
-    <lastmod>2026-07-01</lastmod>
+    <loc>https://cricbid.online/terms</loc>
+    <lastmod>2026-10-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>
   </url>
 
-  <!-- Delete Account -->
+  <!-- Privacy Policy -->
   <url>
-    <loc>https://www.cricbid.online/delete-account</loc>
-    <lastmod>2026-07-01</lastmod>
+    <loc>https://cricbid.online/privacy-policy</loc>
+    <lastmod>2026-10-08</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Account deletion (required by the Play Store listing) -->
+  <url>
+    <loc>https://cricbid.online/delete-account</loc>
+    <lastmod>2026-10-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
