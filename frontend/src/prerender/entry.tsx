@@ -2,6 +2,7 @@ import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import DemoPage from "@/pages/demo/DemoPage";
 import GuidesPage from "@/pages/guides/GuidesPage";
+import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
 
 /**
  * Build-time rendering for the two pages that are meant to rank.
@@ -23,29 +24,13 @@ import GuidesPage from "@/pages/guides/GuidesPage";
  * the client bundle.
  */
 
-/** The head each pre-rendered page carries, instead of the site-wide default. */
-export interface PrerenderMeta {
-  title: string;
-  description: string;
-}
-
-export const ROUTES: Record<string, { element: JSX.Element; meta: PrerenderMeta }> = {
-  "/demo": {
-    element: <DemoPage />,
-    meta: {
-      title: "See a real cricket auction — CricBid live demo",
-      description:
-        "Watch a real IPL-style cricket auction replay bid by bid — genuine players, genuine amounts, at the speed it runs on the night. No sign-up needed to look around.",
-    },
-  },
-  "/guides": {
-    element: <GuidesPage />,
-    meta: {
-      title: "How-to guides — run a cricket auction with CricBid",
-      description:
-        "Short clips showing each task end to end: create a player registration form, register teams, run the bidding, unsell a player, edit players and export results.",
-    },
-  },
+/**
+ * The pages to pre-render. The head text comes from src/lib/pageMeta.ts, which
+ * the page components read too — one string, two consumers, no drift.
+ */
+export const ROUTES: Record<string, { element: JSX.Element; meta: PageMeta }> = {
+  "/demo": { element: <DemoPage />, meta: PAGE_META["/demo"] },
+  "/guides": { element: <GuidesPage />, meta: PAGE_META["/guides"] },
 };
 
 /** Render one route to HTML. Throws if asked for a route that is not listed. */

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PlayCircle } from "lucide-react";
 import { GROUP_ORDER, GUIDES } from "./registry";
 import { ClipPlayer } from "./kit/ClipPlayer";
+import { PAGE_META } from "@/lib/pageMeta";
 
 /**
  * The how-to library: one short, looping clip per task an organiser, player or
@@ -10,7 +11,8 @@ import { ClipPlayer } from "./kit/ClipPlayer";
  * can be shared on its own or recorded to video.
  */
 const GuidesPage = () => {
-    useEffect(() => { document.title = "How-to guides — CricBid"; }, []);
+    // Shared with the build-time pre-render — see src/lib/pageMeta.ts.
+    useEffect(() => { document.title = PAGE_META["/guides"].title; }, []);
 
     return (
         <div className="min-h-screen bg-background">

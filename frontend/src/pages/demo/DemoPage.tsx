@@ -7,6 +7,7 @@ import SoldMoment from "./sections/SoldMoment";
 import AfterTheHammer from "./sections/AfterTheHammer";
 import SetupAndResults from "./sections/SetupAndResults";
 import { TOURNAMENT } from "./demoData";
+import { PAGE_META } from "@/lib/pageMeta";
 
 /**
  * A guided walkthrough of a real auction, built entirely from production data.
@@ -16,8 +17,10 @@ import { TOURNAMENT } from "./demoData";
  * it behaves on the night, with the real names and real amounts.
  */
 const DemoPage = () => {
+    // Shared with the build-time pre-render, so the title a crawler reads and
+    // the title a visitor sees cannot drift apart.
     useEffect(() => {
-        document.title = "See a real auction — CricBid demo";
+        document.title = PAGE_META["/demo"].title;
     }, []);
 
     const scrollToReplay = () => {
