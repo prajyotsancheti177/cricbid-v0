@@ -29,9 +29,10 @@ import { jsonAuthHeaders } from "@/lib/auth";
 /**
  * Auctioneer room preferences (sound, animations), kept in localStorage.
  *
- * Both default to on for a first-time room, and both survive a refresh — an
- * auctioneer who turns animations off mid-auction should not have them come
- * back when the page reloads.
+ * Sound defaults on and animations default off for a first-time room; both
+ * survive a refresh, so an auctioneer who changes either mid-auction does not
+ * get the old behaviour back when the page reloads. A stored choice always
+ * wins over the default — see readRoomPref.
  */
 const ROOM_PREF_KEY = "cricbid_auction_prefs";
 
