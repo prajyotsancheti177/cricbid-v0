@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Copy, ExternalLink, Video, LockKeyhole } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace, isFeatureOn } from "./TournamentWorkspace";
+import CountdownSettingsCard from "@/components/auction/CountdownSettingsCard";
 
 const OVERLAYS = [
   { slug: "camera-hud", label: "Camera HUD" },
@@ -14,7 +15,7 @@ const OVERLAYS = [
 ];
 
 const TournamentAuctionSection = () => {
-  const { tournament } = useWorkspace();
+  const { tournament, reload } = useWorkspace();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -79,6 +80,13 @@ const TournamentAuctionSection = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Set the pre-show clock and the logo here rather than in the OBS URL. */}
+      <CountdownSettingsCard
+        tournamentId={tournament._id}
+        features={(tournament.features as Record<string, unknown>) || {}}
+        onSaved={reload}
+      />
     </div>
   );
 };

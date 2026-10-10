@@ -63,30 +63,29 @@ export default function LiveAuctionLobby() {
             toast({ variant: "destructive", title: "Auction Error", description: msg });
         };
 
+        // Listeners first, always.
+        //
+        // This used to branch on socket.connected and, when the socket was
+        // still connecting — which is the normal case on a fresh page load —
+        // return early with a cleanup for handlers it had not registered yet.
+        // So auction:list was never listened for, the lobby stayed empty, and
+        // a running auction was invisible until something remounted the page.
+        socket.on("connect", onConnect);
+        socket.on("disconnect", onDisconnect);
+        socket.on("auction:list", onListUpdate);
+        socket.on("auction:error", onError);
+
+        // Don't let the skeleton hang if the socket is slow to come up.
+        const t = setTimeout(() => setLoadingLobby(false), 3000);
+
         if (socket.connected) {
             onConnect();
         } else {
             socket.connect();
-            // Fall back after 3 s so skeleton doesn't hang if socket is slow
-            const t = setTimeout(() => setLoadingLobby(false), 3000);
-            return () => {
-                clearTimeout(t);
-                socket.off("connect", onConnect);
-                socket.off("disconnect", onDisconnect);
-                socket.off("auction:list", onListUpdate);
-                socket.off("auction:error", onError);
-            };
         }
 
-        socket.on("connect", onConnect);
-        socket.on("disconnect", onDisconnect);
-        socket.on("auction:list", onListUpdate); // Listen for updates
-        socket.on("auction:error", onError);
-
-        // Initial fetch
-        socket.emit("auction:list");
-
         return () => {
+            clearTimeout(t);
             socket.off("connect", onConnect);
             socket.off("disconnect", onDisconnect);
             socket.off("auction:list", onListUpdate);

@@ -12,7 +12,11 @@ import "./overlays.css";
  * The target time, in order of preference:
  *   ?at=2026-10-12T19:30:00+05:30   an exact moment (ISO, or epoch ms)
  *   ?in=15                          minutes from when the page loads
+ *   what the host set in the workspace (Auction → Stream countdown)
  *   the tournament's auctionDate
+ *
+ * The saved settings are re-read every few seconds, so changing the time in
+ * the UI moves the clock on the stream without anyone touching OBS.
  *
  * Other knobs, all optional:
  *   ?title=Auction is Starting in   replace the headline
@@ -41,11 +45,14 @@ const CountdownOverlay = () => {
 
   const [tournamentName, setTournamentName] = useState<string>("");
   const [auctionDate, setAuctionDate] = useState<string | null>(null);
+  const [savedStartsAt, setSavedStartsAt] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string>("");
+  const [logo, setLogo] = useState<string>("");
   const [now, setNow] = useState(() => Date.now());
 
   const transparent = params.get("transparent") === "1";
   const headline = params.get("title") || "Auction is Starting in";
-  const note = params.get("note") || "";
+  const noteParam = params.get("note");
 
   // Resolved once: ?in= is relative to page load, so recomputing it every tick
   // would freeze the clock.
@@ -62,21 +69,36 @@ const CountdownOverlay = () => {
     return () => clearInterval(t);
   }, []);
 
-  // The tournament supplies the name, and the fallback target.
+  // The tournament supplies the name, the logo, and the target the host set.
+  // Polled rather than fetched once: OBS loads this page before the stream and
+  // leaves it up, so a time changed in the UI has to reach it on its own.
   useEffect(() => {
     if (!tournamentId) return;
-    fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tournamentId }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => {
-        if (!b?.data) return;
-        setTournamentName(b.data.name || "");
-        setAuctionDate(b.data.auctionDate || null);
+    let cancelled = false;
+
+    const load = () => {
+      fetch(`${apiConfig.baseUrl}/api/tournament/detail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tournamentId }),
       })
-      .catch(() => { /* the clock still works from ?at= or ?in= */ });
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => {
+          if (cancelled || !b?.data) return;
+          const features = (b.data.features || {}) as Record<string, any>;
+          const cd = (features.auctionCountdown || {}) as { startsAt?: string; note?: string };
+          setTournamentName(b.data.name || "");
+          setAuctionDate(b.data.auctionDate || null);
+          setSavedStartsAt(cd.startsAt || null);
+          setSavedNote(cd.note || "");
+          setLogo(features.brandLogo || "");
+        })
+        .catch(() => { /* the clock still works from ?at= or ?in= */ });
+    };
+
+    load();
+    const t = setInterval(load, 5000);
+    return () => { cancelled = true; clearInterval(t); };
   }, [tournamentId]);
 
   const target = useMemo<number | null>(() => {
@@ -88,12 +110,16 @@ const CountdownOverlay = () => {
     }
     const mins = Number(params.get("in"));
     if (Number.isFinite(mins) && mins > 0) return loadedAt.current + mins * 60_000;
+    if (savedStartsAt) {
+      const parsed = Date.parse(savedStartsAt);
+      if (Number.isFinite(parsed)) return parsed;
+    }
     if (auctionDate) {
       const parsed = Date.parse(auctionDate);
       if (Number.isFinite(parsed)) return parsed;
     }
     return null;
-  }, [params, auctionDate]);
+  }, [params, savedStartsAt, auctionDate]);
 
   const remaining = target === null ? null : target - now;
   const landed = remaining !== null && remaining <= 0;
@@ -103,6 +129,7 @@ const CountdownOverlay = () => {
       <div className="cd-vignette" aria-hidden="true" />
 
       <div className="cd-content">
+        {logo && <img className="cd-logo" src={logo} alt="" />}
         {tournamentName && <p className="cd-tournament">{tournamentName}</p>}
 
         <div className="cd-headline-row">
@@ -127,8 +154,8 @@ const CountdownOverlay = () => {
           </p>
         )}
 
-        {note && <p className="cd-note">{note}</p>}
-        {remaining === null && !note && (
+        {(noteParam || savedNote) && <p className="cd-note">{noteParam || savedNote}</p>}
+        {remaining === null && !noteParam && !savedNote && (
           <p className="cd-note">Starting shortly</p>
         )}
       </div>

@@ -938,3 +938,14 @@
   font-variant-numeric: tabular-nums;
 }
 .bc-ticker-slots { color: rgba(255, 255, 255, 0.55); }
+
+/* Tournament logo above the headline on the countdown card. Contained rather
+   than cropped — a league crest is rarely square. */
+.cd-logo {
+  display: block;
+  margin: 0 auto clamp(10px, 2vh, 26px);
+  height: clamp(56px, 11vh, 150px);
+  max-width: 44vw;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 26px rgba(0, 0, 0, 0.55));
+}

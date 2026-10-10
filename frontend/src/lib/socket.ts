@@ -10,7 +10,13 @@ export const getSocket = (): Socket => {
         socket = io(`${apiConfig.baseUrl}/auction`, {
             autoConnect: false,
             reconnection: true,
-            reconnectionAttempts: 5,
+            // Was 5 attempts, which socket.io exhausts in well under a minute.
+            // A deploy takes longer than that, so a room left open during one
+            // stopped reconnecting for good and sat there showing nothing until
+            // somebody refreshed. Keep trying, backing off to every 5s.
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 5000,
             timeout: 20000,
             // Identifies the viewer, so a private tournament's room can tell an
             // invited person from a stranger with the link.
