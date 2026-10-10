@@ -53,7 +53,10 @@ const TEMPLATES: Template[] = [
 ];
 
 const DEFAULT_CONFIG: WhatsAppConfig = {
-  playerSold: { enabled: true }, playerUnsold: { enabled: true }, teamPurchase: { enabled: true },
+  // playerUnsold is off by default — mirrors DEFAULT_WHATSAPP_CONFIG in
+  // backend/services/whatsappService.js, which is what actually decides whether
+  // a message is sent. Keep the two in step.
+  playerSold: { enabled: true }, playerUnsold: { enabled: false }, teamPurchase: { enabled: true },
   postAuctionPlayer: { enabled: false }, postAuctionOwner: { enabled: false },
   auctionReminder: { enabled: false }, categoryStarting: { enabled: false },
   budgetWarning: { enabled: false, thresholdPercent: 80 },

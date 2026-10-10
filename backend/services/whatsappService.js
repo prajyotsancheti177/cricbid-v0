@@ -6,7 +6,11 @@ const whatsappLogService = require('./whatsappLogService');
 // ─── Default config (all enabled) ────────────────────────────────────────────
 const DEFAULT_WHATSAPP_CONFIG = {
   playerSold:        { enabled: true },
-  playerUnsold:      { enabled: true },
+  // Off unless a host turns it on. Going unsold is not news a player wants
+  // pushed to them, and a player is often unsold only until the category comes
+  // round again — so the message tended to arrive, be upsetting, and then be
+  // wrong. A host who does want it can switch it on per tournament.
+  playerUnsold:      { enabled: false },
   teamPurchase:      { enabled: true },
   postAuctionPlayer: { enabled: false },
   postAuctionOwner:  { enabled: false },
