@@ -192,7 +192,11 @@ const myBookings = async ({ userId }) => {
 const cancelBooking = async ({ bookingId, userId }) => {
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) throw new Error("Booking not found");
-  if (booking.userId && booking.userId !== userId) {
+  // Was `booking.userId && ...`, which let any caller cancel a guest booking
+  // (userId null) because the check was skipped entirely. A booking is now
+  // cancellable only by the account that holds it; guest bookings are cancelled
+  // by an admin through the admin endpoint.
+  if (!userId || booking.userId !== userId) {
     const e = new Error("Not your booking"); e.status = 403; throw e;
   }
   // Hard-delete frees the slot immediately (frees the @@unique row).

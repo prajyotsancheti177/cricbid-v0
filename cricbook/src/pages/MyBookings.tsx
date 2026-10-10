@@ -20,13 +20,13 @@ export default function MyBookings() {
 
   const fetchBookings = () => {
     if (!user?._id) { setBookings([]); return; }
-    post("booking/booking/mine", { userId: user._id }).then(r => setBookings(r.success ? r.data : []));
+    post("booking/booking/mine", {}).then(r => setBookings(r.success ? r.data : []));
   };
   useEffect(fetchBookings, []);
 
   const cancel = async (id: string) => {
     setCancelling(id);
-    await post("booking/booking/cancel", { bookingId: id, userId: user?._id });
+    await post("booking/booking/cancel", { bookingId: id });
     setCancelling(null);
     fetchBookings();
   };

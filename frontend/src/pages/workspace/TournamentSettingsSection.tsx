@@ -15,6 +15,7 @@ import apiConfig from "@/config/apiConfig";
 import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
 import { useWorkspace, TournamentFeatures, isFeatureOn } from "./TournamentWorkspace";
 import { jsonAuthHeaders } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
@@ -25,8 +26,10 @@ type DangerAction = {
   label: string;
   description: string;
   icon: React.ElementType;
-  run: (tournamentId: string) => Promise<Response>;
+  run: (tournamentId: string, categories?: string[]) => Promise<Response>;
   redirectAfter?: boolean;
+  /** Show the category picker in the confirm dialog before running. */
+  pickCategories?: boolean;
 };
 
 const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description: string }[] = [
@@ -45,6 +48,9 @@ const TournamentSettingsSection = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pending, setPending] = useState<DangerAction | null>(null);
+  // Which categories a category-scoped action applies to. Empty means all,
+  // which is what "Reset unsold players" did before it could be narrowed.
+  const [resetCategories, setResetCategories] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [savingFeature, setSavingFeature] = useState<string | null>(null);
@@ -106,8 +112,11 @@ const TournamentSettingsSection = () => {
   const actions: DangerAction[] = [
     {
       key: "reset", label: "Reset unsold players", icon: RotateCcw,
-      description: "Mark all unsold players as pending again so they can re-enter the auction.",
-      run: (id) => post("/api/player/reset-unsold", { touranmentId: id, userId: user?._id, userRole: user?.role }),
+      description: "Put unsold players back into the auction. Pick the categories to bring back, or leave them all unticked to reset every unsold player.",
+      pickCategories: true,
+      run: (id, categories) => post("/api/player/reset-unsold", {
+        touranmentId: id, categories, userId: user?._id, userRole: user?.role,
+      }),
     },
     {
       key: "delTeams", label: "Delete all teams", icon: UsersRound,
@@ -131,7 +140,7 @@ const TournamentSettingsSection = () => {
     if (!pending) return;
     setBusy(true);
     try {
-      const res = await pending.run(tournament._id);
+      const res = await pending.run(tournament._id, pending.pickCategories ? resetCategories : undefined);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) throw new Error(data.message || "Action failed");
       toast({ title: "Done", description: data.message || `${pending.label} completed` });
@@ -288,12 +297,43 @@ const TournamentSettingsSection = () => {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!pending} onOpenChange={(o) => !o && setPending(null)}>
+      <AlertDialog open={!!pending} onOpenChange={(o) => { if (!o) { setPending(null); setResetCategories([]); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{pending?.label}?</AlertDialogTitle>
             <AlertDialogDescription>{pending?.description}</AlertDialogDescription>
           </AlertDialogHeader>
+
+          {pending?.pickCategories && (tournament.playerCategories || []).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Categories</p>
+              <div className="flex flex-wrap gap-2">
+                {(tournament.playerCategories || []).map((cat) => {
+                  const on = resetCategories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setResetCategories((prev) =>
+                        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                      )}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-sm transition-colors",
+                        on ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {resetCategories.length === 0
+                  ? "Nothing ticked — every unsold player will be reset."
+                  : `Only unsold ${resetCategories.join(", ")} players will be reset.`}
+              </p>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmRun(); }} disabled={busy} className="bg-destructive hover:bg-destructive/90">

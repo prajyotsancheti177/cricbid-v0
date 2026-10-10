@@ -689,23 +689,35 @@ const bulkCreatePlayers = async (playersData, touranmentId) => {
     return bulkResult;
 };
 
-const resetUnsoldPlayers = async (touranmentId) => {
-    const result = await prisma.player.updateMany({
-        where: { touranmentId, auctionStatus: true, sold: false },
-        data: { auctionStatus: false },
-    });
+/**
+ * Put unsold players back into the auction.
+ *
+ * `categories` narrows it: an auction usually finishes one category before the
+ * next, and the host wants that category's unsold players round again without
+ * dragging back everyone who went unsold hours earlier. Omit it (or pass an
+ * empty list) and every unsold player in the tournament is reset, which is
+ * what this always did.
+ */
+const resetUnsoldPlayers = async (touranmentId, categories = null) => {
+    const list = Array.isArray(categories) ? categories.filter(Boolean) : [];
+    const where = { touranmentId, auctionStatus: true, sold: false };
+    if (list.length) where.playerCategory = { in: list };
+
+    const result = await prisma.player.updateMany({ where, data: { auctionStatus: false } });
 
     eventService.trackEvent({
         userId: null,
         tournamentId: touranmentId || null,
         eventType: "players_unsold_reset",
         page: "/players",
-        eventData: { tournamentId: touranmentId, count: result.count },
+        eventData: { tournamentId: touranmentId, count: result.count, categories: list.length ? list : "all" },
     }).catch(() => {});
 
+    const scope = list.length ? ` in ${list.join(", ")}` : "";
     return {
         count: result.count,
-        message: `${result.count} unsold player(s) reset successfully`,
+        categories: list,
+        message: `${result.count} unsold player(s)${scope} reset successfully`,
     };
 };
 

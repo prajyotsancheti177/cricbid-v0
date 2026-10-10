@@ -33,28 +33,35 @@ const getAvailability = async (req, res) => {
 
 const createBooking = async (req, res) => {
   try {
-    const { courtId, slotStarts, customerName, customerPhone, userId } = req.body;
+    const { courtId, slotStarts, customerName, customerPhone } = req.body;
     if (!courtId || !slotStarts?.length) return sendError(res, 400, "courtId and slotStarts required");
     if (!customerName || !customerPhone) return sendError(res, 400, "customerName and customerPhone required");
-    const data = await bookingService.createBooking({ courtId, slotStarts, customerName, customerPhone, userId });
+    // Guests may book, so there is not always a user. When there is one it is
+    // the session's, never a userId from the body — otherwise a booking could
+    // be filed under somebody else's name.
+    const data = await bookingService.createBooking({
+      courtId, slotStarts, customerName, customerPhone, userId: req.userId || null,
+    });
     return sendSuccess(res, 200, "Booked", data);
   } catch (err) { return fail(res, err); }
 };
 
 const myBookings = async (req, res) => {
   try {
-    const { userId } = req.body;
-    if (!userId) return sendError(res, 400, "userId required");
-    const data = await bookingService.myBookings({ userId });
+    // From the session. This used to read req.body.userId, which meant sending
+    // someone else's id returned their bookings.
+    const data = await bookingService.myBookings({ userId: req.userId });
     return sendSuccess(res, 200, "Bookings", data);
   } catch (err) { return fail(res, err); }
 };
 
 const cancelBooking = async (req, res) => {
   try {
-    const { bookingId, userId } = req.body;
+    const { bookingId } = req.body;
     if (!bookingId) return sendError(res, 400, "bookingId required");
-    const data = await bookingService.cancelBooking({ bookingId, userId });
+    // Same again: the owner is whoever this session is, not whoever the body
+    // claims. The service rejects a booking that is not theirs.
+    const data = await bookingService.cancelBooking({ bookingId, userId: req.userId });
     return sendSuccess(res, 200, "Cancelled", data);
   } catch (err) { return fail(res, err); }
 };

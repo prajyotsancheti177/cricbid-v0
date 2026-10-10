@@ -39,6 +39,15 @@ export function AnimatedNumber({
 
     if (from === to) return;
 
+    // With animations off, jump. CSS cannot stop a requestAnimationFrame loop,
+    // and this one runs for every team on every bid — eighteen count-ups a bid
+    // is exactly the sort of thing that makes the room feel heavy.
+    if (document.documentElement.classList.contains("anim-off")) {
+      displayRef.current = to;
+      setDisplay(to);
+      return;
+    }
+
     // Bumping the key remounts the span below, which restarts the CSS
     // pulse animation cleanly every time — no setTimeout bookkeeping, so
     // back-to-back bids within one pulse cycle can't leave it stuck.

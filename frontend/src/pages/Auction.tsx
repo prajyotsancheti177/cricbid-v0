@@ -36,13 +36,19 @@ import { jsonAuthHeaders } from "@/lib/auth";
 const ROOM_PREF_KEY = "cricbid_auction_prefs";
 
 const readRoomPref = (key: "sound" | "animation"): boolean => {
+  // Animations default OFF. They were the main thing making the room feel
+  // sluggish on the laptops it actually gets run on, and a host who wants them
+  // can switch them on — whereas a host mid-auction should not have to work out
+  // why the screen is stuttering. Sound still defaults on.
+  const fallback = key !== "animation";
   try {
     const raw = localStorage.getItem(ROOM_PREF_KEY);
-    if (!raw) return true;
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    return parsed?.[key] !== false;
+    if (parsed?.[key] === undefined) return fallback;
+    return parsed[key] !== false;
   } catch {
-    return true;
+    return fallback;
   }
 };
 
@@ -155,6 +161,15 @@ const Auction = () => {
 
   useEffect(() => { writeRoomPref("sound", soundEnabled); }, [soundEnabled]);
   useEffect(() => { writeRoomPref("animation", animationEnabled); }, [animationEnabled]);
+
+  // One class on <html> switches off every CSS animation and transition on the
+  // page — the per-bid number pulse, the sold flourish on a card, the page
+  // transition. Components that animate in JavaScript read the same class.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("anim-off", !animationEnabled);
+    return () => root.classList.remove("anim-off");
+  }, [animationEnabled]);
 
   // Listener for specific events to trigger animations
   useEffect(() => {

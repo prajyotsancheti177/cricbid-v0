@@ -274,7 +274,11 @@ const bulkCreatePlayers = async (req, res) => {
 
 const resetUnsoldPlayers = async (req, res) => {
     try {
-        const result = await playersService.resetUnsoldPlayers(req.body.touranmentId);
+        // `categories` is optional: absent means every unsold player, as before.
+        const result = await playersService.resetUnsoldPlayers(
+            req.body.touranmentId,
+            req.body.categories
+        );
         return sendSuccess(res, 200, result.message, result);
     } catch (error) {
         return sendError(res, 400, "Failed to reset unsold players!", error);

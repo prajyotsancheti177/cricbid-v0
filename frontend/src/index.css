@@ -248,3 +248,26 @@ All colors MUST be HSL.
     transition: none;
   }
 }
+
+/*
+ * Animations off.
+ *
+ * The auction room has had a toggle for a while, but it only reached the
+ * sold/unsold celebrations. Everything else kept moving: the per-bid pulse on
+ * every team's budget, the card flourish on a sale, page transitions. On a
+ * low-end laptop running the auction all evening that is what makes the room
+ * feel heavy, so the switch now cuts the lot.
+ *
+ * Set on <html> by the auction room, and honoured for anyone whose system asks
+ * for reduced motion.
+ */
+.anim-off *,
+.anim-off *::before,
+.anim-off *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}

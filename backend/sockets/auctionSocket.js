@@ -19,7 +19,10 @@ module.exports = (io) => {
   // Auto-advance to the next player after a SOLD/UNSOLD result, when the
   // auction is running in 'category' or 'serial' mode ('manual' mode instead
   // returns to the selection screen — handled by the caller before this runs).
-  const RESULT_ANIMATION_MS = 3000;
+  // How long the SOLD/UNSOLD result stays up before the next player is pushed.
+  // Was 3000, which read as a dead pause on the night — the room has already
+  // seen the result land, and everyone is waiting on the next name.
+  const RESULT_ANIMATION_MS = 1200;
 
   // How long a team list may be reused before it is re-read from the database.
   const TEAMS_TTL_MS = 10000;
