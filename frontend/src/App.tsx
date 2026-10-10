@@ -44,6 +44,8 @@ import NotFound from "./pages/NotFound";
 import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
 import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
+import CountdownOverlay from "./pages/overlays/CountdownOverlay";
+import BroadcastOverlay from "./pages/overlays/BroadcastOverlay";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
@@ -179,6 +181,10 @@ const App = () => (
             <Route path="/overlay/:tournamentId/camera-hud" element={<CameraHudOverlay />} />
             <Route path="/overlay/:tournamentId/fullscreen" element={<FullscreenOverlay />} />
             <Route path="/overlay/:tournamentId/split-screen" element={<SplitScreenOverlay />} />
+            {/* Pre-show holding card: "Auction is starting in MM:SS" */}
+            <Route path="/overlay/:tournamentId/countdown" element={<CountdownOverlay />} />
+            {/* Television-style bottom strip, for a full-bleed camera feed */}
+            <Route path="/overlay/:tournamentId/broadcast" element={<BroadcastOverlay />} />
 
             {/* App Routes - With Navbar */}
             <Route element={<AppLayout />}>

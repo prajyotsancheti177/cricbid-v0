@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Check, Monitor, Tv, SplitSquareHorizontal, HelpCircle } from "lucide-react";
+import { Copy, Check, Monitor, Tv, SplitSquareHorizontal, HelpCircle, Timer, Radio } from "lucide-react";
 
 interface OverlayControlBarProps {
   tournamentId: string;
@@ -23,6 +23,18 @@ const OVERLAY_LAYOUTS = [
     label: "Split Screen",
     description: "Left: camera (transparent) | Right: data panel",
     icon: SplitSquareHorizontal,
+  },
+  {
+    id: "countdown",
+    label: "Countdown",
+    description: "Pre-show card — auction starts in MM:SS (?at= or ?in=)",
+    icon: Timer,
+  },
+  {
+    id: "broadcast",
+    label: "Broadcast Strip",
+    description: "TV-style bottom band + team purse ticker, over a full camera",
+    icon: Radio,
   },
 ];
 

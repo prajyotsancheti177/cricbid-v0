@@ -9,6 +9,8 @@ const OVERLAYS = [
   { slug: "camera-hud", label: "Camera HUD" },
   { slug: "fullscreen", label: "Fullscreen" },
   { slug: "split-screen", label: "Split screen" },
+  { slug: "countdown", label: "Countdown" },
+  { slug: "broadcast", label: "Broadcast strip" },
 ];
 
 const TournamentAuctionSection = () => {
