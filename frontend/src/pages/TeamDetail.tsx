@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Users, Wallet, Pencil, Save, X, Trash2, Loader2 } from "lucide-react";
 import { PlayerCard } from "@/components/auction/PlayerCard";
+import { PlayerDetailsModal } from "@/components/player/PlayerDetailsModal";
+import { Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { compressImage } from "@/lib/imageCompressor";
@@ -26,6 +28,17 @@ const TeamDetail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [team, setTeam] = useState(null);
+  // Clicking a squad card opens the same dialog the Players page uses.
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  /**
+   * Whether this viewer may edit players in this tournament.
+   *
+   * Asked of the server rather than worked out from the role in localStorage:
+   * "may manage" also covers a co-host granted access, and deliberately
+   * excludes admins on a private tournament. /tournament/managed is that exact
+   * list, so the pencil appears precisely when the write would be allowed.
+   */
+  const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,6 +55,27 @@ const TeamDetail = () => {
   useEffect(() => {
     setIsAuthenticated(localStorage.getItem("isAuthenticated") === "true");
   }, []);
+
+  // Can this viewer edit players here? A refusal (player role, signed out)
+  // simply means no, so the card stays a plain figure.
+  useEffect(() => {
+    const tournamentId = team?.tournament?._id || team?.touranmentId;
+    if (!tournamentId) return;
+    let cancelled = false;
+    fetch(`${apiConfig.baseUrl}/api/tournament/managed`, {
+      method: "POST",
+      headers: jsonAuthHeaders(),
+      body: "{}",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        if (cancelled) return;
+        const list = Array.isArray(b?.data) ? b.data : [];
+        setCanManage(list.some((t) => String(t._id) === String(tournamentId)));
+      })
+      .catch(() => { if (!cancelled) setCanManage(false); });
+    return () => { cancelled = true; };
+  }, [team]);
 
   const fetchTeamDetails = async () => {
     try {
@@ -393,7 +427,10 @@ const TeamDetail = () => {
                   className="animate-scale-in"
                   style={{ animationDelay: `${Math.min(index * 0.03, 0.3)}s` }}
                 >
-                  <PlayerCard player={player} />
+                  <PlayerCard
+                    player={player}
+                    onClick={canManage ? setEditingPlayer : undefined}
+                  />
                 </div>
               ))}
             </div>
@@ -423,6 +460,19 @@ const TeamDetail = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/*
+        The Players page's dialog, reused as-is. Saving or deleting re-reads the
+        team so the budget and slot totals above agree with the squad below —
+        a changed price has to move the numbers, not just the card.
+      */}
+      <PlayerDetailsModal
+        player={editingPlayer}
+        isOpen={!!editingPlayer}
+        onClose={() => setEditingPlayer(null)}
+        onUpdate={() => { setEditingPlayer(null); fetchTeamDetails(); }}
+        onDelete={() => { setEditingPlayer(null); fetchTeamDetails(); }}
+      />
     </div>
   );
 };

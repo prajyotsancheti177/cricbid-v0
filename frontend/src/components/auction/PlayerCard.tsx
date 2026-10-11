@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { getDriveThumbnail } from "@/lib/imageUtils";
 import { shouldMaskPlayer, useMaskingEligible } from "@/lib/privacyUtils";
 import { CricHeroesStats } from "@/components/player/CricHeroesStats";
+import { Pencil } from "lucide-react";
 import type { CricHeroesStat } from "@/hooks/useCricHeroesStats";
 
 interface PlayerCardProps {
@@ -11,6 +12,11 @@ interface PlayerCardProps {
   isAnimated?: boolean;
   isSold?: boolean;
   className?: string;
+  /**
+   * Makes the card a button. Given one, the card shows a pencil and becomes
+   * keyboard-reachable; without one it stays a plain figure, so a viewer who
+   * may not edit is never offered a control the server would refuse.
+   */
   onClick?: (player: Player) => void;
   categories?: string[]; // Array of categories from tournament for dynamic coloring
   /** CricHeroes career numbers, when this player has a confirmed match. */
@@ -45,20 +51,38 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
     }
   };
 
+  // A real <button> when it does something, a <div> when it does not — rather
+  // than a div with a click handler, which the keyboard cannot reach.
+  const interactive = !!onClick;
+  const Root = (interactive ? "button" : "div") as React.ElementType;
+
   return (
-    <div
-      onClick={handleClick}
+    <Root
+      {...(interactive
+        ? { type: "button", onClick: handleClick, "aria-label": `Edit ${player.name}` }
+        : {})}
       className={cn(
         "relative overflow-hidden rounded-lg sm:rounded-2xl bg-card border border-border sm:border-2 shadow-elevated transition-all duration-300 w-full",
         // mobile: column layout for compact cards. md+: stacked column with larger image
         "flex flex-col",
         // Satisfying hover + press feel
-        onClick && "cursor-pointer hover:shadow-2xl hover:scale-[1.03] hover:border-primary/60 active:scale-[0.97]",
+        interactive && "group text-left cursor-pointer hover:shadow-2xl hover:scale-[1.03] hover:border-primary/60 active:scale-[0.97]",
+        interactive && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         isAnimated && "animate-pop-in",
         isSold && "animate-celebrate",
         className
       )}
     >
+      {interactive && (
+        // Shown on hover and on keyboard focus. On a touch screen there is no
+        // hover to reveal it, so there it simply stays visible.
+        <span
+          aria-hidden="true"
+          className="absolute right-1.5 top-1.5 z-30 grid h-7 w-7 place-items-center rounded-lg bg-primary text-primary-foreground opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100 sm:right-2 sm:top-2 sm:h-8 sm:w-8"
+        >
+          <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        </span>
+      )}
       {/* Player Image - Instagram style: full image with blurred background */}
       <div className="relative flex-shrink-0 w-full h-36 sm:h-32 md:h-48 lg:h-64 overflow-hidden">
         {/* Blurred background image */}
@@ -162,7 +186,7 @@ export const PlayerCard = ({ player, isAnimated, isSold, className, onClick, cat
           </p>
         </div>
       )}
-    </div>
+    </Root>
   );
 };
 
