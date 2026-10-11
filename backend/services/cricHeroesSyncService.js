@@ -452,8 +452,124 @@ const toCardShape = (s) => ({
     fetchedAt: s.fetchedAt
 });
 
+
+/**
+ * Every player in a tournament with whatever CricHeroes knows about them.
+ *
+ * The sync links only what it is sure of and parks the rest as `ambiguous`
+ * with its ranked runners-up. Those rows were being written and never read:
+ * there was nowhere to look at them, so a tournament sat on 97 unresolved
+ * players for good. This is what the review screen reads.
+ */
+const reviewForTournament = async (tournamentId) => {
+    const players = await prisma.player.findMany({
+        where: { touranmentId: tournamentId },
+        orderBy: { auctionSerialNumber: 'asc' },
+        select: {
+            id: true, name: true, photo: true, playerCategory: true,
+            skill: true, auctionSerialNumber: true,
+            cricHeroesLink: true
+        }
+    });
+
+    const linkedIds = players
+        .map((p) => p.cricHeroesLink?.cricheroesPlayerId)
+        .filter((id) => typeof id === 'number');
+    const stats = linkedIds.length
+        ? await prisma.cricHeroesStat.findMany({ where: { cricheroesPlayerId: { in: linkedIds } } })
+        : [];
+    const statById = new Map(stats.map((s) => [s.cricheroesPlayerId, s]));
+
+    return players.map((p) => {
+        const link = p.cricHeroesLink;
+        const stat = link?.cricheroesPlayerId ? statById.get(link.cricheroesPlayerId) : null;
+        return {
+            _id: p.id,
+            name: p.name,
+            photo: p.photo,
+            playerCategory: p.playerCategory,
+            skill: p.skill,
+            serial: p.auctionSerialNumber,
+            // No row at all means the sync has not reached them yet, which is
+            // different from having looked and found nothing.
+            status: link?.status || 'pending',
+            confidence: link?.confidence ?? null,
+            matchedName: link?.matchedName || null,
+            matchedCity: link?.matchedCity || null,
+            cricheroesPlayerId: link?.cricheroesPlayerId ?? null,
+            confirmedByUserId: link?.confirmedByUserId || null,
+            confirmedAt: link?.confirmedAt || null,
+            candidates: Array.isArray(link?.candidates) ? link.candidates : [],
+            lastError: link?.lastError || null,
+            stats: stat ? toCardShape(stat) : null
+        };
+    });
+};
+
+/**
+ * A person's decision about one player, which beats anything the matcher
+ * thinks. `cricheroesPlayerId` null means "none of these are them", recorded
+ * so the next sync does not offer the same candidates again.
+ */
+const resolveLink = async (tournamentId, playerId, cricheroesPlayerId, userId) => {
+    const player = await prisma.player.findUnique({
+        where: { id: playerId },
+        select: { id: true, name: true, touranmentId: true }
+    });
+    if (!player) throw new Error('Player not found');
+    if (String(player.touranmentId) !== String(tournamentId)) {
+        throw new Error('That player is not in this tournament');
+    }
+
+    const chosenId = cricheroesPlayerId == null ? null : Number(cricheroesPlayerId);
+    if (chosenId !== null && !Number.isInteger(chosenId)) {
+        throw new Error('cricheroesPlayerId must be a whole number or null');
+    }
+
+    const existing = await prisma.cricHeroesLink.findUnique({ where: { playerId } });
+    const chosen = chosenId === null
+        ? null
+        : (Array.isArray(existing?.candidates) ? existing.candidates : [])
+            .find((c) => Number(c.id) === chosenId) || null;
+
+    const base = {
+        tournamentId,
+        status: chosenId === null ? 'not_found' : 'linked',
+        cricheroesPlayerId: chosenId,
+        matchedName: chosen?.name || (chosenId === null ? null : existing?.matchedName || null),
+        matchedCity: chosen?.city || (chosenId === null ? null : existing?.matchedCity || null),
+        // A person said so: certainty, not a score.
+        confidence: chosenId === null ? null : 1,
+        confirmedByUserId: userId || null,
+        confirmedAt: new Date(),
+        lastError: null
+    };
+
+    await prisma.cricHeroesLink.upsert({
+        where: { playerId },
+        create: { playerId, ...base },
+        update: base
+    });
+
+    // Pull the numbers in straight away, so the card is populated by the time
+    // the reviewer looks at the next player.
+    let statsFetched = false;
+    if (chosenId !== null) {
+        try {
+            await refreshStats(chosenId);
+            statsFetched = true;
+        } catch (err) {
+            console.error(`[cricHeroes] stats fetch failed for ${chosenId}:`, err.message);
+        }
+    }
+
+    return { ok: true, playerId, status: base.status, statsFetched };
+};
+
 module.exports = {
     syncTournament,
+    reviewForTournament,
+    resolveLink,
     statsForTournament,
     refreshStats,
     selectPlayersToSync,

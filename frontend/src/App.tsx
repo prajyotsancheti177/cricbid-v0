@@ -30,6 +30,7 @@ import TournamentRegistrationSection from "./pages/workspace/TournamentRegistrat
 import TournamentAuctionSection from "./pages/workspace/TournamentAuctionSection";
 import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSection";
 import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSection";
+import TournamentCricHeroesSection from "./pages/workspace/TournamentCricHeroesSection";
 import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
 import TournamentDataSection from "./pages/workspace/TournamentDataSection";
 import TournamentPlayerSheetSection from "./pages/workspace/TournamentPlayerSheetSection";
@@ -239,6 +240,7 @@ const App = () => (
                 <Route path="add-player" element={<AddPlayer />} />
                 <Route path="bulk-upload" element={<BulkUpload />} />
                 <Route path="registration" element={<TournamentRegistrationSection />} />
+                <Route path="cricheroes" element={<TournamentCricHeroesSection />} />
                 <Route path="whatsapp" element={<TournamentWhatsAppSection />} />
                 <Route path="schedule" element={<TournamentScheduleSection />} />
                 <Route path="auction" element={<TournamentAuctionSection />} />
