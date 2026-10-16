@@ -284,6 +284,50 @@ const getAnalyticsSummary = async (startDate, endDate) => {
 };
 
 /**
+ * Get overall site activity overview across ALL event types (not just page_view)
+ * Used for the daily activity summary email
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @returns {Object} totalEvents, uniqueVisitors (sessions), uniqueLoggedInUsers, eventTypeBreakdown
+ */
+const getDailyActivityOverview = async (startDate, endDate) => {
+    const events = await prisma.userEvent.findMany({
+        where: {
+            timestamp: {
+                gte: new Date(startDate),
+                lte: new Date(endDate)
+            }
+        },
+        select: {
+            eventType: true,
+            sessionId: true,
+            userId: true
+        }
+    });
+
+    const eventTypeCounts = new Map();
+    const uniqueSessions = new Set();
+    const uniqueUsers = new Set();
+
+    for (const ev of events) {
+        eventTypeCounts.set(ev.eventType, (eventTypeCounts.get(ev.eventType) || 0) + 1);
+        if (ev.sessionId) uniqueSessions.add(ev.sessionId);
+        if (ev.userId) uniqueUsers.add(ev.userId);
+    }
+
+    const eventTypeBreakdown = Array.from(eventTypeCounts.entries())
+        .map(([eventType, count]) => ({ eventType, count }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+        totalEvents: events.length,
+        uniqueVisitors: uniqueSessions.size,
+        uniqueLoggedInUsers: uniqueUsers.size,
+        eventTypeBreakdown
+    };
+};
+
+/**
  * Get unique IP addresses from page_view events in date range
  * Replaces: UserEvent.aggregate([{$match page_view + ipAddress exists}, {$group by ipAddress}])
  * @param {Date} startDate - Start date
@@ -316,5 +360,6 @@ module.exports = {
     getMonthlyPageViews,
     getPageTrafficBreakdown,
     getAnalyticsSummary,
+    getDailyActivityOverview,
     getUniqueIPsByDateRange
 };
