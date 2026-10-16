@@ -284,6 +284,59 @@ const getAnalyticsSummary = async (startDate, endDate) => {
 };
 
 /**
+ * Get a full daily activity summary across all event types in a date range.
+ * Replaces: UserEvent.aggregate([{$match date range}, {$group by eventType/page/session/user}])
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @returns {Object} Summary with totals, event type breakdown and top pages
+ */
+const getDailyActivitySummary = async (startDate, endDate) => {
+    const events = await prisma.userEvent.findMany({
+        where: {
+            timestamp: {
+                gte: new Date(startDate),
+                lte: new Date(endDate)
+            }
+        },
+        select: {
+            eventType: true,
+            sessionId: true,
+            userId: true,
+            page: true
+        }
+    });
+
+    const uniqueSessions = new Set();
+    const uniqueUsers = new Set();
+    const byEventType = new Map();
+    const byPage = new Map();
+
+    for (const ev of events) {
+        if (ev.sessionId) uniqueSessions.add(ev.sessionId);
+        if (ev.userId) uniqueUsers.add(ev.userId);
+        byEventType.set(ev.eventType, (byEventType.get(ev.eventType) || 0) + 1);
+        if (ev.page) byPage.set(ev.page, (byPage.get(ev.page) || 0) + 1);
+    }
+
+    const eventTypeBreakdown = Array.from(byEventType.entries())
+        .map(([eventType, count]) => ({ eventType, count }))
+        .sort((a, b) => b.count - a.count);
+
+    const topPages = Array.from(byPage.entries())
+        .map(([page, count]) => ({ page, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+    return {
+        totalEvents: events.length,
+        uniqueVisitors: uniqueSessions.size,
+        uniqueUsers: uniqueUsers.size,
+        eventTypeBreakdown,
+        topPages
+    };
+};
+
+/**
  * Get unique IP addresses from page_view events in date range
  * Replaces: UserEvent.aggregate([{$match page_view + ipAddress exists}, {$group by ipAddress}])
  * @param {Date} startDate - Start date
@@ -316,5 +369,6 @@ module.exports = {
     getMonthlyPageViews,
     getPageTrafficBreakdown,
     getAnalyticsSummary,
+    getDailyActivitySummary,
     getUniqueIPsByDateRange
 };
