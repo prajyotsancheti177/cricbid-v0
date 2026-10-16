@@ -306,6 +306,68 @@ const getUniqueIPsByDateRange = async (startDate, endDate) => {
     return groups.map(g => g.ipAddress).filter(Boolean);
 };
 
+/**
+ * Get event counts grouped by eventType across the whole site (not tournament-scoped)
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @returns {Array} Event counts grouped by eventType, sorted descending
+ */
+const getEventTypeBreakdown = async (startDate, endDate) => {
+    const groups = await prisma.userEvent.groupBy({
+        by: ['eventType'],
+        where: {
+            timestamp: {
+                gte: new Date(startDate),
+                lte: new Date(endDate)
+            }
+        },
+        _count: { _all: true }
+    });
+
+    return groups
+        .map(g => ({ eventType: g.eventType, count: g._count._all }))
+        .sort((a, b) => b.count - a.count);
+};
+
+/**
+ * Get site-wide activity overview (all event types) for a date range
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @returns {Object} Overview with totalEvents, uniqueUsers, uniqueSessions, uniqueIPs
+ */
+const getDailyOverview = async (startDate, endDate) => {
+    const events = await prisma.userEvent.findMany({
+        where: {
+            timestamp: {
+                gte: new Date(startDate),
+                lte: new Date(endDate)
+            }
+        },
+        select: {
+            userId: true,
+            sessionId: true,
+            ipAddress: true
+        }
+    });
+
+    const uniqueUsers = new Set();
+    const uniqueSessions = new Set();
+    const uniqueIPs = new Set();
+
+    for (const ev of events) {
+        if (ev.userId) uniqueUsers.add(ev.userId);
+        if (ev.sessionId) uniqueSessions.add(ev.sessionId);
+        if (ev.ipAddress) uniqueIPs.add(ev.ipAddress);
+    }
+
+    return {
+        totalEvents: events.length,
+        uniqueUsers: uniqueUsers.size,
+        uniqueSessions: uniqueSessions.size,
+        uniqueIPs: uniqueIPs.size
+    };
+};
+
 module.exports = {
     trackEvent,
     trackEvents,
@@ -316,5 +378,7 @@ module.exports = {
     getMonthlyPageViews,
     getPageTrafficBreakdown,
     getAnalyticsSummary,
-    getUniqueIPsByDateRange
+    getUniqueIPsByDateRange,
+    getEventTypeBreakdown,
+    getDailyOverview
 };
