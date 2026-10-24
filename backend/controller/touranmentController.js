@@ -187,14 +187,24 @@ const downloadPaymentQr = async (req, res) => {
         const upstream = await fetch(target.toString());
         if (!upstream.ok) return sendError(res, 502, "Could not fetch the QR image");
 
-        const type = upstream.headers.get("content-type") || "image/png";
-        if (!type.startsWith("image/")) return sendError(res, 502, "That is not an image");
-
-        const ext = (type.split("/")[1] || "png").split(";")[0].replace("jpeg", "jpg");
+        // S3 serves these as application/octet-stream — the uploader does not set
+        // a content type — so the extension is the reliable signal and an
+        // image/* check on the response would reject every real QR. Anything
+        // actively wrong (an HTML error page) is still refused.
+        const EXT_TYPES = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+        const upstreamType = (upstream.headers.get("content-type") || "").split(";")[0].trim();
+        if (upstreamType.startsWith("text/") || upstreamType === "application/json") {
+            return sendError(res, 502, "That is not an image");
+        }
+        const ext = (target.pathname.split(".").pop() || "").toLowerCase();
+        const type = upstreamType.startsWith("image/")
+            ? upstreamType
+            : (EXT_TYPES[ext] || "image/png");
         const base = String(tournament.name || "tournament").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60);
 
         res.setHeader("Content-Type", type);
-        res.setHeader("Content-Disposition", `attachment; filename="${base}-payment-qr.${ext}"`);
+        const outExt = (type.split("/")[1] || "png").replace("jpeg", "jpg");
+        res.setHeader("Content-Disposition", `attachment; filename="${base}-payment-qr.${outExt}"`);
         res.setHeader("Cache-Control", "public, max-age=300");
         return res.send(Buffer.from(await upstream.arrayBuffer()));
     } catch (error) {
