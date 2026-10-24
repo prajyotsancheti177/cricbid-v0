@@ -285,45 +285,21 @@ const PublicPlayerRegistration = () => {
   const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
   // On unless the host turned it off — a panel saved before this existed has no
   // flag, and should still offer the button.
+  // On unless the host turned it off — a panel saved before this existed has no
+  // flag, and should still offer the button.
   const canDownloadQr = showQr && paymentPanel?.qrDownload !== false;
-  const [savingQr, setSavingQr] = useState(false);
 
   /**
-   * Save the QR to the phone.
+   * Served from our own origin rather than linking at the image on S3.
    *
    * Most people filling this form are on the phone they would pay from, so
-   * there is no second device to scan with — they have to open the image in
-   * their UPI app's "scan from gallery". A plain <a download> does not do it:
-   * the QR is served from S3, and the download attribute is ignored
-   * cross-origin, so the browser navigates to the image instead of saving it.
-   * Fetching it as a blob keeps the filename and the save.
+   * there is no second device to scan with — they need the image saved so a
+   * UPI app can read it from the gallery. S3 sends no CORS headers and the
+   * `download` attribute is ignored cross-origin, so a direct link could only
+   * open the image in a tab. This endpoint streams the same bytes back with an
+   * attachment header, which every browser treats as a real download.
    */
-  const downloadQr = async () => {
-    const src = paymentPanel?.qrImage;
-    if (!src) return;
-    setSavingQr(true);
-    try {
-      const res = await fetch(src, { mode: "cors" });
-      if (!res.ok) throw new Error(String(res.status));
-      const blob = await res.blob();
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
-      a.download = `${(tournamentName || "tournament").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-payment-qr.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Revoked on a delay: Safari has not finished reading it when click returns.
-      setTimeout(() => URL.revokeObjectURL(href), 10000);
-    } catch {
-      // Blocked by CORS or offline — opening it still lets them long-press to
-      // save, which is better than the button doing nothing.
-      window.open(src, "_blank", "noopener");
-    } finally {
-      setSavingQr(false);
-    }
-  };
+  const qrDownloadHref = `${apiConfig.baseUrl}/api/tournament/${tournamentId}/payment-qr`;
 
   const copyUpiId = async () => {
     try {
@@ -824,18 +800,11 @@ const PublicPlayerRegistration = () => {
                           className="w-44 h-44 object-contain rounded-lg border bg-white p-2"
                         />
                         {canDownloadQr && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadQr}
-                            disabled={savingQr}
-                            className="w-44 gap-1.5"
-                          >
-                            {savingQr
-                              ? <Loader2 className="h-4 w-4 animate-spin" />
-                              : <Download className="h-4 w-4" />}
-                            Download QR
+                          <Button asChild type="button" variant="outline" size="sm" className="w-44 gap-1.5">
+                            <a href={qrDownloadHref} download>
+                              <Download className="h-4 w-4" />
+                              Download QR
+                            </a>
                           </Button>
                         )}
                       </div>

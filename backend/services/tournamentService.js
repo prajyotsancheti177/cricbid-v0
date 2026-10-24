@@ -365,7 +365,30 @@ const updateRegistrationConfig = async (tournamentId, configData, userId) => {
     }
 };
 
+
+/**
+ * What the payment-QR download needs: the tournament's name and the stored
+ * image URL, plus whether the host allows downloading it.
+ */
+const getPaymentQrTarget = async (tournamentId) => {
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: String(tournamentId) },
+        select: { name: true, registrationFormConfig: true },
+    });
+    if (!tournament) return null;
+
+    const panel = (tournament.registrationFormConfig || {}).paymentPanel || {};
+    return {
+        name: tournament.name,
+        qrImage: panel.qrImage || null,
+        enabled: !!panel.enabled,
+        // Undefined means on — panels predate the flag.
+        downloadAllowed: panel.qrDownload !== false,
+    };
+};
+
 module.exports = {
+    getPaymentQrTarget,
     createTournament,
     getAllTournaments,
     getManagedTournamentsForAdmin,

@@ -155,7 +155,55 @@ const uploadImage = async (req, res) => {
     }
 };
 
+
+/**
+ * Stream this tournament's payment QR back as a download.
+ *
+ * The image lives on S3, which sends no CORS headers, so the browser cannot
+ * fetch it as a blob and the `download` attribute is ignored cross-origin —
+ * the button could only open the image in a tab and leave the player to
+ * long-press it. Serving the bytes from our own origin with an attachment
+ * header makes it an actual download on every browser.
+ *
+ * Only ever streams the URL stored on that tournament, never one supplied by
+ * the caller, and only from the host the uploader writes to — so this cannot
+ * be pointed at an internal address.
+ */
+const downloadPaymentQr = async (req, res) => {
+    try {
+        const tournament = await tournamentService.getPaymentQrTarget(req.params.id);
+        if (!tournament) return sendError(res, 404, "Tournament not found");
+        if (!tournament.enabled || !tournament.qrImage) return sendError(res, 404, "No payment QR for this tournament");
+        if (!tournament.downloadAllowed) return sendError(res, 403, "Downloading the QR is turned off for this tournament");
+
+        let target;
+        try {
+            target = new URL(tournament.qrImage);
+        } catch {
+            return sendError(res, 400, "The stored QR image is not a URL");
+        }
+        if (target.protocol !== "https:") return sendError(res, 400, "The stored QR image is not served over https");
+
+        const upstream = await fetch(target.toString());
+        if (!upstream.ok) return sendError(res, 502, "Could not fetch the QR image");
+
+        const type = upstream.headers.get("content-type") || "image/png";
+        if (!type.startsWith("image/")) return sendError(res, 502, "That is not an image");
+
+        const ext = (type.split("/")[1] || "png").split(";")[0].replace("jpeg", "jpg");
+        const base = String(tournament.name || "tournament").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60);
+
+        res.setHeader("Content-Type", type);
+        res.setHeader("Content-Disposition", `attachment; filename="${base}-payment-qr.${ext}"`);
+        res.setHeader("Cache-Control", "public, max-age=300");
+        return res.send(Buffer.from(await upstream.arrayBuffer()));
+    } catch (error) {
+        return sendError(res, 500, "Could not download the QR image", error);
+    }
+};
+
 module.exports = {
+    downloadPaymentQr,
     addTournamnet,
     getAllTournaments,
     getManagedTournaments,

@@ -33,6 +33,9 @@ tournamentRouter.post("/export", authMiddleware, roleMiddleware(['boss', 'super_
 
 // Get Public Registration Config - Public
 tournamentRouter.get("/:id/registration-config", requireTournamentVisible, touranmentController.getRegistrationConfig);
+// Public like the registration form it belongs to, and behind the same
+// visibility rule — a private tournament's QR is not handed to strangers.
+tournamentRouter.get("/:id/payment-qr", requireTournamentVisible, touranmentController.downloadPaymentQr);
 
 // Update Registration Config - Protected
 tournamentRouter.post("/update-registration-config", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.updateRegistrationConfig);
