@@ -92,6 +92,10 @@ const sanitizePaymentPanel = (panel) => {
         ...panel,
         mode,
         text: cleanText(panel.text, MAX_TEXT),
+        // Whether the form offers a Download button under the QR. On unless the
+        // host turns it off, so every panel saved before this existed keeps the
+        // button — undefined means "not yet decided", which is the same as on.
+        qrDownload: panel.qrDownload !== false,
     };
 
     if (!panel.enabled) return sanitized;

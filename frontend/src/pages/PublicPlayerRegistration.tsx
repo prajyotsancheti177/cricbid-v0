@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy } from "lucide-react";
+import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy, Download } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
@@ -283,6 +283,47 @@ const PublicPlayerRegistration = () => {
   const feeLabel = paymentPanel?.amount ? `₹${paymentPanel.amount}` : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
   const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
+  // On unless the host turned it off — a panel saved before this existed has no
+  // flag, and should still offer the button.
+  const canDownloadQr = showQr && paymentPanel?.qrDownload !== false;
+  const [savingQr, setSavingQr] = useState(false);
+
+  /**
+   * Save the QR to the phone.
+   *
+   * Most people filling this form are on the phone they would pay from, so
+   * there is no second device to scan with — they have to open the image in
+   * their UPI app's "scan from gallery". A plain <a download> does not do it:
+   * the QR is served from S3, and the download attribute is ignored
+   * cross-origin, so the browser navigates to the image instead of saving it.
+   * Fetching it as a blob keeps the filename and the save.
+   */
+  const downloadQr = async () => {
+    const src = paymentPanel?.qrImage;
+    if (!src) return;
+    setSavingQr(true);
+    try {
+      const res = await fetch(src, { mode: "cors" });
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      a.download = `${(tournamentName || "tournament").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-payment-qr.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoked on a delay: Safari has not finished reading it when click returns.
+      setTimeout(() => URL.revokeObjectURL(href), 10000);
+    } catch {
+      // Blocked by CORS or offline — opening it still lets them long-press to
+      // save, which is better than the button doing nothing.
+      window.open(src, "_blank", "noopener");
+    } finally {
+      setSavingQr(false);
+    }
+  };
 
   const copyUpiId = async () => {
     try {
@@ -776,11 +817,28 @@ const PublicPlayerRegistration = () => {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 items-start">
                     {showQr && (
-                      <img
-                        src={config.paymentPanel.qrImage}
-                        alt="Payment QR code"
-                        className="w-44 h-44 object-contain rounded-lg border bg-white p-2 shrink-0 mx-auto sm:mx-0"
-                      />
+                      <div className="flex flex-col items-center gap-2 shrink-0 mx-auto sm:mx-0">
+                        <img
+                          src={config.paymentPanel.qrImage}
+                          alt="Payment QR code"
+                          className="w-44 h-44 object-contain rounded-lg border bg-white p-2"
+                        />
+                        {canDownloadQr && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadQr}
+                            disabled={savingQr}
+                            className="w-44 gap-1.5"
+                          >
+                            {savingQr
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Download className="h-4 w-4" />}
+                            Download QR
+                          </Button>
+                        )}
+                      </div>
                     )}
                     {config.paymentPanel.text && (
                       <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">

@@ -25,6 +25,8 @@ interface PaymentPanelConfig {
   upiId?: string;
   payeeName?: string;
   amount?: number | string;
+  /** Offer a Download button under the QR. Undefined means on. */
+  qrDownload?: boolean;
 }
 
 interface fieldConfig {
@@ -967,6 +969,20 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
 
                     {showQrField && (
                     <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="pr-2">
+                          <Label>Let players download the QR</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Adds a Download button under the QR, so it can be saved and opened
+                            in a UPI app — which is how anyone paying from the same phone has
+                            to do it, since there is no camera to scan with.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={config.paymentPanel?.qrDownload !== false}
+                          onCheckedChange={(c) => updatePaymentPanel({ qrDownload: c })}
+                        />
+                      </div>
                       <Label>QR code image</Label>
                       {config.paymentPanel?.qrImage ? (
                         <div className="flex items-start gap-3">
