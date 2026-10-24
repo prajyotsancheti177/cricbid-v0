@@ -28,3 +28,6 @@ backups/
 # SSH keys — never commit
 *.pem
 .claude/*.pem
+
+# graphify knowledge graph outputs (regenerated; ~6.5MB)
+graphify-out/
