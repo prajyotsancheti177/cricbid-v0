@@ -89,6 +89,35 @@ export interface UpiUriOptions {
    * while accepting the same payee with the amount typed by hand.
    */
   includeAmount?: boolean;
+  /**
+   * Transaction reference, unique per payment attempt.
+   *
+   * Mandatory in the UPI Linking Specification for a dynamic link — one that
+   * carries an amount — and we were omitting it, which is a likely cause of
+   * the "you have exceeded the bank limit for this payment" refusal: that
+   * message is a catch-all the UPI apps use for a payload they would not
+   * accept, not a real bank limit.
+   *
+   * Passed in rather than generated here so the builder stays pure and the
+   * caller can hold one reference steady across re-renders — a link whose
+   * reference changed on every render would be a different transaction each
+   * time the component painted. Use `newUpiReference()`.
+   */
+  reference?: string;
+}
+
+/**
+ * A reference for one payment attempt: `CB` + time + random, uppercase
+ * alphanumeric.
+ *
+ * Short on purpose. Apps vary in what they accept and the specification's own
+ * examples are order numbers, so this stays well inside 35 characters and
+ * avoids every separator.
+ */
+export function newUpiReference(): string {
+  const stamp = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `CB${stamp}${rand}`.toUpperCase().slice(0, 32);
 }
 
 export function buildUpiUri(panel: PaymentPanelConfig, options: UpiUriOptions = {}): string | null {
@@ -120,6 +149,11 @@ export function buildUpiUri(panel: PaymentPanelConfig, options: UpiUriOptions = 
   }
 
   params.push("cu=INR");
+
+  // `tr` is mandatory for a dynamic (amount-bearing) link, and is what we were
+  // missing. Included whenever the caller supplies one, amount or not: the
+  // no-amount fallback is still one identifiable attempt.
+  if (options.reference) params.push(`tr=${encodeURIComponent(options.reference)}`);
 
   // The note is the host's own payment instructions, which run to several
   // lines and carry "/", "-" and brackets. Apps parse the note strictly and
@@ -164,9 +198,10 @@ export const UPI_APPS = [
  * Without `pkg` Android shows the chooser ("any UPI app"); with it the payment
  * opens in that one app, which is the most reliable route out of a WebView.
  *
- * Deliberately no `mc` or `tr`: `mc` is a merchant category code, which a
- * personal UPI ID is not entitled to claim, and a `tr` that is the same for
- * every player is read as a repeated transaction and refused.
+ * No `mc`: that is a merchant category code, which a personal UPI ID is not
+ * entitled to claim. `tr` IS sent now — it is mandatory for an amount-bearing
+ * link, and the earlier reasoning here (that a shared reference is refused as
+ * a repeat) argued for making it unique, not for leaving it out.
  */
 export function buildUpiIntentUri(
   panel: PaymentPanelConfig,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartph
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
-import { buildUpiUri, buildUpiIntentUri, isAndroid, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
+import { buildUpiUri, buildUpiIntentUri, isAndroid, newUpiReference, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
 import { authHeaders } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
@@ -256,9 +256,13 @@ const PublicPlayerRegistration = () => {
   const showQr = !!(paymentPanel?.qrImage) && (paymentMode === 'qr' || paymentMode === 'both');
   const showUpiLinks = (paymentMode === 'upi' || paymentMode === 'both') && !!paymentPanel;
   /** The normal link: payee, name and the fee filled in. */
-  const upiUri = showUpiLinks ? buildUpiUri(paymentPanel!) : null;
+  // One reference for this visit. Held steady so every button on the panel
+  // describes the same attempt, rather than a new transaction per render.
+  const upiReference = useMemo(() => newUpiReference(), []);
+
+  const upiUri = showUpiLinks ? buildUpiUri(paymentPanel!, { reference: upiReference }) : null;
   /** Same payee, no amount — for apps that refuse a pre-filled amount. */
-  const upiUriNoAmount = showUpiLinks ? buildUpiUri(paymentPanel!, { includeAmount: false }) : null;
+  const upiUriNoAmount = showUpiLinks ? buildUpiUri(paymentPanel!, { includeAmount: false, reference: upiReference }) : null;
 
   // In-app browsers — WhatsApp, Instagram, Facebook, where a shared
   // registration link is usually opened — refuse to hand a `upi://` link to the
@@ -274,11 +278,11 @@ const PublicPlayerRegistration = () => {
   // payee, with the amount typed in, goes through. So the main button opens the
   // app ready to pay, and the fee is shown next to it to type in.
   const payHref = showUpiLinks
-    ? (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false }) : upiUriNoAmount)
+    ? (android ? buildUpiIntentUri(paymentPanel!, { includeAmount: false, reference: upiReference }) : upiUriNoAmount)
     : null;
   /** Optional: the same payment with the fee filled in, for apps that accept it. */
   const payHrefExact = showUpiLinks
-    ? (android ? buildUpiIntentUri(paymentPanel!) : upiUri)
+    ? (android ? buildUpiIntentUri(paymentPanel!, { reference: upiReference }) : upiUri)
     : null;
   const feeLabel = paymentPanel?.amount ? `₹${paymentPanel.amount}` : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
@@ -837,7 +841,7 @@ const PublicPlayerRegistration = () => {
                       {android && (
                         <div className="flex flex-wrap gap-2">
                           {UPI_APPS.map((app) => {
-                            const href = buildUpiIntentUri(paymentPanel!, { includeAmount: false }, app.pkg);
+                            const href = buildUpiIntentUri(paymentPanel!, { includeAmount: false, reference: upiReference }, app.pkg);
                             return href ? (
                               <a
                                 key={app.key}
