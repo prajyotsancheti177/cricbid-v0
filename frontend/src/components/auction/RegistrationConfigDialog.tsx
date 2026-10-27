@@ -877,7 +877,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                   <div className="pr-4">
                     <h4 className="font-medium">Show a payment panel on the form</h4>
                     <p className="text-sm text-muted-foreground">
-                      Display a QR code and/or a UPI link so players can pay the registration fee while filling the form.
+                      Display a QR code, a UPI link, or just a note to players — whatever this form needs.
                     </p>
                   </div>
                   <Switch
@@ -896,6 +896,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">No payment — note only</SelectItem>
                           <SelectItem value="qr">QR code only</SelectItem>
                           <SelectItem value="upi">UPI link only</SelectItem>
                           <SelectItem value="both">QR code and UPI link</SelectItem>
@@ -1018,9 +1019,11 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                     )}
 
                     <div className="space-y-2">
-                      <Label>Payment instructions (optional)</Label>
+                      <Label>{paymentMode === 'none' ? 'Note for players' : 'Payment instructions (optional)'}</Label>
                       <Textarea
-                        placeholder="e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."
+                        placeholder={paymentMode === 'none'
+                          ? "e.g. Registration closes on 15 November. Bring your own kit — no spikes on the mat."
+                          : "e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."}
                         value={config.paymentPanel?.text || ''}
                         onChange={(e) => updatePaymentPanel({ text: e.target.value })}
                         rows={3}

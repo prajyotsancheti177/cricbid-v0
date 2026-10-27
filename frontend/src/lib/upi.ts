@@ -21,7 +21,8 @@ export const MAX_UPI_NAME = 50;
 /** Transaction notes longer than this are rejected by some apps. */
 export const MAX_UPI_NOTE = 50;
 
-export type PaymentMode = "qr" | "upi" | "both";
+/** "none" is a panel that carries only the host's note — no QR, no UPI link. */
+export type PaymentMode = "none" | "qr" | "upi" | "both";
 
 export interface PaymentPanelConfig {
   enabled?: boolean;
