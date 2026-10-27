@@ -131,6 +131,7 @@ const sanitizePaymentPanel = (panel) => {
 
 module.exports = {
     sanitizePaymentPanel,
+    cleanText,
     normalizeUpiId,
     PAYMENT_MODES,
     MAX_AMOUNT,

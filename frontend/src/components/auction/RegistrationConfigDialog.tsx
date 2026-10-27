@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectRecentlyInteracted } from "@/components/form/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, Trash2, QrCode, UploadCloud, X, Image as ImageIcon, Info } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { compressImage } from "@/lib/imageCompressor";
 import { isValidUpiId, isPhoneUpiId, type PaymentMode } from "@/lib/upi";
@@ -68,6 +68,7 @@ interface RegistrationConfig {
   paymentProofOptOut?: boolean;   // host turned the payment-screenshot upload off
   paymentProofRequired?: boolean; // must the screenshot be uploaded to submit? (absent = yes)
   posterImage?: string;            // tournament logo/poster shown at the top of the public form (S3 URL)
+  formNote?: string;               // free-text note shown above the form itself; unrelated to payment
 }
 
 const defaultFields = {
@@ -147,6 +148,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
           showProfileLogin: data.data.registrationFormConfig.showProfileLogin !== false,
           paymentPanel: data.data.registrationFormConfig.paymentPanel || { enabled: false, qrImage: '', text: '' },
           posterImage: data.data.registrationFormConfig.posterImage || '',
+          formNote: data.data.registrationFormConfig.formNote || '',
         });
       } else {
         setConfig({ isActive: false, fields: defaultFields, customFields: [buildPaymentProofField(true)], showProfileLogin: true, paymentProofRequired: true, paymentPanel: { enabled: false, qrImage: '', text: '' } });
@@ -466,6 +468,27 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                     <span className="text-sm">Upload a logo or poster image</span>
                   </label>
                 )}
+              </div>
+            </div>
+
+            {/* A note to players, independent of the payment panel — dates,
+                venue, what to bring. A form that collects no money still has
+                things to say. */}
+            <div>
+              <h4 className="font-semibold text-md border-b pb-2 mb-4 flex items-center gap-2">
+                <Info className="h-4 w-4" /> Note to players (optional)
+              </h4>
+              <div className="p-4 bg-muted/50 rounded-lg border space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Shown on the registration page just above the form. Leave it empty for no note.
+                </p>
+                <Textarea
+                  placeholder="e.g. Registration closes on 15 November. Matches are on Saturdays at Jain Sports Ground."
+                  value={config.formNote || ''}
+                  onChange={(e) => setConfig(prev => ({ ...prev, formNote: e.target.value }))}
+                  rows={3}
+                  maxLength={500}
+                />
               </div>
             </div>
 
@@ -877,7 +900,7 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                   <div className="pr-4">
                     <h4 className="font-medium">Show a payment panel on the form</h4>
                     <p className="text-sm text-muted-foreground">
-                      Display a QR code, a UPI link, or just a note to players — whatever this form needs.
+                      Display a QR code and/or a UPI link so players can pay the registration fee while filling the form.
                     </p>
                   </div>
                   <Switch
@@ -896,7 +919,6 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No payment — note only</SelectItem>
                           <SelectItem value="qr">QR code only</SelectItem>
                           <SelectItem value="upi">UPI link only</SelectItem>
                           <SelectItem value="both">QR code and UPI link</SelectItem>
@@ -1019,11 +1041,9 @@ export function RegistrationConfigDialog({ isOpen, onClose, tournamentId, tourna
                     )}
 
                     <div className="space-y-2">
-                      <Label>{paymentMode === 'none' ? 'Note for players' : 'Payment instructions (optional)'}</Label>
+                      <Label>Payment instructions (optional)</Label>
                       <Textarea
-                        placeholder={paymentMode === 'none'
-                          ? "e.g. Registration closes on 15 November. Bring your own kit — no spikes on the mat."
-                          : "e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."}
+                        placeholder="e.g. Registration fee ₹500. Scan the QR to pay, then submit the form. Mention your name in the payment note."
                         value={config.paymentPanel?.text || ''}
                         onChange={(e) => updatePaymentPanel({ text: e.target.value })}
                         rows={3}

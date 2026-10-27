@@ -3,7 +3,7 @@ const { canManageAnything, isAdminRole } = require("../utils/tournamentAccess");
 const googleService = require("../utils/googleService");
 const { serializeTournament, serializeTeam, serializePlayer } = require("../utils/serialize");
 const eventService = require("./eventService");
-const { sanitizePaymentPanel } = require("../utils/paymentConfig");
+const { sanitizePaymentPanel, cleanText } = require("../utils/paymentConfig");
 
 // Whitelist of tournament fields writable from request bodies
 const TOURNAMENT_FIELDS = [
@@ -349,6 +349,11 @@ const updateRegistrationConfig = async (tournamentId, configData, userId) => {
         }
 
         const safeConfig = { ...configData, paymentPanel: sanitizePaymentPanel(configData.paymentPanel) };
+        // The note is rendered as text on a public page, so it gets the same
+        // control-character strip and length cap as the payment instructions.
+        if (configData.formNote !== undefined) {
+            safeConfig.formNote = cleanText(configData.formNote, 500);
+        }
 
         if (safeConfig.isActive && safeConfig.googleSheetId) {
             await googleService.initializeSheetHeaders(safeConfig.googleSheetId, safeConfig);

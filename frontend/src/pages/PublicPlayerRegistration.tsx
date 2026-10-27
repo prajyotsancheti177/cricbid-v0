@@ -287,9 +287,6 @@ const PublicPlayerRegistration = () => {
   const feeLabel = paymentPanel?.amount ? `₹${paymentPanel.amount}` : null;
   // The deep link is inert on desktop, so the UPI id is always shown as text too.
   const showPaymentPanel = !!paymentPanel?.enabled && (showQr || !!upiUriNoAmount || !!paymentPanel?.text);
-  // A panel with nothing to pay with is just the host's note, so it should not
-  // announce itself as a payment.
-  const noteOnly = showPaymentPanel && !showQr && !(showUpiLinks && paymentPanel?.upiId);
   // On unless the host turned it off — a panel saved before this existed has no
   // flag, and should still offer the button.
   // On unless the host turned it off — a panel saved before this existed has no
@@ -570,6 +567,18 @@ const PublicPlayerRegistration = () => {
           </p>
         </div>
 
+        {config?.formNote && (
+          <div className="mb-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
+            <div className="flex items-center gap-2 mb-2 font-semibold text-primary">
+              <Info className="w-5 h-5" />
+              Before you register
+            </div>
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+              {config.formNote}
+            </p>
+          </div>
+        )}
+
         <Card className="shadow-xl border-border/50 bg-card/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -795,8 +804,8 @@ const PublicPlayerRegistration = () => {
               {showPaymentPanel && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-primary font-semibold">
-                    {noteOnly ? <Info className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
-                    {noteOnly ? 'Before you register' : 'Registration Payment'}
+                    <QrCode className="w-5 h-5" />
+                    Registration Payment
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 items-start">
                     {showQr && (
@@ -827,7 +836,7 @@ const PublicPlayerRegistration = () => {
                       complete link (payee, name and amount) — without those the
                       UPI apps refuse it as a bank-limit error, so no button is
                       offered and copying the ID remains the way to pay. */}
-                  {showUpiLinks && paymentPanel?.upiId && (
+                  {paymentPanel?.upiId && (
                     <div className="space-y-2 pt-3 border-t border-primary/20">
                       {payHref && (
                         <a
