@@ -47,6 +47,7 @@ import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
 import CountdownOverlay from "./pages/overlays/CountdownOverlay";
 import BroadcastOverlay from "./pages/overlays/BroadcastOverlay";
+import PlayerCard from "./pages/PlayerCard";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import DeleteAccount from "./pages/DeleteAccount";
@@ -186,6 +187,14 @@ const App = () => (
             <Route path="/overlay/:tournamentId/countdown" element={<CountdownOverlay />} />
             {/* Television-style bottom strip, for a full-bleed camera feed */}
             <Route path="/overlay/:tournamentId/broadcast" element={<BroadcastOverlay />} />
+
+            {/* Shareable player card — public by design, opened from the sold
+                WhatsApp message. /c/ is the short form printed on the image;
+                the /tournament/... form is what the approved WhatsApp button
+                produces, since its base URL is fixed on the Meta dashboard. */}
+            <Route path="/c/:code" element={<PlayerCard />} />
+            <Route path="/card/:code" element={<PlayerCard />} />
+            <Route path="/tournament/:tournamentId/card/:code" element={<PlayerCard />} />
 
             {/* App Routes - With Navbar */}
             <Route element={<AppLayout />}>

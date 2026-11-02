@@ -271,6 +271,11 @@ model Player {
 
   cricHeroesLink CricHeroesLink?
 
+  // Short, printable id for the public player card — it is rendered onto the
+  // shared image, so it has to be typeable. Null until the card is first
+  // opened; generated then, never reused.
+  shareCode String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

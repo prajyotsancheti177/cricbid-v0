@@ -19,6 +19,8 @@ export interface TournamentFeatures {
   cricHeroesStats?: boolean;
   countdownEnabled?: boolean;
   countdownSeconds?: number;
+  /** Optional live-stream URL, shown on the card page and sent with results. */
+  streamUrl?: string;
 }
 
 export interface WorkspaceTournament {

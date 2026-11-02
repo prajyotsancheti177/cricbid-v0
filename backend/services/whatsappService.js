@@ -2,6 +2,7 @@ const axios = require('axios');
 const config = require('../config');
 const prisma = require('../db/prisma');
 const whatsappLogService = require('./whatsappLogService');
+const playerCardService = require('./playerCardService');
 
 // ─── Default config (all enabled) ────────────────────────────────────────────
 const DEFAULT_WHATSAPP_CONFIG = {
@@ -80,6 +81,29 @@ const sendTemplate = async ({ to, templateName, bodyParams, buttonParam, logData
   return response.data;
 };
 
+/**
+ * Where the sold notification's button should land.
+ *
+ * The card is the better destination — it is the thing the player wants to
+ * see and share — but a card needs a short code, and allocating one must
+ * never be the reason a sold notification fails to send. So any problem here
+ * falls back to the tournament page, which is where this button went before.
+ */
+const soldButtonPath = async ({ tournamentId, playerId }) => {
+  const fallback = '/' + (tournamentId || 'a');
+  if (!playerId) return fallback;
+  try {
+    const player = await prisma.player.findUnique({
+      where: { id: playerId }, select: { shareCode: true },
+    });
+    const code = await playerCardService.ensureShareCode(playerId, player && player.shareCode);
+    return code ? `/${tournamentId || 'a'}/card/${code}` : fallback;
+  } catch (err) {
+    console.error('[WhatsApp] could not resolve a card link, using the tournament page:', err.message);
+    return fallback;
+  }
+};
+
 // ─── 1. Player sold ───────────────────────────────────────────────────────────
 const sendPlayerSoldNotification = async (playerData) => {
   const { name, mobile, teamName, amtSold, tournamentId, playerId } = playerData;
@@ -104,7 +128,11 @@ const sendPlayerSoldNotification = async (playerData) => {
     return await sendTemplate({
       to, templateName: 'sold_message',
       bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentName || 'Tournament'],
-      buttonParam: '/' + (tournamentId || 'a'),
+      // sold_message's URL button is https://cricbid.online/tournament{{1}},
+      // so the suffix is a path. Sending the card path reuses the already
+      // approved template instead of waiting on a new one. Falls back to the
+      // tournament page when the card has no code yet.
+      buttonParam: await soldButtonPath({ tournamentId, playerId }),
       logData,
     });
   } catch (err) {

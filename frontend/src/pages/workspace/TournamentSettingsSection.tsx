@@ -60,6 +60,10 @@ const TournamentSettingsSection = () => {
   const [countdownEnabled, setCountdownEnabled] = useState<boolean>(currentFeatures.countdownEnabled ?? false);
   const [countdownSeconds, setCountdownSeconds] = useState<number>(currentFeatures.countdownSeconds ?? 60);
   const [savingCountdown, setSavingCountdown] = useState(false);
+  // Optional live-stream link. Sent with auction results and shown on the
+  // player's shareable card, so it is a URL rather than a flag.
+  const [streamUrl, setStreamUrl] = useState<string>(currentFeatures.streamUrl ?? "");
+  const [savingStream, setSavingStream] = useState(false);
 
   const user = getUser();
   const post = (path: string, body: Record<string, unknown>) =>
@@ -86,6 +90,32 @@ const TournamentSettingsSection = () => {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Save failed", variant: "destructive" });
     } finally {
       setSavingCountdown(false);
+    }
+  };
+
+  const saveStreamUrl = async () => {
+    const trimmed = streamUrl.trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+      toast({ title: "Not a link", description: "Start the address with http:// or https://", variant: "destructive" });
+      return;
+    }
+    setSavingStream(true);
+    const newFeatures: TournamentFeatures = { ...currentFeatures, streamUrl: trimmed };
+    try {
+      const res = await post("/api/tournament/update", {
+        tournamentId: tournament._id,
+        userId: user?._id,
+        userRole: user?.role,
+        features: newFeatures,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || "Save failed");
+      toast({ title: trimmed ? "Stream link saved" : "Stream link removed" });
+      reload();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Save failed", variant: "destructive" });
+    } finally {
+      setSavingStream(false);
     }
   };
 
@@ -273,6 +303,31 @@ const TournamentSettingsSection = () => {
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* Live-stream link — optional, and not a toggle */}
+          <div className="pt-2 border-t border-border">
+            <Label htmlFor="feature-streamUrl" className="text-sm font-medium">
+              Live stream link (optional)
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              YouTube, Facebook or anywhere the auction is being streamed. Shown to players on their
+              shareable card. Leave empty if there is no stream.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <Input
+                id="feature-streamUrl"
+                type="url"
+                inputMode="url"
+                placeholder="https://youtube.com/live/..."
+                value={streamUrl}
+                onChange={(e) => setStreamUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button size="sm" variant="outline" disabled={savingStream} onClick={saveStreamUrl}>
+                {savingStream ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
