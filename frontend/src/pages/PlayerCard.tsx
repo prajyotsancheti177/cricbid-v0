@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { Check, Copy, Download, Loader2, Play, Share2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import apiConfig from "@/config/apiConfig";
+import cricbidLogo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -149,7 +150,7 @@ const PlayerCard = () => {
   const [card, setCard] = useState<CardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [themeKey, setThemeKey] = useState("stamp");
-  const [square, setSquare] = useState(false);
+  const [square, setSquare] = useState(true);
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState<Record<BlockKey, boolean>>({
     photo: true, result: true, category: true, tournament: true, stats: false,
@@ -338,18 +339,22 @@ const PlayerCard = () => {
 
   const footer = (
     <div style={{
-      height: 52, flexShrink: 0, background: theme.composition === "board" ? theme.accent : "#0f0f16",
+      height: 60, flexShrink: 0, background: theme.composition === "board" ? theme.accent : "#0f0f16",
       borderTop: `2px solid ${theme.composition === "board" ? theme.accent : theme.accent}`,
       display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px",
     }}>
       <p style={{ margin: 0, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, fontWeight: 600, color: theme.composition === "board" ? "#c4b5fd" : "#a78bfa" }}>
         {shortUrl}
       </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ display: "grid", placeItems: "center", width: 24, height: 24, borderRadius: 7, background: "#7c3aed" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M4 18h16M7 18V9M12 18V5M17 18v-6" /></svg>
-        </span>
-        <span style={{ fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: 23, fontWeight: 700, color: "#ffffff" }}>CricBid</span>
+      {/* The logo file carries a lot of empty margin, so at a height that fits
+          a footer strip the wordmark is unreadable. `cover` on a wide box crops
+          to the artwork itself. It is dark on white, hence the plate. */}
+      <div style={{ background: "#ffffff", borderRadius: 7, padding: "3px 7px", display: "flex", alignItems: "center" }}>
+        <img
+          src={cricbidLogo}
+          alt="Vardhaman CricBid"
+          style={{ width: 168, height: 40, objectFit: "cover", objectPosition: "center", display: "block" }}
+        />
       </div>
     </div>
   );
@@ -567,8 +572,8 @@ const PlayerCard = () => {
         <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-white/40">Shape</p>
         <div className="mt-2 flex gap-2">
           {[
-            { label: "Story 9:16", on: !square, set: false },
             { label: "Square 1:1", on: square, set: true },
+            { label: "Story 9:16", on: !square, set: false },
           ].map((o) => (
             <button
               key={o.label}

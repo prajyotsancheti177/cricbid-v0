@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation } from "react-router-dom";
 import RouteMeta from "@/components/seo/RouteMeta";
+import NormalizePath from "@/components/NormalizePath";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import AnalyticsTracker from "./components/AnalyticsTracker";
@@ -158,6 +159,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <RouteMeta />
+        <NormalizePath />
         <AnalyticsTracker />
         <div className="min-h-screen bg-background text-foreground">
           <Routes>

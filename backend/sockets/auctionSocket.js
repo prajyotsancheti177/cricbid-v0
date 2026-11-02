@@ -789,18 +789,15 @@ module.exports = (io) => {
           console.error("Error saving auction log:", logError);
         }
 
-        // WhatsApp — fire-and-forget, never block the auction
+        // WhatsApp — fire-and-forget, never block the auction.
+        //
+        // The player's own "you have been sold" message is NOT sent here:
+        // playerService.updatePlayer above already sends it whenever `sold`
+        // flips false -> true, which covers both this room and a host marking
+        // a player sold by hand. Sending it here too is what produced two
+        // identical messages a few seconds apart.
         const _player = result.player;
-        const _team   = result.team;
         const _amount = result.amount;
-        whatsappService.sendPlayerSoldNotification({
-          playerId: _player._id,
-          name: _player.name,
-          mobile: _player.mobile,
-          teamName: _team?.name,
-          amtSold: _amount,
-          tournamentId,
-        }).catch(e => console.error('[WhatsApp] sold notification error:', e.message));
 
         whatsappService.sendTeamPurchaseSummary({
           teamId: result.teamId,

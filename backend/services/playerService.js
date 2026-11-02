@@ -252,6 +252,9 @@ const updatePlayer = async (playerInput) => {
 
             if (!whatsappEnabled) return;
             await whatsappService.sendPlayerSoldNotification({
+                // Without this the message's button cannot resolve a card and
+                // falls back to the tournament page.
+                playerId: updatedPlayer.id,
                 name: updatedPlayer.name,
                 mobile: updatedPlayer.mobile,
                 teamName: teamName,
