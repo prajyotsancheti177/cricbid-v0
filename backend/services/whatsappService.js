@@ -2,7 +2,6 @@ const axios = require('axios');
 const config = require('../config');
 const prisma = require('../db/prisma');
 const whatsappLogService = require('./whatsappLogService');
-const playerCardService = require('./playerCardService');
 
 // ─── Default config (all enabled) ────────────────────────────────────────────
 const DEFAULT_WHATSAPP_CONFIG = {
@@ -82,35 +81,16 @@ const sendTemplate = async ({ to, templateName, bodyParams, buttonParam, logData
 };
 
 /**
- * The player's card link, as plain text for the message body.
+ * The tournament page, as plain text for the message body.
  *
  * Deliberately NOT the template's URL button: a WhatsApp call-to-action button
- * always opens inside WhatsApp's own browser, which is not what we want for a
- * page whose whole job is to render an image and hand it to the share sheet.
- * A URL written in the body text is tappable and opens the phone's real
- * browser instead.
- *
- * It also sidesteps the button's base URL, which is fixed on the Meta
- * dashboard and cannot be read back from the API with this token — so a
- * suffix we supply may or may not join to it with a slash. In the body we
- * control the whole address.
- *
- * Returns null rather than throwing: a card link must never be the reason a
- * sold notification fails to send.
+ * always opens inside WhatsApp's own browser, and this account's button points
+ * at auction.vardhamanpaper.com, a host that no longer answers. A URL written
+ * in the body is tappable, opens the phone's real browser, and is an address we
+ * control end to end.
  */
-const soldCardLink = async ({ playerId }) => {
-  if (!playerId) return null;
-  try {
-    const player = await prisma.player.findUnique({
-      where: { id: playerId }, select: { shareCode: true },
-    });
-    const code = await playerCardService.ensureShareCode(playerId, player && player.shareCode);
-    return code ? `https://cricbid.online/c/${code}` : null;
-  } catch (err) {
-    console.error('[WhatsApp] could not resolve a card link:', err.message);
-    return null;
-  }
-};
+const soldBodyLink = ({ tournamentId }) =>
+  (tournamentId ? `https://cricbid.online/tournament/${tournamentId}` : null);
 
 // ─── 1. Player sold ───────────────────────────────────────────────────────────
 const sendPlayerSoldNotification = async (playerData) => {
@@ -134,12 +114,12 @@ const sendPlayerSoldNotification = async (playerData) => {
     const to = formatMobile(mobile);
     logData.recipientMobile = to;
 
-    // The approved template's body text is fixed, so the card link rides along
-    // on the last parameter. Clunky, but it needs no re-approval and it puts a
-    // real browser link in the message today.
-    const cardLink = await soldCardLink({ playerId });
-    const tournamentParam = cardLink
-      ? `${tournamentName || 'Tournament'}. Your player card: ${cardLink}`
+    // The approved template's body text is fixed, so the link rides along on the
+    // last parameter. Clunky, but it needs no re-approval and it puts a working
+    // browser link in the message today.
+    const bodyLink = soldBodyLink({ tournamentId });
+    const tournamentParam = bodyLink
+      ? `${tournamentName || 'Tournament'}. See the results: ${bodyLink}`
       : (tournamentName || 'Tournament');
 
     return await sendTemplate({
