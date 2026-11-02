@@ -97,7 +97,7 @@ const sendPlayerSoldNotification = async (playerData) => {
   const { name, mobile, teamName, amtSold, tournamentId, playerId } = playerData;
   let { tournamentName } = playerData;
   const logData = {
-    messageType: 'player_sold', templateName: 'sold_message',
+    messageType: 'player_sold', templateName: 'auction_sold_message',
     recipientMobile: mobile, playerId, playerName: name,
     tournamentId, tournamentName, teamName, amtSold, status: 'failed', timestamp: new Date(),
   };
@@ -122,18 +122,13 @@ const sendPlayerSoldNotification = async (playerData) => {
       ? `${tournamentName || 'Tournament'}. See the results: ${bodyLink}`
       : (tournamentName || 'Tournament');
 
+    // auction_sold_message has no buttons, which is the point: a call-to-action
+    // button is wrapped through Meta's w.meta.me redirect and opens inside
+    // WhatsApp, and this account's old button pointed at a dead host. With no
+    // button there is nothing to wrap — the body link is the only link.
     return await sendTemplate({
-      to, templateName: 'sold_message',
+      to, templateName: 'auction_sold_message',
       bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentParam],
-      // This button is dead and nothing here can revive it: sold_message's base
-      // URL on the Meta dashboard points at auction.vardhamanpaper.com, an old
-      // host that no longer answers (13.233.149.244, ports closed), so Meta's
-      // w.meta.me wrapper redirects into a void. The card is reached from the
-      // body link above instead.
-      //
-      // No leading slash, so that this starts working the moment someone edits
-      // the template's URL to https://cricbid.online/tournament/{{1}}.
-      buttonParam: String(tournamentId || 'a'),
       logData,
     });
   } catch (err) {
