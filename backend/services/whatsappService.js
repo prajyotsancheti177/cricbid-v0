@@ -145,9 +145,15 @@ const sendPlayerSoldNotification = async (playerData) => {
     return await sendTemplate({
       to, templateName: 'sold_message',
       bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentParam],
-      // Back to the tournament page, which is where this button pointed before
-      // the card existed. The card is reached from the body link instead.
-      buttonParam: '/' + (tournamentId || 'a'),
+      // This button is dead and nothing here can revive it: sold_message's base
+      // URL on the Meta dashboard points at auction.vardhamanpaper.com, an old
+      // host that no longer answers (13.233.149.244, ports closed), so Meta's
+      // w.meta.me wrapper redirects into a void. The card is reached from the
+      // body link above instead.
+      //
+      // No leading slash, so that this starts working the moment someone edits
+      // the template's URL to https://cricbid.online/tournament/{{1}}.
+      buttonParam: String(tournamentId || 'a'),
       logData,
     });
   } catch (err) {

@@ -66,53 +66,27 @@ interface Theme {
   price: string;
   stamp: "red" | "neon" | "none";
   italic: boolean;
+  /** Where the coloured wash sits. */
+  glowPos: "top" | "bottom";
+  /** Rounded square rather than a circle. */
+  photoRound: boolean;
+  /** Hairline box around the name. */
+  nameBox: boolean;
 }
 
+// One theme for now. The other four compositions are still in this file and
+// still work — only the picker is gone, so bringing one back is a THEMES entry
+// rather than a rewrite.
 const THEMES: Theme[] = [
   {
-    key: "stamp", name: "Gold Stamp", composition: "stamp",
-    ground: "#0a0604",
-    rays: "repeating-linear-gradient(104deg, #1a0d05 0 38px, #130a04 38px 76px)",
-    glow: "radial-gradient(ellipse at 50% 0%, rgba(240,140,20,0.55) 0%, rgba(240,140,20,0.16) 44%, rgba(240,140,20,0) 70%)",
-    ink: "#ffffff", muted: "#c99b4a", panel: "#241307",
-    accent: "#f0b429", onAccent: "#16120a", line: "#7a5a1e", price: "#f0b429",
-    stamp: "red", italic: true,
-  },
-  {
-    key: "floodlit", name: "Floodlit", composition: "centre",
-    ground: "#050a14",
-    rays: "repeating-linear-gradient(72deg, #0b1a33 0 30px, #061020 30px 60px)",
-    glow: "radial-gradient(ellipse at 50% 0%, rgba(56,132,255,0.5) 0%, rgba(56,132,255,0.12) 46%, rgba(56,132,255,0) 72%)",
-    ink: "#ffffff", muted: "#8fa8cc", panel: "#0e1b33",
-    accent: "#f0b429", onAccent: "#16120a", line: "#28406b", price: "#f0b429",
-    stamp: "red", italic: true,
-  },
-  {
-    key: "neon", name: "Neon Night", composition: "stamp",
-    ground: "#0a0414",
-    rays: "repeating-linear-gradient(0deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 15px)",
-    glow: "radial-gradient(ellipse at 50% 100%, rgba(217,70,239,0.45) 0%, rgba(217,70,239,0.1) 48%, rgba(217,70,239,0) 74%)",
-    ink: "#ffffff", muted: "#b38ecf", panel: "#170b24",
-    accent: "#e879f9", onAccent: "#1b0620", line: "#3b2152", price: "#e879f9",
+    key: "cricbid", name: "CricBid", composition: "stamp",
+    ground: "#0b0613",
+    rays: "repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 15px)",
+    glow: "radial-gradient(ellipse at 50% 100%, rgba(124,58,237,0.55) 0%, rgba(124,58,237,0.14) 48%, rgba(124,58,237,0) 74%)",
+    ink: "#ffffff", muted: "#a78bfa", panel: "#160b26",
+    accent: "#7c3aed", onAccent: "#ffffff", line: "#3b2152", price: "#ff9d3d",
     stamp: "neon", italic: false,
-  },
-  {
-    key: "board", name: "Scoreboard", composition: "board",
-    ground: "#f4f1e8",
-    rays: "none",
-    glow: "none",
-    ink: "#15223b", muted: "#5d6b85", panel: "#ddd8c7",
-    accent: "#15223b", onAccent: "#f4f1e8", line: "#15223b", price: "#15223b",
-    stamp: "none", italic: false,
-  },
-  {
-    key: "midnight", name: "Midnight", composition: "centre",
-    ground: "#0d0d14",
-    rays: "none",
-    glow: "none",
-    ink: "#ffffff", muted: "#8b8ba0", panel: "#1a1424",
-    accent: "#7c3aed", onAccent: "#ffffff", line: "#312b45", price: "#4ade80",
-    stamp: "none", italic: false,
+    glowPos: "bottom", photoRound: false, nameBox: true,
   },
 ];
 
@@ -149,7 +123,6 @@ const PlayerCard = () => {
   const { code } = useParams<{ code: string }>();
   const [card, setCard] = useState<CardData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [themeKey, setThemeKey] = useState("stamp");
   const [square, setSquare] = useState(true);
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState<Record<BlockKey, boolean>>({
@@ -175,10 +148,7 @@ const PlayerCard = () => {
     return () => { live = false; };
   }, [code]);
 
-  const theme = useMemo(
-    () => THEMES.find((t) => t.key === themeKey) || THEMES[0],
-    [themeKey]
-  );
+  const theme = THEMES[0];
   const size = square ? SQUARE : STORY;
   const shortUrl = card ? `cricbid.online/c/${card.shareCode}` : "";
   const fullUrl = card ? `${window.location.origin}/c/${card.shareCode}` : "";
@@ -299,7 +269,7 @@ const PlayerCard = () => {
   const photoBox = (round: boolean, px: number) => (
     <div
       style={{
-        width: px, height: px, borderRadius: round ? "50%" : 14,
+        width: px, height: round ? px : Math.round(px * 1.24), borderRadius: round ? "50%" : 16,
         border: `5px solid ${theme.accent}`, background: theme.panel,
         display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0,
       }}
@@ -330,7 +300,7 @@ const PlayerCard = () => {
       <div style={{ border: "5px solid #e11d2f", borderRadius: 9, padding: "4px 16px 7px", background: "rgba(0,0,0,0.3)" }}>
         <p style={{
           margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: "italic",
-          fontSize: 54, lineHeight: 0.82, fontWeight: 700, letterSpacing: "0.05em",
+          fontSize: 60, lineHeight: 0.82, fontWeight: 700, letterSpacing: "0.05em",
           color: "#e11d2f", textTransform: "uppercase",
         }}>Sold</p>
       </div>
@@ -359,16 +329,23 @@ const PlayerCard = () => {
     </div>
   );
 
+  // The artboard was drawn with "Jain Unity Cup 2026". Real names run much
+  // longer, and at the design's 30px a three-line title pushed the result row
+  // behind the footer — so the title gives way, never the result.
+  const tournamentName = card.tournament?.name || "";
+  const tournamentSize = tournamentName.length > 44 ? 21 : tournamentName.length > 28 ? 25 : 30;
+
   const tournamentRow = show.tournament && card.tournament && (
     <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
       {card.tournament.logo && (
         <img src={img("tournamentLogo")} alt="" crossOrigin="anonymous"
-          style={{ width: 48, height: 48, borderRadius: 10, background: "#fff", objectFit: "contain", flexShrink: 0 }} />
+          style={{ width: 50, height: 50, borderRadius: 10, background: "#fff", objectFit: "contain", flexShrink: 0 }} />
       )}
       <p style={{
         margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-        fontSize: 27, lineHeight: 0.98, fontWeight: 700, textTransform: "uppercase", color: theme.accent,
-      }}>{card.tournament.name}</p>
+        fontSize: tournamentSize, lineHeight: 0.98, fontWeight: 700, textTransform: "uppercase",
+        color: theme.accent, maxHeight: tournamentSize * 2, overflow: "hidden",
+      }}>{tournamentName}</p>
     </div>
   );
 
@@ -383,14 +360,14 @@ const PlayerCard = () => {
           <p style={{ margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: theme.muted }}>Sold to</p>
           <p style={{
             margin: "3px 0 0", fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-            fontSize: 28, lineHeight: 0.92, fontWeight: 700, textTransform: "uppercase",
+            fontSize: 30, lineHeight: 0.92, fontWeight: 700, textTransform: "uppercase",
           }}>{card.team?.name}</p>
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
         <p style={{ margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: theme.muted }}>Points</p>
         <p style={{
-          margin: "1px 0 0", fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: 58,
+          margin: "1px 0 0", fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: 62,
           lineHeight: 0.86, fontWeight: 700, color: theme.price, fontVariantNumeric: "tabular-nums",
         }}>{money(p.amtSold)}</p>
       </div>
@@ -428,7 +405,9 @@ const PlayerCard = () => {
     >
       {theme.rays !== "none" && <div style={{ position: "absolute", inset: 0, background: theme.rays }} />}
       {theme.glow !== "none" && (
-        <div style={{ position: "absolute", left: "-10%", top: "-32%", width: "120%", height: "86%", background: theme.glow }} />
+        <div style={theme.glowPos === "bottom"
+          ? { position: "absolute", left: "-15%", bottom: "-30%", width: "130%", height: "80%", background: theme.glow }
+          : { position: "absolute", left: "-10%", top: "-32%", width: "120%", height: "86%", background: theme.glow }} />
       )}
       {theme.rays !== "none" && (
         <div style={{
@@ -448,9 +427,9 @@ const PlayerCard = () => {
             </div>
             <div style={{ flex: 1, minHeight: 0, padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
-                {show.photo && photoBox(false, square ? 150 : 210)}
+                {show.photo && photoBox(false, square ? 190 : 210)}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <h1 style={{ margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: square ? 44 : 54, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase" }}>
+                  <h1 style={{ margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: square ? 58 : 54, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase" }}>
                     {lineA}{lineB && <><br />{lineB}</>}
                   </h1>
                   {show.category && roleBits && (
@@ -468,10 +447,10 @@ const PlayerCard = () => {
         ) : theme.composition === "centre" ? (
           <div style={{ flex: 1, minHeight: 0, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
             {tournamentRow}
-            {show.photo && photoBox(true, square ? 160 : 250)}
+            {show.photo && photoBox(true, square ? 168 : 250)}
             <h1 style={{
               margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-              fontSize: square ? 42 : 58, lineHeight: 0.88, fontWeight: 700, textTransform: "uppercase",
+              fontSize: square ? 48 : 58, lineHeight: 0.88, fontWeight: 700, textTransform: "uppercase",
               textAlign: "center", textShadow: "0 2px 14px rgba(0,0,0,0.75)",
             }}>
               {lineA}{lineB && <><br />{lineB}</>}
@@ -479,13 +458,23 @@ const PlayerCard = () => {
             {show.category && roleBits && (
               <span style={{ padding: "5px 13px", borderRadius: 999, background: theme.accent, color: theme.onAccent, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>{roleBits}</span>
             )}
-            <div style={{ marginTop: "auto", width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ marginTop: "auto", width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
               {statsRow}
-              {stampMark && (
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 92 }}>{stampMark}</div>
+              {square ? (
+                // Stamp and result share a row, as the artboard has them.
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {stampMark && <div style={{ flexShrink: 0 }}>{stampMark}</div>}
+                  <div style={{ flex: 1, minWidth: 0 }}>{resultRow}{notSoldRow}</div>
+                </div>
+              ) : (
+                <>
+                  {stampMark && (
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 84 }}>{stampMark}</div>
+                  )}
+                  {resultRow}
+                  {notSoldRow}
+                </>
               )}
-              {resultRow}
-              {notSoldRow}
             </div>
           </div>
         ) : (
@@ -495,26 +484,28 @@ const PlayerCard = () => {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 style={{
                   margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-                  fontSize: square ? 46 : 62, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase",
+                  fontSize: 58, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase",
                   textShadow: "0 3px 16px rgba(0,0,0,0.8)",
+                  ...(theme.nameBox
+                    ? { border: `1px solid ${theme.accent}`, borderRadius: 4, padding: "8px 12px 10px" }
+                    : {}),
                 }}>
                   {lineA}{lineB && <><br />{lineB}</>}
                 </h1>
                 {show.category && roleBits && (
                   <span style={{ display: "inline-block", marginTop: 11, padding: "5px 11px", borderRadius: 4, background: "rgba(0,0,0,0.5)", border: `1px solid ${theme.line}`, fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: theme.accent }}>
-                    {roleBits}{p.lot ? ` · Lot ${p.lot}` : ""}
+                    {roleBits}{p.lot && !square ? ` · Lot ${p.lot}` : ""}
                   </span>
                 )}
               </div>
-              {show.photo && photoBox(true, square ? 150 : 246)}
+              {show.photo && photoBox(theme.photoRound, square ? 178 : 212)}
             </div>
-            <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
-              {stampMark && (
-                <div style={{ display: "flex", alignItems: "center", height: 92, marginBottom: 2 }}>{stampMark}</div>
-              )}
+            <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ height: 1, background: theme.line }} />
               {statsRow}
               {resultRow}
               {notSoldRow}
+              {stampMark && <div style={{ display: "flex", alignItems: "center" }}>{stampMark}</div>}
             </div>
           </div>
         )}
@@ -549,27 +540,7 @@ const PlayerCard = () => {
           </div>
         </div>
 
-        <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-white/40">Theme</p>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {THEMES.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setThemeKey(t.key)}
-              aria-pressed={t.key === themeKey}
-              className="min-h-11 rounded-xl border-2 px-2 text-xs font-bold transition-transform duration-150 ease-out active:scale-[0.97]"
-              style={{
-                borderColor: t.key === themeKey ? "#7c3aed" : "#2e2e3a",
-                background: t.ground,
-                color: t.key === "board" ? t.ink : t.accent,
-              }}
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-white/40">Shape</p>
+        <p className="mt-6 text-[11px] font-bold uppercase tracking-wider text-white/40">Shape</p>
         <div className="mt-2 flex gap-2">
           {[
             { label: "Square 1:1", on: square, set: true },
