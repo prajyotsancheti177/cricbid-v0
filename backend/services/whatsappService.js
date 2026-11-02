@@ -82,25 +82,33 @@ const sendTemplate = async ({ to, templateName, bodyParams, buttonParam, logData
 };
 
 /**
- * Where the sold notification's button should land.
+ * The player's card link, as plain text for the message body.
  *
- * The card is the better destination — it is the thing the player wants to
- * see and share — but a card needs a short code, and allocating one must
- * never be the reason a sold notification fails to send. So any problem here
- * falls back to the tournament page, which is where this button went before.
+ * Deliberately NOT the template's URL button: a WhatsApp call-to-action button
+ * always opens inside WhatsApp's own browser, which is not what we want for a
+ * page whose whole job is to render an image and hand it to the share sheet.
+ * A URL written in the body text is tappable and opens the phone's real
+ * browser instead.
+ *
+ * It also sidesteps the button's base URL, which is fixed on the Meta
+ * dashboard and cannot be read back from the API with this token — so a
+ * suffix we supply may or may not join to it with a slash. In the body we
+ * control the whole address.
+ *
+ * Returns null rather than throwing: a card link must never be the reason a
+ * sold notification fails to send.
  */
-const soldButtonPath = async ({ tournamentId, playerId }) => {
-  const fallback = '/' + (tournamentId || 'a');
-  if (!playerId) return fallback;
+const soldCardLink = async ({ playerId }) => {
+  if (!playerId) return null;
   try {
     const player = await prisma.player.findUnique({
       where: { id: playerId }, select: { shareCode: true },
     });
     const code = await playerCardService.ensureShareCode(playerId, player && player.shareCode);
-    return code ? `/${tournamentId || 'a'}/card/${code}` : fallback;
+    return code ? `https://cricbid.online/c/${code}` : null;
   } catch (err) {
-    console.error('[WhatsApp] could not resolve a card link, using the tournament page:', err.message);
-    return fallback;
+    console.error('[WhatsApp] could not resolve a card link:', err.message);
+    return null;
   }
 };
 
@@ -125,14 +133,21 @@ const sendPlayerSoldNotification = async (playerData) => {
     }
     const to = formatMobile(mobile);
     logData.recipientMobile = to;
+
+    // The approved template's body text is fixed, so the card link rides along
+    // on the last parameter. Clunky, but it needs no re-approval and it puts a
+    // real browser link in the message today.
+    const cardLink = await soldCardLink({ playerId });
+    const tournamentParam = cardLink
+      ? `${tournamentName || 'Tournament'}. Your player card: ${cardLink}`
+      : (tournamentName || 'Tournament');
+
     return await sendTemplate({
       to, templateName: 'sold_message',
-      bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentName || 'Tournament'],
-      // sold_message's URL button is https://cricbid.online/tournament{{1}},
-      // so the suffix is a path. Sending the card path reuses the already
-      // approved template instead of waiting on a new one. Falls back to the
-      // tournament page when the card has no code yet.
-      buttonParam: await soldButtonPath({ tournamentId, playerId }),
+      bodyParams: [name || 'Player', teamName || 'Unknown Team', amtSold ? `${amtSold}` : 'N/A', tournamentParam],
+      // Back to the tournament page, which is where this button pointed before
+      // the card existed. The card is reached from the body link instead.
+      buttonParam: '/' + (tournamentId || 'a'),
       logData,
     });
   } catch (err) {
