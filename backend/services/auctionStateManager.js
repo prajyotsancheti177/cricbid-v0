@@ -293,6 +293,12 @@ const selectPlayer = (tournamentId, player, bidIncrementSlabs) => {
 
   // Set initial bid increment
   if (bidIncrementSlabs && bidIncrementSlabs.length > 0) {
+    // Keep the slabs, not just the opening increment. The caller re-reads them
+    // from the tournament on every selection, so this is where a host's edit
+    // actually reaches a running auction — without it the opening bid used the
+    // new slabs while every later bid used whatever was loaded at start, and a
+    // mid-auction change silently did nothing.
+    auction.bidIncrementSlabs = bidIncrementSlabs;
     const slab = bidIncrementSlabs.find(s =>
       auction.currentBid >= s.minBid &&
       (s.maxBid === null || auction.currentBid <= s.maxBid)
