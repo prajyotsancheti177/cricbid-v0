@@ -7,6 +7,9 @@
   itself. The list must also stay in step with the allowlist in
   frontend/src/components/seo/RouteMeta.tsx: a URL that is noindex has no place
   in a sitemap, and /guide-videos is deliberately absent because it is unlisted.
+
+  The twelve /guides/<slug> clip pages are listed: they are indexable by the
+  allowlist and are now pre-rendered, so each is a real page in its own right.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -67,6 +70,103 @@
     <lastmod>2026-10-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+  </url>
+
+
+  <!-- Guide: Add players by hand or in bulk -->
+  <url>
+    <loc>https://cricbid.online/guides/add-players</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Set and change bid increment slabs -->
+  <url>
+    <loc>https://cricbid.online/guides/bid-slabs</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Create a tournament -->
+  <url>
+    <loc>https://cricbid.online/guides/create-tournament</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Edit players in the player sheet -->
+  <url>
+    <loc>https://cricbid.online/guides/edit-player</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Export results and restore backups -->
+  <url>
+    <loc>https://cricbid.online/guides/export-data</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: How a player registers and pays -->
+  <url>
+    <loc>https://cricbid.online/guides/player-registers</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Build the player registration form -->
+  <url>
+    <loc>https://cricbid.online/guides/registration-form</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Run the bidding -->
+  <url>
+    <loc>https://cricbid.online/guides/run-bidding</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Share the live auction and OBS overlays -->
+  <url>
+    <loc>https://cricbid.online/guides/share-live</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Register teams -->
+  <url>
+    <loc>https://cricbid.online/guides/team-registration</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Top up a team's budget -->
+  <url>
+    <loc>https://cricbid.online/guides/top-up-budget</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Guide: Unsell a sold player -->
+  <url>
+    <loc>https://cricbid.online/guides/unsell-player</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
 
 </urlset>

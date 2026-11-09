@@ -1,8 +1,11 @@
 import { renderToString } from "react-dom/server";
+import { Route, Routes } from "react-router-dom";
 import { StaticRouter } from "react-router-dom/server";
 import Home from "@/pages/Home";
 import DemoPage from "@/pages/demo/DemoPage";
 import GuidesPage from "@/pages/guides/GuidesPage";
+import GuideClipPage from "@/pages/guides/GuideClipPage";
+import { GUIDES } from "@/pages/guides/registry";
 import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
 
 /**
@@ -29,10 +32,39 @@ import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
  * The pages to pre-render. The head text comes from src/lib/pageMeta.ts, which
  * the page components read too — one string, two consumers, no drift.
  */
-export const ROUTES: Record<string, { element: JSX.Element; meta: PageMeta }> = {
+interface PrerenderRoute {
+  element: JSX.Element;
+  meta: PageMeta;
+  /**
+   * The route pattern, when it differs from the path. A clip page reads its
+   * slug with useParams, which needs a matching <Route> — without one every
+   * clip renders "That guide doesn't exist."
+   */
+  pattern?: string;
+}
+
+/**
+ * One entry per clip, built from the same registry the site renders from, so a
+ * new guide is pre-rendered without touching this file. Each was previously an
+ * empty shell carrying the homepage's title and canonical: twelve indexable
+ * pages telling Google they were duplicates of the front page.
+ */
+const CLIP_ROUTES: Record<string, PrerenderRoute> = Object.fromEntries(
+  GUIDES.map((g) => [
+    `/guides/${g.slug}`,
+    {
+      element: <GuideClipPage />,
+      pattern: "/guides/:slug",
+      meta: { title: `${g.title} — CricBid guide`, description: g.summary },
+    },
+  ])
+);
+
+export const ROUTES: Record<string, PrerenderRoute> = {
   "/": { element: <Home />, meta: PAGE_META["/"] },
   "/demo": { element: <DemoPage />, meta: PAGE_META["/demo"] },
   "/guides": { element: <GuidesPage />, meta: PAGE_META["/guides"] },
+  ...CLIP_ROUTES,
 };
 
 /** Render one route to HTML. Throws if asked for a route that is not listed. */
@@ -40,6 +72,10 @@ export const render = (pathname: string): string => {
   const route = ROUTES[pathname];
   if (!route) throw new Error(`No pre-render route registered for ${pathname}`);
   return renderToString(
-    <StaticRouter location={pathname}>{route.element}</StaticRouter>
+    <StaticRouter location={pathname}>
+      <Routes>
+        <Route path={route.pattern ?? pathname} element={route.element} />
+      </Routes>
+    </StaticRouter>
   );
 };
