@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { trackEvent } from "@/lib/eventTracker";
 import { getSocket } from "@/lib/socket";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 import apiConfig from "@/config/apiConfig";
 import { clearSession, jsonAuthHeaders } from "@/lib/auth";
 

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Check, Copy, Download, Loader2, Play, Share2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import apiConfig from "@/config/apiConfig";
-import cricbidLogo from "@/assets/logo.png";
+import cricbidLogo from "@/assets/logo.webp";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 

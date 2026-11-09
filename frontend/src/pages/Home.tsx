@@ -17,7 +17,7 @@ import {
     ChevronDown,
     Phone,
 } from "lucide-react";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.webp";
 
 // Animation variants
 const fadeInUp = {
@@ -224,10 +224,17 @@ export default function Home() {
                     </motion.div>
 
                     {/* Main Headline */}
+                    {/* No opacity here on purpose. This heading is the Largest
+                        Contentful Paint element, and framer-motion writes its
+                        `initial` into the pre-rendered HTML — so `opacity: 0`
+                        shipped the hero invisible until the 2.5 MB bundle
+                        hydrated, turning a 1.8s paint into a 15.9s LCP. It now
+                        paints with the document and only slides. A transform
+                        does not affect layout, so this costs no CLS. */}
                     <motion.h1
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.8 }}
+                        initial={{ y: 30 }}
+                        animate={{ y: 0 }}
+                        transition={{ duration: 0.5 }}
                         className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-4 md:mb-6 leading-tight px-2"
                     >
                         <span className="bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">

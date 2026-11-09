@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Gavel, Search, Settings, Volume2, VolumeX, Sparkles } from "lucide-react";
 import stadiumBg from "@/assets/stadium-bg.jpg";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 import { useNavigate, useParams } from "react-router-dom";
 import { Player } from "@/types/auction";
 import apiConfig from "@/config/apiConfig";
