@@ -34,6 +34,31 @@ const swap = (html, pattern, replacement, label, warnings) => {
   return html.replace(pattern, replacement);
 };
 
+/**
+ * JSON-LD that only describes the homepage.
+ *
+ * All six blocks are hard-coded in index.html, so every route carried them —
+ * /login claimed eleven FAQs and each guide page repeated the homepage's
+ * breadcrumb trail. WebSite and Organization are genuinely site-wide and stay;
+ * these four are stripped from every page except "/", which then gets its own
+ * back from the route's jsonLd.
+ */
+const HOMEPAGE_ONLY_LD = ["FAQPage", "ItemList", "BreadcrumbList", "SoftwareApplication"];
+
+/** Remove the ld+json blocks whose @type is in `types`. */
+const stripLd = (html, types) =>
+  html.replace(/<script type="application\/ld\+json">([\s\S]*?)<\/script>\s*/g, (block, body) =>
+    types.some((t) => new RegExp(`"@type"\\s*:\\s*"${t}"`).test(body)) ? "" : block);
+
+/** Add this page's own JSON-LD just before </head>. */
+const addLd = (html, objects) => {
+  if (!objects || !objects.length) return html;
+  const tags = objects
+    .map((o) => `  <script type="application/ld+json">${JSON.stringify(o)}</script>`)
+    .join("\n");
+  return html.replace("</head>", `${tags}\n</head>`);
+};
+
 const escapeAttr = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -97,6 +122,13 @@ const main = async () => {
       html = swap(html, /<div id="root"><\/div>/,
         `<div id="root">${body}</div>`, '<div id="root">', warnings);
 
+      // The homepage keeps the blocks that describe it; everything else is
+      // given schema about itself instead.
+      if (route !== "/") {
+        html = stripLd(html, HOMEPAGE_ONLY_LD);
+        html = addLd(html, ROUTES[route].jsonLd);
+      }
+
       // "/" cannot be written to dist/index.html: nginx serves that file as the
       // SPA fallback for every unmatched route, so the homepage's markup would
       // be the first paint of /auction, /c/<code> and every tournament link.
@@ -127,6 +159,9 @@ const main = async () => {
       `<link rel="canonical" href="${url}" />`, 'link[rel="canonical"]', warnings);
     html = swap(html, /<meta property="og:url" content="[^"]*" \/>/,
       `<meta property="og:url" content="${url}" />`, 'meta[property="og:url"]', warnings);
+    // A sign-in or legal page is not the product listing, the FAQ, or the
+    // homepage's breadcrumb trail.
+    html = stripLd(html, HOMEPAGE_ONLY_LD);
 
     const outDir = path.join(dist, route.replace(/^\//, ""));
     fs.mkdirSync(outDir, { recursive: true });

@@ -65,7 +65,7 @@ const RegistrationScreen = ({ t }: SceneProps) => {
         <WorkspaceFrame active="Registration" tournament={TOURNAMENT}>
             <div className="absolute inset-0">
                 <div className="absolute" style={{ left: 40, top: 32 }}>
-                    <h1 className="text-2xl font-bold">Registration</h1>
+                    <div className="text-2xl font-bold">Registration</div>
                     <p className="mt-1 text-sm text-muted-foreground">Public sign-up form and shareable links</p>
                 </div>
                 <div className="absolute rounded-xl border border-border bg-card" style={{ left: 40, width: 970, top: 110, height: 150 }}>
@@ -100,7 +100,7 @@ const PublicForm = ({ t }: SceneProps) => {
         <div className="relative h-full w-full bg-gradient-to-br from-background to-accent/10 text-foreground">
             <div className="absolute inset-x-0 text-center" style={{ top: 34 }}>
                 <Trophy className="mx-auto h-10 w-10 text-primary" />
-                <h1 className="mt-3 text-4xl font-bold">Team Registration</h1>
+                <div className="mt-3 text-4xl font-bold">Team Registration</div>
                 <p className="mt-1 text-xl font-medium text-primary/80">{TOURNAMENT}</p>
             </div>
             <div className="absolute rounded-xl border border-border/50 bg-card/80 shadow-xl" style={{ left: 290, width: 700, top: 200, height: 470 }} />
@@ -176,7 +176,7 @@ const TeamsScreen = ({ t }: SceneProps) => {
         <WorkspaceFrame active="Teams" tournament={TOURNAMENT}>
             <div className="absolute inset-0">
                 <div className="absolute inset-x-0 text-center" style={{ top: 28 }}>
-                    <h1 className="bg-gradient-primary bg-clip-text text-4xl font-black text-transparent">All Teams</h1>
+                    <div className="bg-gradient-primary bg-clip-text text-4xl font-black text-transparent">All Teams</div>
                     <p className="mt-1 text-lg text-muted-foreground">{all.length} teams competing</p>
                 </div>
                 <div className="absolute grid grid-cols-3 gap-5" style={{ left: 40, width: 970, top: 130 }}>

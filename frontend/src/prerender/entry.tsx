@@ -32,9 +32,25 @@ import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
  * The pages to pre-render. The head text comes from src/lib/pageMeta.ts, which
  * the page components read too — one string, two consumers, no drift.
  */
+const ORIGIN = "https://cricbid.online";
+
+/** Home > Guides > this page, as a real trail rather than the homepage's. */
+const breadcrumb = (trail: Array<{ name: string; path: string }>) => ({
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: trail.map((t, i) => ({
+    "@type": "ListItem",
+    position: i + 1,
+    name: t.name,
+    item: `${ORIGIN}${t.path}`,
+  })),
+});
+
 interface PrerenderRoute {
   element: JSX.Element;
   meta: PageMeta;
+  /** JSON-LD describing THIS page, added after the homepage-only blocks are stripped. */
+  jsonLd?: unknown[];
   /**
    * The route pattern, when it differs from the path. A clip page reads its
    * slug with useParams, which needs a matching <Route> — without one every
@@ -56,14 +72,49 @@ const CLIP_ROUTES: Record<string, PrerenderRoute> = Object.fromEntries(
       element: <GuideClipPage />,
       pattern: "/guides/:slug",
       meta: { title: `${g.title} — CricBid guide`, description: g.summary },
+      // Each clip is a numbered procedure, which is exactly what HowTo
+      // describes. The steps are the same ones the clip captions, so the
+      // markup and what a reader sees cannot drift.
+      //
+      // No totalTime: `duration` is how long the clip runs, not how long the
+      // task takes, and claiming otherwise would be a lie in structured data.
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "HowTo",
+          name: g.title,
+          description: g.summary,
+          url: `${ORIGIN}/guides/${g.slug}`,
+          step: g.steps.map((st, i) => ({
+            "@type": "HowToStep",
+            position: i + 1,
+            name: st.title,
+            text: st.detail ?? st.title,
+            url: `${ORIGIN}/guides/${g.slug}`,
+          })),
+        },
+        breadcrumb([
+          { name: "Home", path: "/" },
+          { name: "Guides", path: "/guides" },
+          { name: g.title, path: `/guides/${g.slug}` },
+        ]),
+      ],
     },
   ])
 );
 
 export const ROUTES: Record<string, PrerenderRoute> = {
   "/": { element: <Home />, meta: PAGE_META["/"] },
-  "/demo": { element: <DemoPage />, meta: PAGE_META["/demo"] },
-  "/guides": { element: <GuidesPage />, meta: PAGE_META["/guides"] },
+  "/demo": {
+    element: <DemoPage />,
+    meta: PAGE_META["/demo"],
+    jsonLd: [breadcrumb([{ name: "Home", path: "/" }, { name: "Demo", path: "/demo" }])],
+  },
+  "/guides": {
+    element: <GuidesPage />,
+    meta: PAGE_META["/guides"],
+    jsonLd: [breadcrumb([{ name: "Home", path: "/" }, { name: "Guides", path: "/guides" }])],
+  },
   ...CLIP_ROUTES,
 };
 

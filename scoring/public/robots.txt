@@ -1,9 +1,12 @@
+# The scoring app is not in use (no matches, innings or ball events exist).
+#
+# Nothing here is disallowed on purpose. A disallowed page can still be indexed
+# when something links to it, and because Google may not fetch it, it can never
+# read the noindex telling it to stop — which is how "Indexed, though blocked by
+# robots.txt" appears. The whole app serves `noindex` from its <head> instead,
+# so crawlers must be allowed in to see it.
+#
+# Same reasoning as frontend/public/robots.txt. Do not reintroduce Disallow.
+
 User-agent: *
 Allow: /
-
-# Block scorer panel (requires auth) — only public scorecard pages need indexing
-Disallow: /score/
-Disallow: /schedule-builder
-Disallow: /login
-
-Sitemap: https://scoring.cricbid.online/sitemap.xml

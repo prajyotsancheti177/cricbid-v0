@@ -45,7 +45,7 @@ const DataPage = ({ t }: SceneProps) => {
     const syncBusy = between(t, 22000, 23600);
     return (
         <WorkspaceFrame active="Data & export" tournament={T_NAME}>
-            <h1 className="text-2xl font-bold">Data &amp; Export</h1>
+            <div className="text-2xl font-bold">Data &amp; Export</div>
             <p className="mt-1 text-sm text-muted-foreground">Download data and sync with Google Sheets</p>
 
             <Card top={110} height={130} title="CSV export" desc="Download teams and players as CSV files. Columns match the bulk-upload import format.">
@@ -107,7 +107,7 @@ const BackupsPage = ({ t }: SceneProps) => {
     const restoreRow = created ? 1 : 0;
     return (
         <WorkspaceFrame active="Backups" tournament={T_NAME}>
-            <h1 className="text-2xl font-bold">Backups</h1>
+            <div className="text-2xl font-bold">Backups</div>
             <p className="mt-1 text-sm text-muted-foreground">Save checkpoints of the auction state and restore to any point</p>
             <div className="absolute" style={{ left: 868, top: 32, width: 150, height: 40 }}>
                 <FakeButton pressed={between(t, 28900, 29300)} className="w-full"><Save className="h-4 w-4" /> Create backup</FakeButton>

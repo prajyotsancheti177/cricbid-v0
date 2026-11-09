@@ -34,7 +34,7 @@ const Lobby = ({ t }: SceneProps) => {
     const pressed = between(t, 6400, 6800);
     return (
         <div className="absolute inset-0 bg-background p-[60px_80px]">
-            <h1 className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-5xl font-extrabold tracking-tight text-transparent">Live Auctions</h1>
+            <div className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-5xl font-extrabold tracking-tight text-transparent">Live Auctions</div>
             <p className="mt-2 text-muted-foreground">Join active auctions as a viewer or start your own.</p>
             {[
                 { name: "Jain Unity Cup", live: true, v: viewers },

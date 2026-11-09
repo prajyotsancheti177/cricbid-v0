@@ -97,7 +97,7 @@ const Scene = ({ t }: SceneProps) => {
                 {/* header */}
                 <div className="absolute left-6 right-6 top-6 flex items-start justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">Player sheet</h1>
+                        <div className="text-2xl font-bold">Player sheet</div>
                         <p className="mt-1 max-w-[860px] text-sm text-muted-foreground">
                             Click a cell to edit, or use the arrow keys · Enter edits and moves down · Tab moves right ·
                             Esc cancels. Changes save on their own; auction results stay read-only.

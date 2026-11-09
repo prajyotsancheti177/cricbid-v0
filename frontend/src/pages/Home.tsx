@@ -152,7 +152,7 @@ export default function Home() {
     const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
 
     useEffect(() => {
-        document.title = "Vardhaman CricBid — India's #1 Cricket Auction Software | IPL-Style Live Player Bidding App";
+        document.title = "Cricket Auction Software for Tournaments — Vardhaman CricBid";
 
         const setMeta = (name: string, content: string, prop = false) => {
             const attr = prop ? `property` : `name`;

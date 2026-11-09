@@ -18,7 +18,7 @@ export interface PageMeta {
 
 export const PAGE_META: Record<string, PageMeta> = {
   "/": {
-    title: "Vardhaman CricBid — #1 Cricket Auction Software India | IPL-Style Live Player Bidding App",
+    title: "Cricket Auction Software for Tournaments — Vardhaman CricBid",
     description:
       "India's #1 cricket auction software with automatic smart bidding, WhatsApp player notifications and OBS live streaming overlays. Run an IPL-style player auction for your tournament.",
   },

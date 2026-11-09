@@ -50,7 +50,7 @@ const AddPlayerPage = ({ t }: SceneProps) => {
             <div className="absolute inset-x-0 top-0" style={{ transform: `translateY(${-scroll}px)` }}>
                 <div className="absolute left-0 right-0 top-4 text-center">
                     <div className="mb-1 inline-flex rounded-full bg-primary/20 p-2"><UserPlus className="h-5 w-5 text-primary" /></div>
-                    <h1 className="text-3xl font-bold">Add Player</h1>
+                    <div className="text-3xl font-bold">Add Player</div>
                     <p className="text-muted-foreground">Add a new player to a tournament</p>
                 </div>
                 <div className="absolute rounded-xl border border-border/50 bg-card/80 shadow-xl" style={{ left: 40, width: 912, top: 124, height: 880 }} />
@@ -179,7 +179,7 @@ const BulkUploadPage = ({ t }: SceneProps) => {
     return (
         <div className="absolute inset-0 overflow-hidden">
             <div className="absolute left-8 top-5">
-                <h1 className="mb-2 text-3xl font-bold">Bulk Upload</h1>
+                <div className="mb-2 text-3xl font-bold">Bulk Upload</div>
                 <p className="text-muted-foreground">Download sample CSV files, fill in your data, and upload to quickly add teams and players</p>
             </div>
             {done && (

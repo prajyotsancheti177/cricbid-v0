@@ -184,7 +184,7 @@ const Page = ({ t }: { t: number }) => {
             <div className="relative" style={{ height: 1660, transform: `translateY(${-s}px)` }}>
                 <div className="absolute inset-x-0 text-center" style={{ top: 16 }}>
                     <Trophy className="mx-auto h-9 w-9 text-primary" />
-                    <h1 className="mt-2 text-[28px] font-bold leading-9">Player Registration</h1>
+                    <div className="mt-2 text-[28px] font-bold leading-9">Player Registration</div>
                     <p className="text-lg font-medium text-primary/80">Jain Unity Cup</p>
                     <p className="text-sm text-muted-foreground">Complete the form to submit your profile.</p>
                 </div>

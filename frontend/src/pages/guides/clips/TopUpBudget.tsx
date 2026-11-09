@@ -64,7 +64,7 @@ const TopUpScreen = ({ t }: SceneProps) => {
         <WorkspaceFrame active="Top up balance">
             <div className="absolute inset-0">
                 <div className="absolute" style={{ left: 40, top: 32 }}>
-                    <h1 className="flex items-center gap-2 text-2xl font-bold"><Wallet className="h-6 w-6 text-primary" /> Top Up Team Balance</h1>
+                    <div className="flex items-center gap-2 text-2xl font-bold"><Wallet className="h-6 w-6 text-primary" /> Top Up Team Balance</div>
                     <p className="mt-1 text-sm text-muted-foreground">Credit a team extra auction points after their owner pays you cash outside the app.</p>
                 </div>
 

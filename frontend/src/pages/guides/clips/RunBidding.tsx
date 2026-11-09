@@ -132,7 +132,7 @@ const Lobby = ({ t }: { t: number }) => {
         <div className="relative h-full w-full bg-background">
             <div className="absolute left-1/2 top-[150px] h-[470px] w-[448px] -translate-x-1/2 rounded-xl border bg-card shadow-lg" />
             <Gavel className="absolute left-1/2 top-[196px] h-16 w-16 -translate-x-1/2 text-primary" />
-            <h1 className="absolute left-0 right-0 top-[282px] text-center text-3xl font-bold">Live Auction</h1>
+            <div className="absolute left-0 right-0 top-[282px] text-center text-3xl font-bold">Live Auction</div>
             <p className="absolute left-0 right-0 top-[330px] text-center text-muted-foreground">
                 {hosting ? "You are connected as the auctioneer." : "Waiting for the auctioneer to start the session."}
             </p>

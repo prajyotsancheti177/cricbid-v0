@@ -400,7 +400,7 @@ const Section = ({ t }: { t: number }) => {
     return (
         <div className="absolute inset-0">
             <div className="absolute" style={{ left: 262, top: 32 }}>
-                <h1 className="text-2xl font-bold">Registration</h1>
+                <div className="text-2xl font-bold">Registration</div>
                 <p className="mt-1 text-sm text-muted-foreground">Public sign-up form and shareable links</p>
             </div>
             <div className="absolute rounded-lg border border-border bg-card p-6" style={{ left: 262, top: 104, width: 986, height: 140 }}>

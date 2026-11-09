@@ -198,7 +198,7 @@ const CreateDialog = ({ t }: { t: number }) => {
 
 const Workspace = () => (
     <WorkspaceFrame active="Overview" tournament={NAME}>
-        <h1 className="text-2xl font-bold">{NAME}</h1>
+        <div className="text-2xl font-bold">{NAME}</div>
         <p className="mt-1 text-sm text-muted-foreground">Your tournament is ready — add players and teams next.</p>
         <div className="mt-8 grid grid-cols-4 gap-4">
             {[["Teams", "8"], ["Budget per team", "100,000 Pts"], ["Players per team", "11 – 15"], ["Categories", "Icon, Regular"]].map(([k, v]) => (

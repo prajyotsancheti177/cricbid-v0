@@ -48,6 +48,8 @@ import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
 import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
 import CountdownOverlay from "./pages/overlays/CountdownOverlay";
 import BroadcastOverlay from "./pages/overlays/BroadcastOverlay";
+import OwnerPlanner from "./pages/OwnerPlanner";
+import PlannerLinks from "./pages/PlannerLinks";
 import PlayerCard from "./pages/PlayerCard";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
@@ -198,6 +200,10 @@ const App = () => (
             <Route path="/card/:code" element={<PlayerCard />} />
             <Route path="/tournament/:tournamentId/card/:code" element={<PlayerCard />} />
 
+            {/* Owner auction planner — standalone, token in the URL, no navbar.
+                Read-only on the auction; it can never emit an auction event. */}
+            <Route path="/plan/:token" element={<OwnerPlanner />} />
+
             {/* App Routes - With Navbar */}
             <Route element={<AppLayout />}>
               <Route path="/tournaments" element={<Tournaments />} />
@@ -205,6 +211,8 @@ const App = () => (
               <Route path="/players" element={<Players />} />
               <Route path="/teams" element={<Teams />} />
               <Route path="/team/:teamId" element={<TeamDetail />} />
+              {/* Host-side planner links; not linked from the workspace yet. */}
+              <Route path="/tournament/:tournamentId/planner-links" element={<PlannerLinks />} />
               <Route path="/register" element={<PlayerRegistration />} />
               <Route path="/register/public/:tournamentId" element={<PublicPlayerRegistration />} />
               <Route

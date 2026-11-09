@@ -74,7 +74,7 @@ const SpotBox = ({ show, x, y, w, h }: { show: boolean; x: number; y: number; w:
 
 const SettingsPage = ({ t }: { t: number }) => (
     <WorkspaceFrame active="Settings" tournament={NAME}>
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <div className="text-2xl font-bold">Settings</div>
         <p className="mt-1 text-sm text-muted-foreground">Tournament configuration and danger zone</p>
         <div className="absolute rounded-xl border border-border bg-card" style={{ left: 32, top: 110, width: 986, height: 340 }}>
             <p className="absolute left-6 top-6 text-lg font-semibold">Details</p>

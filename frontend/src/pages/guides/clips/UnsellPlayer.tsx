@@ -91,7 +91,7 @@ const PlayersPage = ({ t }: { t: number }) => {
     return (
         <WorkspaceFrame active="Players">
             <p className="text-sm font-bold text-foreground">Player Registry</p>
-            <h1 className="mt-1 bg-gradient-primary bg-clip-text text-4xl font-black text-transparent">All Players</h1>
+            <div className="mt-1 bg-gradient-primary bg-clip-text text-4xl font-black text-transparent">All Players</div>
             <p className="mt-1 text-muted-foreground">105 registered players</p>
             {counts.map((f, i) => (
                 <div key={f} className="absolute" style={{ left: filterX(i) - 60 - 230, top: FILTER_Y - 18 }}>
@@ -208,7 +208,7 @@ const PurseCard = ({ t }: { t: number }) => {
 
 const SheetHistory = ({ t }: { t: number }) => (
     <WorkspaceFrame active="Player sheet">
-        <h1 className="text-2xl font-bold">Player sheet</h1>
+        <div className="text-2xl font-bold">Player sheet</div>
         <div className="absolute right-8 top-8">
             <span className="relative block">
                 <FakeButton variant="outline" className="h-9" pressed={between(t, T_SHEET + 1200, T_SHEET + 1450)}>

@@ -17,6 +17,8 @@
 User-agent: *
 Allow: /
 
-# The bare host is canonical — www 301s to it — so the sitemaps say so too.
+# The bare host is canonical — www 301s to it — so the sitemap says so too.
+#
+# scoring.cricbid.online is deliberately absent: the scoring app is unused and
+# now serves noindex, so advertising its sitemap would only invite crawling.
 Sitemap: https://cricbid.online/sitemap.xml
-Sitemap: https://scoring.cricbid.online/sitemap.xml
