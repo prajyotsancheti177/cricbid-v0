@@ -1,0 +1,57 @@
+# Vardhaman CricBid
+
+> Cricket auction software for tournament organisers in India. Run an IPL-style
+> player auction live: collect player and team registrations, hold the auction
+> in a real-time bidding room with per-category budgets and bid increment
+> slabs, notify players on WhatsApp when they are sold, and broadcast the
+> auction with OBS overlays.
+
+CricBid is used by organisers running local and club cricket tournaments. A
+tournament is created by a host, players and teams register through a public
+form, and the host then conducts a live auction where team owners bid for
+players against a fixed purse. Results, squads and spend are available
+afterwards, and each sold player gets a shareable card.
+
+## What the product does
+
+- **Player and team registration** — a public form per tournament, with
+  configurable fields, payment QR and payment-proof upload.
+- **Live auction room** — real-time bidding over websockets, one auctioneer per
+  tournament, per-category squad limits, configurable bid increment slabs, and
+  a maximum-biddable-amount calculation that keeps a team able to fill its
+  remaining squad slots.
+- **WhatsApp notifications** — players are messaged when they are sold.
+- **OBS broadcast overlays** — standalone pages designed as browser sources for
+  streaming the auction, including a pre-show countdown.
+- **Ball-by-ball scoring** — a separate scorer app for matches after the
+  auction.
+
+## Pages
+
+- [Home](https://cricbid.online/): what the product does, pricing and FAQ.
+- [Live demo](https://cricbid.online/demo): a real auction replayed bid by bid,
+  no sign-up required.
+- [Guides](https://cricbid.online/guides): short step-by-step walkthroughs of
+  every task an organiser performs.
+
+## Guides
+
+- [Create a tournament](https://cricbid.online/guides/create-tournament)
+- [Set and change bid increment slabs](https://cricbid.online/guides/bid-slabs)
+- [Build a player registration form](https://cricbid.online/guides/registration-form)
+- [How a player registers](https://cricbid.online/guides/player-registers)
+- [Register a team](https://cricbid.online/guides/team-registration)
+- [Top up a team's balance](https://cricbid.online/guides/top-up-budget)
+- [Run the bidding](https://cricbid.online/guides/run-bidding)
+- [Unsell a player](https://cricbid.online/guides/unsell-player)
+- [Edit a player](https://cricbid.online/guides/edit-player)
+- [Add players in bulk](https://cricbid.online/guides/add-players)
+- [Share the auction live](https://cricbid.online/guides/share-live)
+- [Export the results](https://cricbid.online/guides/export-data)
+
+## Notes for agents
+
+- Tournament, auction, registration and overlay URLs are per-tournament links
+  meant for the people running or playing in that tournament. They are marked
+  `noindex` and are not part of the public documentation.
+- The canonical host is `https://cricbid.online` (the `www` host redirects to it).
