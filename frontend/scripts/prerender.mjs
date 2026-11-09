@@ -64,6 +64,21 @@ const main = async () => {
 
   const warnings = [];
   let written = 0;
+
+  /**
+   * Indexable routes that are not worth server-rendering, but must still carry
+   * their own canonical.
+   *
+   * Every route not listed in ROUTES falls back to dist/index.html, whose
+   * canonical is hard-coded to the homepage — so /login and /terms were telling
+   * Google they are duplicates of the front page before any JavaScript ran.
+   * That is what Search Console reports as "Alternative page with proper
+   * canonical tag". Writing a copy with the right canonical costs nothing and
+   * needs no SSR; RouteMeta still fills in the rest once the app boots.
+   *
+   * Keep in step with INDEXABLE_EXACT in src/components/seo/RouteMeta.tsx.
+   */
+  const HEAD_ONLY_ROUTES = ["/login", "/terms", "/privacy-policy", "/delete-account"];
   try {
     const { ROUTES, render } = await vite.ssrLoadModule("/src/prerender/entry.tsx");
 
@@ -90,6 +105,21 @@ const main = async () => {
     }
   } finally {
     await vite.close();
+  }
+
+  for (const route of HEAD_ONLY_ROUTES) {
+    const url = `${CANONICAL_ORIGIN}${route}`;
+    let html = template;
+    html = swap(html, /<link rel="canonical" href="[^"]*" \/>/,
+      `<link rel="canonical" href="${url}" />`, 'link[rel="canonical"]', warnings);
+    html = swap(html, /<meta property="og:url" content="[^"]*" \/>/,
+      `<meta property="og:url" content="${url}" />`, 'meta[property="og:url"]', warnings);
+
+    const outDir = path.join(dist, route.replace(/^\//, ""));
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, "index.html"), html);
+    written++;
+    console.log(`[prerender] ${route} -> dist${route}/index.html (canonical only)`);
   }
 
   for (const w of warnings) console.warn(`[prerender] WARNING: ${w}`);
