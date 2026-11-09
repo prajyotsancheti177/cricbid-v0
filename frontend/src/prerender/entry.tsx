@@ -1,11 +1,12 @@
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
+import Home from "@/pages/Home";
 import DemoPage from "@/pages/demo/DemoPage";
 import GuidesPage from "@/pages/guides/GuidesPage";
 import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
 
 /**
- * Build-time rendering for the two pages that are meant to rank.
+ * Build-time rendering for the pages that are meant to rank.
  *
  * Everything else on the site is fine as a client-rendered shell — it is behind
  * a login, or it is a link handed to one person. But /demo and /guides are the
@@ -29,6 +30,7 @@ import { PAGE_META, type PageMeta } from "@/lib/pageMeta";
  * the page components read too — one string, two consumers, no drift.
  */
 export const ROUTES: Record<string, { element: JSX.Element; meta: PageMeta }> = {
+  "/": { element: <Home />, meta: PAGE_META["/"] },
   "/demo": { element: <DemoPage />, meta: PAGE_META["/demo"] },
   "/guides": { element: <GuidesPage />, meta: PAGE_META["/guides"] },
 };

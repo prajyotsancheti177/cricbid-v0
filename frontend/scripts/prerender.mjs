@@ -97,11 +97,24 @@ const main = async () => {
       html = swap(html, /<div id="root"><\/div>/,
         `<div id="root">${body}</div>`, '<div id="root">', warnings);
 
-      const outDir = path.join(dist, route.replace(/^\//, ""));
-      fs.mkdirSync(outDir, { recursive: true });
-      fs.writeFileSync(path.join(outDir, "index.html"), html);
+      // "/" cannot be written to dist/index.html: nginx serves that file as the
+      // SPA fallback for every unmatched route, so the homepage's markup would
+      // be the first paint of /auction, /c/<code> and every tournament link.
+      // It goes to its own file, which nginx serves for "/" alone:
+      //     location = / { try_files /home.html /index.html; }
+      // The fallback in that line means an older build without home.html still
+      // works — it just client-renders, as it does today.
+      let outPath;
+      if (route === "/") {
+        outPath = path.join(dist, "home.html");
+      } else {
+        const outDir = path.join(dist, route.replace(/^\//, ""));
+        fs.mkdirSync(outDir, { recursive: true });
+        outPath = path.join(outDir, "index.html");
+      }
+      fs.writeFileSync(outPath, html);
       written++;
-      console.log(`[prerender] ${route} -> dist${route}/index.html (${(body.length / 1024).toFixed(1)} KB of markup)`);
+      console.log(`[prerender] ${route} -> ${path.relative(dist, outPath)} (${(body.length / 1024).toFixed(1)} KB of markup)`);
     }
   } finally {
     await vite.close();
@@ -123,7 +136,9 @@ const main = async () => {
   }
 
   for (const w of warnings) console.warn(`[prerender] WARNING: ${w}`);
-  console.log(`[prerender] wrote ${written} page(s). nginx needs: try_files $uri $uri/index.html /index.html;`);
+  console.log(`[prerender] wrote ${written} page(s). nginx needs:`);
+  console.log(`[prerender]   location = / { try_files /home.html /index.html; }`);
+  console.log(`[prerender]   location /   { try_files $uri $uri/index.html /index.html; }`);
 };
 
 main().catch((err) => {
