@@ -59,6 +59,37 @@ const addLd = (html, objects) => {
   return html.replace("</head>", `${tags}\n</head>`);
 };
 
+/**
+ * Rewrite dev-time asset URLs to the hashed files Vite actually emitted.
+ *
+ * The pre-render runs through Vite in middleware mode, where `import logo from
+ * "@/assets/logo.webp"` resolves to the dev URL "/src/assets/logo.webp". That
+ * string then lands in the pre-rendered markup and 404s in production, so every
+ * pre-rendered page showed a broken image until React hydrated and replaced it.
+ *
+ * It went unnoticed because the SPA fallback answered those requests with 200
+ * and an HTML body. Once missing files started returning a real 404, Lighthouse
+ * reported it as a console error.
+ */
+const rewriteAssetUrls = (html, dist, warnings) => {
+  const assetDir = path.join(dist, "assets");
+  if (!fs.existsSync(assetDir)) return html;
+  const built = fs.readdirSync(assetDir);
+
+  return html.replace(/\/src\/assets\/([A-Za-z0-9._-]+)/g, (whole, file) => {
+    const dot = file.lastIndexOf(".");
+    const stem = file.slice(0, dot);
+    const ext = file.slice(dot);
+    // Vite emits "<stem>-<hash><ext>".
+    const match = built.find((f) => f.startsWith(`${stem}-`) && f.endsWith(ext));
+    if (!match) {
+      warnings.push(`no built asset for ${whole} — left as is, it will 404`);
+      return whole;
+    }
+    return `/assets/${match}`;
+  });
+};
+
 const escapeAttr = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -121,6 +152,7 @@ const main = async () => {
         `<meta property="og:url" content="${url}" />`, 'meta[property="og:url"]', warnings);
       html = swap(html, /<div id="root"><\/div>/,
         `<div id="root">${body}</div>`, '<div id="root">', warnings);
+      html = rewriteAssetUrls(html, dist, warnings);
 
       // The homepage keeps the blocks that describe it; everything else is
       // given schema about itself instead.

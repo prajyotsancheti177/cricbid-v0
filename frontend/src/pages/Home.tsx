@@ -584,7 +584,9 @@ export default function Home() {
                 <div className="container mx-auto px-4">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <img src={logo} alt="Vardhaman CricBid Cricket Auction Software" className="w-8 h-8 rounded-md" />
+                            {/* w-8 h-8 squashed a 1024x565 lockup into a square. Fixed height, auto
+                                width keeps its real proportions — the wordmark sits next to it anyway. */}
+                            <img src={logo} alt="Vardhaman CricBid Cricket Auction Software" className="h-8 w-auto object-contain rounded-md" />
                             <span className="text-xl font-bold">Vardhaman cricBid</span>
                         </div>
                         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-muted-foreground">
