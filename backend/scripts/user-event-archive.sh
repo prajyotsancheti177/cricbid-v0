@@ -48,7 +48,7 @@ export)
     where=""
     out="$ARCHIVE_DIR/user_event_$(date +%Y%m%d).csv.gz"
   fi
-  echo "exporting ${before:+rows before $before}${before:-whole table} ..."
+  echo "exporting ${before:+rows before $before}${before:+...}${before:-the whole table ...}"
   psq -c "\copy (SELECT * FROM user_event $where ORDER BY timestamp) TO STDOUT WITH (FORMAT csv, HEADER)" \
     | gzip -9 > "$out"
   echo "wrote $out ($(du -h "$out" | cut -f1), $(rows_in "$out") rows)"
