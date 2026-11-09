@@ -212,10 +212,15 @@ export default function Home() {
                     className="relative z-10 container mx-auto px-4 text-center"
                     style={{ y: heroY, scale: heroScale }}
                 >
+                    {/* The hero block paints with the document and only slides.
+                        framer-motion writes `initial` into the pre-rendered markup, so
+                        `opacity: 0` here meant the first viewport filled in piece by
+                        piece after hydration. Transforms do not affect layout, so this
+                        costs no CLS. Everything below the fold still fades in. */}
                     {/* Badge */}
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
                         transition={{ delay: 0.2 }}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
                     >
@@ -248,8 +253,8 @@ export default function Home() {
 
                     {/* Subheadline */}
                     <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
                         transition={{ delay: 0.6, duration: 0.8 }}
                         className="text-base sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-8 md:mb-10 px-4"
                     >
@@ -258,8 +263,8 @@ export default function Home() {
 
                     {/* CTA Buttons */}
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
                         transition={{ delay: 0.8 }}
                         className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4"
                     >
@@ -285,8 +290,8 @@ export default function Home() {
 
                     {/* Contact Info */}
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
                         transition={{ delay: 1 }}
                         className="mt-8 md:mt-10"
                     >
