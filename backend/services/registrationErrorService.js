@@ -36,6 +36,8 @@ const friendlyMessage = (code, { name, maxMb } = {}) => {
         // players of the same name apart.
         case 'DUPLICATE_NAME_NO_PHONE':
             return `${name ? `"${name}"` : 'This player'} is already registered for this tournament. If this is a different player with the same name, ask the organiser to add them — this form cannot tell two players apart without a phone number.`;
+        case 'DUPLICATE_TEAM_NAME':
+            return `A team called ${name ? `"${name}"` : 'that'} is already registered for this tournament. If your team is already in, you do not need to register again — check with the organiser. Otherwise pick a different team name.`;
         case 'FILE_TOO_LARGE':
             return `A photo or screenshot is too large. Each file must be under ${maxMb || 10} MB — please choose a smaller image and try again.`;
         case 'UPLOAD_FAILED':
@@ -56,6 +58,9 @@ const classify = (error) => {
     const lower = msg.toLowerCase();
     if (error?.code === 'LIMIT_FILE_SIZE' || lower.includes('file too large')) return 'FILE_TOO_LARGE';
     if (error?.name === 'MulterError' || lower.includes('s3') || lower.includes('upload')) return 'UPLOAD_FAILED';
+    // Teams are rejected by name alone (teamService.addTeam), players by name
+    // plus phone, so they are different refusals with different advice.
+    if (lower.includes('team already exists')) return 'DUPLICATE_TEAM_NAME';
     if (lower.includes('with this phone number') && lower.includes('already registered')) return 'DUPLICATE_NAME';
     if (lower.includes('already registered')) return 'DUPLICATE_NAME_NO_PHONE';
     if (lower.includes('tournament id is required')) return 'MISSING_TOURNAMENT';

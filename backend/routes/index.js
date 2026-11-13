@@ -18,6 +18,7 @@ const bookingRouter = require('./bookingRoutes');
 const siteSettingsRouter = require('./siteSettingsRoutes');
 const agentRequestRouter = require('./agentRequestRoutes');
 const cricHeroesRouter = require('./cricHeroesRoutes');
+const plannerRouter = require('./plannerRoutes');
 const playerCardRouter = require('./playerCardRoutes');
 
 // Mount routes with their base paths
@@ -37,6 +38,7 @@ router.use("/booking", bookingRouter);
 router.use("/site-settings", siteSettingsRouter);
 router.use("/agent-request", agentRequestRouter);
 router.use("/cricheroes", cricHeroesRouter);
+router.use("/planner", plannerRouter);
 router.use("/player-card", playerCardRouter);
 
 module.exports = router;

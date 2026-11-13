@@ -1,0 +1,310 @@
+/* Sport, applied to the marketing surface. Every value here is a token from
+   tokens.css; no literal colours, no literal faces. Scoped under .hm so none of
+   it reaches the auction room, the workspace or the OBS overlays. */
+
+/* ── Nav: a bar rule, a wordmark, two real links and one action ──────────── */
+.hm-nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky-nav);
+  background: var(--color-paper);
+  border-bottom: var(--rule-bar) solid var(--color-rule-2);
+}
+
+.hm-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  height: 64px;
+}
+
+.hm-nav__mark {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* The asset is 1024x565 with roughly 30% dead padding baked in, which makes the
+   mark illegible at nav size. `cover` on a wider box crops the vertical padding
+   away without touching the file. */
+.hm-nav__mark img {
+  height: 32px;
+  width: 124px;
+  object-fit: cover;
+  object-position: center;
+}
+
+.hm-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-left: auto;
+}
+
+.hm-nav__link {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-micro) var(--ease-out);
+}
+
+.hm-nav__link:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-deep);
+  text-decoration-thickness: 2px;
+}
+
+/* ── Controls: the Sport pair — a volt fill beside an ink-bordered block ─── */
+.hm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--rule-bar) solid transparent;
+  border-radius: var(--radius-card);
+  padding: var(--space-sm) var(--space-md);
+  min-height: 48px;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-md);
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
+}
+
+.hm-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+.hm-btn--primary:hover {
+  background: var(--color-accent-press);
+  color: var(--color-paper);
+}
+.hm-btn--primary:active {
+  background: var(--color-accent-press);
+  color: var(--color-paper);
+}
+
+.hm-btn--secondary {
+  background: transparent;
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+.hm-btn--secondary:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+.hm-btn--secondary:active {
+  background: var(--color-ink-2);
+  color: var(--color-paper);
+}
+
+.hm-btn--sm {
+  min-height: 40px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.hm-btn:disabled,
+.hm-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Hero: Stage — the head on the left, the real board on the right ─────── */
+.hm-hero {
+  padding-block: var(--space-2xl) var(--space-2xl);
+}
+
+/* At 1440 the hero was ending at y680 of a 900px screen, leaving a dead band
+   before the next section (gates 44c, 79). It fills its own screen now. */
+@media (min-width: 80rem) {
+  .hm-hero {
+    padding-block: var(--space-3xl) var(--space-3xl);
+  }
+  .hm-hero__grid {
+    gap: var(--space-2xl);
+  }
+  /* The stage grows past the capture's own ratio so the hero reaches down its
+     screen; `cover` trims about 5% from each side, which is margin in the
+     capture, not content. */
+  .hm-hero__stage {
+    aspect-ratio: auto;
+    height: 392px;
+  }
+  .hm-figures {
+    margin-top: var(--space-3xl);
+  }
+  .hm-figures__cell {
+    padding-top: var(--space-3xl);
+    padding-bottom: var(--space-md);
+  }
+}
+
+.hm-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-xl);
+  align-items: center;
+}
+
+.hm-hero__head h1 {
+  font-size: var(--text-display);
+  max-width: 14ch;
+}
+
+.hm-hero__lead {
+  margin-top: var(--space-md);
+  color: var(--color-ink-2);
+}
+
+.hm-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+/* The board sits in a slot, so the capture drops in without touching markup.
+   `width: 100%` is load-bearing: with aspect-ratio alone, the taller stage at
+   >=80rem resolved its width from its height (392 x 2.586 = 1014px) and
+   overflowed its grid track. */
+.hm-hero__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1800 / 696;
+  border-radius: var(--radius-card);
+  /* The capture is 2.59:1. Where the stage is taller than that, the board is
+     matted on ink rather than cropped, so the max-bid panel keeps its figures.
+     The capture's own ground is near-black, so the mat reads as part of it. */
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* base.css styles every slot via `.hm [data-slot]` (0-2-0). Tailwind v3's
+   PostCSS pass flattens the `layer()` on our @imports, so the cascade falls
+   back to specificity and a plain `.hm-hero__stage` (0-1-0) loses. Anything
+   here that has to beat a base.css slot rule carries the same shape. */
+.hm [data-slot].hm-hero__stage {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.hm [data-slot].hm-hero__stage > img {
+  object-fit: contain;
+}
+
+.hm-hero__stage-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  text-align: center;
+  color: var(--color-slot);
+}
+
+.hm-hero__stage-fallback .hm-label {
+  color: inherit;
+}
+
+
+/* One figure sits on a volt fill — Sport's Range allows one, and it is the
+   fill, never the letter. */
+.hm-figures__cell--volt {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+.hm-figures__cell--volt .hm-label {
+  color: var(--color-accent-ink);
+}
+
+/* ── The figures: the tournament, under a bar rule, parted by hairlines ──── */
+.hm-figures {
+  border-top: var(--rule-bar) solid var(--color-rule-2);
+  margin-top: var(--space-xl);
+}
+
+.hm-figures__row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hm-figures__cell {
+  padding: var(--space-lg) var(--space-md) var(--space-md) 0;
+}
+
+.hm-figures__cell + .hm-figures__cell {
+  border-left: var(--rule-hair) solid var(--color-rule);
+  padding-left: var(--space-md);
+}
+
+.hm-figure {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-display-s);
+  line-height: 0.9;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+
+.hm-label {
+  display: block;
+  margin-top: var(--space-2xs);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.hm-figures__source {
+  padding: var(--space-md) 0 0;
+  border-top: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 64rem) {
+  .hm-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-xl);
+  }
+  .hm-hero__head h1 {
+    max-width: 18ch;
+  }
+}
+
+@media (max-width: 48rem) {
+  .hm-nav__links {
+    gap: var(--space-md);
+  }
+  .hm-nav__link {
+    display: none;
+  }
+  .hm-figures__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hm-figures__cell:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+    border-top: var(--rule-hair) solid var(--color-rule);
+  }
+  .hm-figures__cell:nth-child(4) {
+    border-top: var(--rule-hair) solid var(--color-rule);
+  }
+}

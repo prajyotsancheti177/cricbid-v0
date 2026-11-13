@@ -220,8 +220,8 @@ const AuctionReplay = () => {
                 </div>
 
                 {/* ---- Below here is the live auction room, component for component ---- */}
-                <div ref={stageRef} className="rounded-2xl border border-border/60 bg-background/40 p-3 md:p-4">
-                    <div className="mx-auto flex max-w-7xl flex-col gap-3 md:h-[55vh] md:min-h-[440px] md:flex-row md:gap-4">
+                <div ref={stageRef} data-capture="auction-board" className="rounded-2xl border border-border/60 bg-background/40 p-3 md:p-4">
+                    <div data-capture="auction-stage" className="mx-auto flex max-w-7xl flex-col gap-3 md:h-[55vh] md:min-h-[440px] md:flex-row md:gap-4">
                         <div className="h-[50vh] min-h-[360px] flex-1 md:h-full md:min-h-0">
                             <AuctionPlayerCard
                                 player={player}

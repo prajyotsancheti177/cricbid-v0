@@ -1,0 +1,24 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "page",
+  "shape": "Stat-Led",
+  "theme": "sport",
+  "axes": "light/display-condensed/chromatic-volt",
+  "hero": "Stage",
+  "nav": "bar-rule, wordmark, two links, one action",
+  "footer": "kept",
+  "imagery": "the product, captured",
+  "photos": [],
+  "entry": "surface A hero stage",
+  "sections": [
+   "Hero (the board)",
+   "Figures (Khel Mahotsav)"
+  ],
+  "signature": "the real auction board mid-lot, captured from /demo",
+  "waived": [],
+  "prompt": "live IPL-style cricket player auctions for local tournament organisers in India",
+  "date": "2026-11-10"
+ }
+]

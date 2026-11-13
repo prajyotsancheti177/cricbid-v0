@@ -142,6 +142,7 @@ model Tournament {
   backups             TournamentBackup[]
   matches             Match[]
   teamBudgetTopups    TeamBudgetTopup[]
+  teamPlanners        TeamPlanner[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -171,6 +172,7 @@ model Team {
   awayMatches    Match[]           @relation("MatchTeamB")
   battingInnings Innings[]         @relation("InningsBattingTeam")
   budgetTopups   TeamBudgetTopup[]
+  planner        TeamPlanner?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -270,6 +272,7 @@ model Player {
   whatsappLogs WhatsappLog[]
 
   cricHeroesLink CricHeroesLink?
+  plannerPicks   PlannerPick[]
 
   // Short, printable id for the public player card — it is rendered onto the
   // shared image, so it has to be typeable. Null until the card is first
@@ -1143,4 +1146,63 @@ model AgentRequest {
 
   @@index([status, createdAt])
   @@map("agent_request")
+}
+
+// ---------------------------------------------------------------------------
+// Owner auction planner (the "wishlist")
+//
+// Deliberately isolated: nothing in the live auction, the overlays or the
+// player sheet reads these tables. The planner page listens to the auction
+// socket the way an overlay does and never emits, so it cannot affect an
+// auction in progress. Deleting both tables would remove the feature and
+// leave everything else untouched.
+//
+// Owners are not users (Team only stores a name, email and mobile), so access
+// is a per-team unguessable token rather than an account — the same pattern as
+// the public registration links already sent over WhatsApp.
+// ---------------------------------------------------------------------------
+
+model TeamPlanner {
+  id    String @id @default(cuid())
+  token String @unique
+
+  teamId String @unique
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  touranmentId String
+  tournament   Tournament @relation(fields: [touranmentId], references: [id], onDelete: Cascade)
+
+  picks PlannerPick[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("team_planner")
+}
+
+// One ranked target. `rank` is 1-based within (planner, category): rank 1 is
+// the owner's first choice for that category, and losing a player closes the
+// list up so the next preference becomes first.
+//
+// `category` is the player's auction category, snapshotted at pick time so a
+// later edit to the player cannot silently move a pick into another ranking.
+model PlannerPick {
+  id String @id @default(cuid())
+
+  plannerId String
+  planner   TeamPlanner @relation(fields: [plannerId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  category      String
+  rank          Int
+  plannedAmount Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([plannerId, playerId])
+  @@index([plannerId, category, rank])
+  @@map("planner_pick")
 }

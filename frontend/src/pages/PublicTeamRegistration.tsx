@@ -129,9 +129,14 @@ const PublicTeamRegistration = () => {
 
       if (!response.ok) {
         let errorMessage = 'Registration failed. Please try again.';
+        let reference = '';
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
+          // The server now explains the refusal and gives it a short id. Showing
+          // the id means an organiser has something to quote instead of "it did
+          // not work", which is all anyone could say before.
+          if (errorData.errorId) reference = ` (reference ${errorData.errorId})`;
         } catch {
           // Could not parse JSON error body
         }
@@ -145,7 +150,7 @@ const PublicTeamRegistration = () => {
         } else if (lowerMsg.includes('tournament') && lowerMsg.includes('not found')) {
           throw new Error('This tournament could not be found. The registration link may be invalid.');
         } else {
-          throw new Error(errorMessage);
+          throw new Error(errorMessage + reference);
         }
       }
 

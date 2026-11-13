@@ -6,6 +6,7 @@
 const teamService = require("../services/teamService");
 const auctionStateManager = require("../services/auctionStateManager");
 const { sendSuccess, sendError } = require("../utils");
+const registrationErrors = require("../services/registrationErrorService");
 
 
 
@@ -52,7 +53,30 @@ const registerTeamPublic = async (req, res) => {
         const team = await teamService.addTeam(teamInput);
         return sendSuccess(res, 201, "Team registered successfully!", team);
     } catch (error) {
-        return sendError(res, 400, "Failed to register team!", error);
+        // Record why, and say why. This used to answer "Failed to register
+        // team!" and log nothing at all — a refusal left no trace anywhere, so
+        // the only way to find one afterwards was to match response byte sizes
+        // in the nginx access log. The player path already does this properly.
+        const code = registrationErrors.classify(error);
+        const body = req.body || {};
+        const teamName = (body.name || '').trim();
+        const errorId = await registrationErrors.record({
+            req,
+            code,
+            message: error?.message || String(error),
+            httpStatus: 400,
+            tournamentId: body.touranmentId || body.tournamentId,
+            name: teamName,
+            mobile: body.ownerMobile,
+            details: { kind: 'team', ownerName: (body.ownerName || '').trim() || null },
+        });
+        return res.status(400).json({
+            success: false,
+            message: registrationErrors.friendlyMessage(code, { name: teamName }),
+            code,
+            errorId,
+            error: error?.message || null,
+        });
     }
 }
 
