@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,53 +9,77 @@ import NormalizePath from "@/components/NormalizePath";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "./components/layout/Navbar";
 import AnalyticsTracker from "./components/AnalyticsTracker";
+
+/**
+ * Eager: the pages scripts/prerender.mjs writes real markup for.
+ *
+ * main.tsx mounts with createRoot, not hydrateRoot, so React discards the
+ * container's contents on its first commit. A lazy route commits `null` first
+ * and only paints once its chunk has arrived, which would wipe the
+ * pre-rendered markup and leave these pages blank for a network round trip —
+ * the opposite of what pre-rendering them was for. They stay in the entry
+ * chunk so the takeover is instant.
+ */
 import DemoPage from "./pages/demo/DemoPage";
 import GuidesPage from "./pages/guides/GuidesPage";
 import GuideClipPage from "./pages/guides/GuideClipPage";
-import GuideVideosPage from "./pages/guides/GuideVideosPage";
 import Home from "./pages/Home";
-import Auction from "./pages/Auction";
-import LiveAuctionLobby from "./pages/LiveAuctionLobby";
-import Teams from "./pages/Teams";
-import TeamDetail from "./pages/TeamDetail";
-import Players from "./pages/Players";
-import PlayerRegistration from "./pages/PlayerRegistration";
-import PublicPlayerRegistration from "./pages/PublicPlayerRegistration";
-import PublicTeamRegistration from "./pages/PublicTeamRegistration";
-import AddPlayer from "./pages/AddPlayer";
-import Tournaments from "./pages/Tournaments";
-import TournamentDetail from "./pages/TournamentDetail";
-import TournamentManagement from "./pages/TournamentManagement";
-import TournamentWorkspace from "./pages/workspace/TournamentWorkspace";
-import TournamentOverview from "./pages/workspace/TournamentOverview";
-import TournamentRegistrationSection from "./pages/workspace/TournamentRegistrationSection";
-import TournamentAuctionSection from "./pages/workspace/TournamentAuctionSection";
-import TournamentSettingsSection from "./pages/workspace/TournamentSettingsSection";
-import TournamentWhatsAppSection from "./pages/workspace/TournamentWhatsAppSection";
-import TournamentCricHeroesSection from "./pages/workspace/TournamentCricHeroesSection";
-import TournamentScheduleSection from "./pages/workspace/TournamentScheduleSection";
-import TournamentDataSection from "./pages/workspace/TournamentDataSection";
-import TournamentPlayerSheetSection from "./pages/workspace/TournamentPlayerSheetSection";
-import TournamentBackupsSection from "./pages/workspace/TournamentBackupsSection";
-import TournamentTopUpSection from "./pages/workspace/TournamentTopUpSection";
-import UserManagement from "./pages/UserManagement";
-import BulkUpload from "./pages/BulkUpload";
-import Analytics from "./pages/analytics/AnalyticsPage";
-import AssistantRequests from "./pages/AssistantRequests";
-import Login from "./pages/Login";
-import NotFound from "./pages/NotFound";
-import CameraHudOverlay from "./pages/overlays/CameraHudOverlay";
-import FullscreenOverlay from "./pages/overlays/FullscreenOverlay";
-import SplitScreenOverlay from "./pages/overlays/SplitScreenOverlay";
-import CountdownOverlay from "./pages/overlays/CountdownOverlay";
-import BroadcastOverlay from "./pages/overlays/BroadcastOverlay";
-import OwnerPlanner from "./pages/OwnerPlanner";
-import PlannerLinks from "./pages/PlannerLinks";
-import PlayerCard from "./pages/PlayerCard";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import Terms from "./pages/Terms";
-import DeleteAccount from "./pages/DeleteAccount";
-import SiteSettingsPage from "./pages/SiteSettings";
+
+/**
+ * Everything else is split out and fetched when its route is first opened.
+ *
+ * The entry bundle used to carry all 47 screens — the auction room, the OBS
+ * overlays, the whole management workspace, and Leaflet, recharts, jspdf and
+ * html2canvas behind them — so a visitor to the landing page downloaded the
+ * admin analytics map before it could paint.
+ *
+ * None of these routes is pre-rendered, so there is no server markup for a
+ * Suspense fallback to destroy.
+ */
+const GuideVideosPage = lazy(() => import("./pages/guides/GuideVideosPage"));
+const Auction = lazy(() => import("./pages/Auction"));
+const LiveAuctionLobby = lazy(() => import("./pages/LiveAuctionLobby"));
+const Teams = lazy(() => import("./pages/Teams"));
+const TeamDetail = lazy(() => import("./pages/TeamDetail"));
+const Players = lazy(() => import("./pages/Players"));
+const PlayerRegistration = lazy(() => import("./pages/PlayerRegistration"));
+const PublicPlayerRegistration = lazy(() => import("./pages/PublicPlayerRegistration"));
+const PublicTeamRegistration = lazy(() => import("./pages/PublicTeamRegistration"));
+const AddPlayer = lazy(() => import("./pages/AddPlayer"));
+const Tournaments = lazy(() => import("./pages/Tournaments"));
+const TournamentDetail = lazy(() => import("./pages/TournamentDetail"));
+const TournamentManagement = lazy(() => import("./pages/TournamentManagement"));
+const TournamentWorkspace = lazy(() => import("./pages/workspace/TournamentWorkspace"));
+const TournamentOverview = lazy(() => import("./pages/workspace/TournamentOverview"));
+const TournamentRegistrationSection = lazy(() => import("./pages/workspace/TournamentRegistrationSection"));
+const TournamentAuctionSection = lazy(() => import("./pages/workspace/TournamentAuctionSection"));
+const TournamentSettingsSection = lazy(() => import("./pages/workspace/TournamentSettingsSection"));
+const TournamentWhatsAppSection = lazy(() => import("./pages/workspace/TournamentWhatsAppSection"));
+const TournamentCricHeroesSection = lazy(() => import("./pages/workspace/TournamentCricHeroesSection"));
+const TournamentScheduleSection = lazy(() => import("./pages/workspace/TournamentScheduleSection"));
+const TournamentDataSection = lazy(() => import("./pages/workspace/TournamentDataSection"));
+const TournamentPlayerSheetSection = lazy(() => import("./pages/workspace/TournamentPlayerSheetSection"));
+const TournamentBackupsSection = lazy(() => import("./pages/workspace/TournamentBackupsSection"));
+const TournamentTopUpSection = lazy(() => import("./pages/workspace/TournamentTopUpSection"));
+const UserManagement = lazy(() => import("./pages/UserManagement"));
+const BulkUpload = lazy(() => import("./pages/BulkUpload"));
+const Analytics = lazy(() => import("./pages/analytics/AnalyticsPage"));
+const AssistantRequests = lazy(() => import("./pages/AssistantRequests"));
+const Login = lazy(() => import("./pages/Login"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const CameraHudOverlay = lazy(() => import("./pages/overlays/CameraHudOverlay"));
+const FullscreenOverlay = lazy(() => import("./pages/overlays/FullscreenOverlay"));
+const SplitScreenOverlay = lazy(() => import("./pages/overlays/SplitScreenOverlay"));
+const CountdownOverlay = lazy(() => import("./pages/overlays/CountdownOverlay"));
+const BroadcastOverlay = lazy(() => import("./pages/overlays/BroadcastOverlay"));
+const OwnerPlanner = lazy(() => import("./pages/OwnerPlanner"));
+const PlannerLinks = lazy(() => import("./pages/PlannerLinks"));
+const PlayerCard = lazy(() => import("./pages/PlayerCard"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
+const SiteSettingsPage = lazy(() => import("./pages/SiteSettings"));
+
 import { SiteSettingsProvider } from "@/lib/siteSettings";
 import { clearSession, getSessionToken, installSessionExpiryHandler, useCurrentUser } from "@/lib/auth";
 
@@ -164,6 +189,10 @@ const App = () => (
         <NormalizePath />
         <AnalyticsTracker />
         <div className="min-h-screen bg-background text-foreground">
+          {/* fallback={null} rather than a spinner: an OBS overlay is a
+              transparent browser source over a live camera feed, and a
+              centred spinner would be composited into the broadcast. */}
+          <Suspense fallback={null}>
           <Routes>
             {/* Standalone pages — no navbar */}
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -330,6 +359,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
+          </Suspense>
         </div>
       </BrowserRouter>
     </TooltipProvider>
