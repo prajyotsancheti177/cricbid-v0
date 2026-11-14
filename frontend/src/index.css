@@ -1,13 +1,3 @@
-/* Hallmark · shape: Stat-Led · genre: editorial · theme: Sport (deal 2/3, seed software-running-live-ipl-style-2cde·7d3b4d43·2026-11-09·r0) · redesign: full
- * hero: Stage · nav: bar-rule, wordmark and two real links over a 2px rule · footer: mast, wordmark over ruled columns · imagery: the product, captured · signature: a real auction board mid-bid
- * axes: light/display-condensed/chromatic-volt · posture: restrained · contrast: pass · fold: pass · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V4 · weakest: P, the argument was "we have features"; made it "the auction runs itself, you watch the room" and cut the feature grid to the four things only this does */
-/* Hallmark · scope: surface A only (/, /demo, /guides). base.css is scoped to .hm so the auction room, workspace and OBS overlays keep the dark system until surfaces B and C land. */
-@import "./tokens.css";
-@import "./fonts.css";
-@import "./base.css" layer(base);
-@import "./marketing.css" layer(components);
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { motion } from "framer-motion";
+import { useRef, useEffect } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -141,6 +141,16 @@ const stats = [
 
 export default function Home() {
     const navigate = useNavigate();
+    const heroRef = useRef<HTMLDivElement>(null);
+    const { scrollYProgress } = useScroll({
+        target: heroRef,
+        offset: ["start start", "end start"],
+    });
+
+    const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
+    const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.8]);
+    const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
+
     useEffect(() => {
         document.title = "Cricket Auction Software for Tournaments — Vardhaman CricBid";
 
@@ -161,110 +171,161 @@ export default function Home() {
 
     return (
         <div className="overflow-hidden font-sans">
-            {/* ── Surface A: Hallmark/Sport. Scoped to .hm so none of this
-                 system reaches the auction room or the OBS overlays. The
-                 sections below this wrapper are still the old markup; they are
-                 rebuilt in the next pass. ── */}
-            <div className="hm">
-                {/* Nav: a bar rule, the wordmark, two real links, one action. */}
-                <header className="hm-nav">
-                    <div className="container hm-nav__inner">
-                        <a href="/" className="hm-nav__mark" aria-label="Vardhaman CricBid, home">
-                            <img
-                                src={logo}
-                                alt="Vardhaman CricBid"
-                                width={160}
-                                height={30}
-                                fetchPriority="high"
-                            />
-                        </a>
-                        <nav className="hm-nav__links">
-                            <a href="/demo" className="hm-nav__link">Demo</a>
-                            <a href="/guides" className="hm-nav__link">Guides</a>
-                            <button
-                                type="button"
-                                className="hm-btn hm-btn--secondary hm-btn--sm"
-                                onClick={() => navigate("/tournaments")}
+            {/* Landing Page Header */}
+            <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
+                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white rounded-lg shadow-glow overflow-hidden flex items-center justify-center">
+                            <img src={logo} alt="Vardhaman CricBid — India's #1 Cricket Auction Software" className="h-10 w-[160px] object-contain scale-[2.1]" />
+                        </div>
+                    </div>
+                    <div>
+                        <Button onClick={() => navigate("/tournaments")}>Take me to CricBid</Button>
+                    </div>
+                </div>
+            </header>
+
+            {/* Hero Section */}
+            <motion.section
+                ref={heroRef}
+                className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16"
+                style={{ opacity: heroOpacity }}
+            >
+                {/* Animated Background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/10" />
+                <div className="absolute inset-0">
+                    <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
+                    <div className="absolute bottom-1/4 right-1/4 w-48 h-48 md:w-96 md:h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse delay-1000" />
+                </div>
+
+                {/* Grid Pattern */}
+                <div
+                    className="absolute inset-0 opacity-[0.03]"
+                    style={{
+                        backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+                        backgroundSize: "50px 50px",
+                    }}
+                />
+
+                <motion.div
+                    className="relative z-10 container mx-auto px-4 text-center"
+                    style={{ y: heroY, scale: heroScale }}
+                >
+                    {/* The hero block paints with the document and only slides.
+                        framer-motion writes `initial` into the pre-rendered markup, so
+                        `opacity: 0` here meant the first viewport filled in piece by
+                        piece after hydration. Transforms do not affect layout, so this
+                        costs no CLS. Everything below the fold still fades in. */}
+                    {/* Badge */}
+                    <motion.div
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
+                    >
+                        <Zap className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">India's #1 Cricket Auction Software · Trusted by 500+ Organizers</span>
+                    </motion.div>
+
+                    {/* Main Headline */}
+                    {/* No opacity here on purpose. This heading is the Largest
+                        Contentful Paint element, and framer-motion writes its
+                        `initial` into the pre-rendered HTML — so `opacity: 0`
+                        shipped the hero invisible until the 2.5 MB bundle
+                        hydrated, turning a 1.8s paint into a 15.9s LCP. It now
+                        paints with the document and only slides. A transform
+                        does not affect layout, so this costs no CLS. */}
+                    <motion.h1
+                        initial={{ y: 30 }}
+                        animate={{ y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-4 md:mb-6 leading-tight px-2"
+                    >
+                        <span className="bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
+                            India's #1 IPL-Style
+                        </span>
+                        <br />
+                        <span className="bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
+                            Cricket Auction Software
+                        </span>
+                    </motion.h1>
+
+                    {/* Subheadline */}
+                    <motion.p
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
+                        transition={{ delay: 0.6, duration: 0.8 }}
+                        className="text-base sm:text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-8 md:mb-10 px-4"
+                    >
+                        Run IPL-style cricket player auctions with automatic smart bidding, instant WhatsApp notifications &amp; OBS live streaming. For box cricket, gully cricket, colony &amp; corporate tournaments across India.
+                    </motion.p>
+
+                    {/* CTA Buttons */}
+                    <motion.div
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
+                        transition={{ delay: 0.8 }}
+                        className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4"
+                    >
+                        <Button
+                            size="lg"
+                            className="text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-[0_0_30px_hsl(263,70%,50%,0.4)] hover:shadow-[0_0_40px_hsl(263,70%,50%,0.6)] transition-all duration-300"
+                            onClick={() => navigate("/tournaments")}
+                        >
+                            Take me to CricBid
+                            <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+                        </Button>
+
+                        {/* Secondary CTA into the walkthrough of a real auction */}
+                        <Button
+                            size="lg"
+                            variant="outline"
+                            className="text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all duration-300"
+                            onClick={() => navigate("/demo")}
+                        >
+                            See a real auction
+                        </Button>
+                    </motion.div>
+
+                    {/* Contact Info */}
+                    <motion.div
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
+                        transition={{ delay: 1 }}
+                        className="mt-8 md:mt-10"
+                    >
+                        <p className="text-sm text-muted-foreground mb-3">Contact Us</p>
+                        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
+                            <a
+                                href="https://wa.me/919423931031"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-all text-green-500"
                             >
-                                Start a tournament
-                            </button>
-                        </nav>
-                    </div>
-                </header>
-
-                {/* Hero, Stage posture. No motion: the headline is the LCP
-                    element, and Sport moves nothing but live data. */}
-                <section className="container hm-hero">
-                    <div className="hm-hero__grid">
-                        <div className="hm-hero__head">
-                            <h1>Run the room, not the maths</h1>
-                            <p className="lead hm-hero__lead">
-                                Live bidding, purse limits and the hammer, while you call the lot.
-                            </p>
-                            <div className="hm-hero__actions">
-                                <button
-                                    type="button"
-                                    className="hm-btn hm-btn--primary"
-                                    onClick={() => navigate("/tournaments")}
-                                >
-                                    Start a tournament
-                                </button>
-                                <button
-                                    type="button"
-                                    className="hm-btn hm-btn--secondary"
-                                    onClick={() => navigate("/demo")}
-                                >
-                                    See a real auction
-                                </button>
-                            </div>
+                                <Phone className="w-4 h-4" />
+                                <span className="font-medium text-sm">Dr. Kartik Bakliwal: 9423931031</span>
+                            </a>
                         </div>
+                    </motion.div>
 
-                        <figure className="hm-hero__stage" data-slot="auction-board" data-raw>
-                            {/* The real auction room, captured from /demo with
-                                scripts/capture.mjs: lot 39 of the Khel Mahotsav
-                                auction, mid-bid. Not a mock-up, and not drawn.
-                                It is the LCP image, so it is eager and
-                                high-priority. */}
-                            <img
-                                src="/auction-board.jpg"
-                                alt="The CricBid auction room mid-lot: Pushkar Sancheti, lot 39, current bid 3,850 points to Redfit, with three of eight teams already priced out."
-                                width={1800}
-                                height={696}
-                                fetchPriority="high"
-                                decoding="async"
-                            />
-                            <div className="hm-hero__stage-fallback">
-                                <span className="hm-label">The auction room, mid-lot</span>
-                            </div>
-                        </figure>
-                    </div>
-
-                    {/* Stat-Led: the tournament in figures, under the bar rule. */}
-                    <div className="hm-figures">
-                        <div className="hm-figures__row">
-                            <div className="hm-figures__cell">
-                                <span className="hm-figure">105</span>
-                                <span className="hm-label">Players auctioned</span>
-                            </div>
-                            <div className="hm-figures__cell hm-figures__cell--volt">
-                                <span className="hm-figure">1,808</span>
-                                <span className="hm-label">Bids taken</span>
-                            </div>
-                            <div className="hm-figures__cell">
-                                <span className="hm-figure">8</span>
-                                <span className="hm-label">Teams bidding</span>
-                            </div>
-                            <div className="hm-figures__cell">
-                                <span className="hm-figure">193</span>
-                                <span className="hm-label">Minutes, start to hammer</span>
-                            </div>
-                        </div>
-                        <p className="hm-figures__source">
-                            Chhatrapati Shivaji Maharaj Khel Mahotsav, run by Youthika Sports on 11 July 2026.
-                        </p>
-                    </div>
-                </section>
-            </div>
+                    {/* Scroll Indicator */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1.2 }}
+                        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+                    >
+                        <motion.div
+                            animate={{ y: [0, 10, 0] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                            className="text-muted-foreground"
+                        >
+                            <ChevronDown className="w-8 h-8" />
+                        </motion.div>
+                    </motion.div>
+                </motion.div>
+            </motion.section>
 
             {/* Features Section */}
             <section className="py-16 md:py-24 relative">
