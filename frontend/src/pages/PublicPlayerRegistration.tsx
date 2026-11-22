@@ -527,7 +527,11 @@ const PublicPlayerRegistration = () => {
         // because the first attempt did reach the server and only its reply was
         // lost. The player IS registered, so telling them they are a duplicate
         // would be both confusing and wrong.
-        if (networkFailed && data?.code === 'DUPLICATE_NAME') {
+        // Both duplicate codes, not just the one: a form that collects no
+        // mobile number gets DUPLICATE_NAME_NO_PHONE instead, and testing this
+        // path found the player being told they were a duplicate of
+        // themselves — on a registration that had in fact succeeded.
+        if (networkFailed && (data?.code === 'DUPLICATE_NAME' || data?.code === 'DUPLICATE_NAME_NO_PHONE')) {
           setError("");
           setSuccess("Registration successful! Your player profile has been submitted.");
           return;
