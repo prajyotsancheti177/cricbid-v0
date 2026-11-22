@@ -475,22 +475,63 @@ const PublicPlayerRegistration = () => {
         return;
       }
 
-      let response: Response;
-      try {
-        response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
-          method: 'POST',
-          // Omit Content-Type to let the browser set boundary correctly for FormData
-          headers: playerToken ? { 'x-player-token': playerToken } : undefined,
-          body: formPayload,
-        });
-      } catch (netErr: any) {
-        await failWith('NETWORK', 'Could not reach the server. Please check your internet connection and try again.', { error: String(netErr?.message || netErr) });
+      // Retry on a dropped connection.
+      //
+      // "Could not reach the server" is by far the most common way a
+      // registration fails — 258 of 290 recorded refusals. The requests never
+      // arrive: nothing appears in the server log, while heartbeats from the
+      // same phone in the same seconds get through, and the identical form
+      // submitted a minute later succeeds. A few hundred KB of photos is long
+      // enough on a mobile connection to be caught by a connection that has
+      // gone stale, where a 59-byte heartbeat is not.
+      //
+      // Every one of those failures was a person retrying by hand. Do it for
+      // them, with a short backoff, before giving up.
+      const ATTEMPTS = 3;
+      let response: Response | null = null;
+      let lastNetErr: unknown = null;
+      let networkFailed = false;
+
+      for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+        try {
+          response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
+            method: 'POST',
+            // Omit Content-Type to let the browser set boundary correctly for FormData
+            headers: playerToken ? { 'x-player-token': playerToken } : undefined,
+            body: formPayload,
+          });
+          break;
+        } catch (netErr: any) {
+          lastNetErr = netErr;
+          networkFailed = true;
+          response = null;
+          if (attempt < ATTEMPTS) {
+            setError(`Connection dropped — retrying (${attempt} of ${ATTEMPTS - 1})…`);
+            await new Promise((r) => setTimeout(r, attempt * 1500));
+          }
+        }
+      }
+
+      if (!response) {
+        await failWith('NETWORK', 'Could not reach the server. Please check your internet connection and try again.',
+          { error: String((lastNetErr as any)?.message || lastNetErr), attempts: ATTEMPTS });
         return;
       }
+      setError("");
 
       if (!response.ok) {
         let data: any = null;
         try { data = await response.json(); } catch { /* nginx error pages are HTML */ }
+
+        // A retry after a dropped connection can land on the duplicate guard,
+        // because the first attempt did reach the server and only its reply was
+        // lost. The player IS registered, so telling them they are a duplicate
+        // would be both confusing and wrong.
+        if (networkFailed && data?.code === 'DUPLICATE_NAME') {
+          setError("");
+          setSuccess("Registration successful! Your player profile has been submitted.");
+          return;
+        }
 
         if (data?.errorId) {
           // The API recorded it and wrote the message for the player.
