@@ -143,7 +143,9 @@ const PlayerCard = () => {
   const { code } = useParams<{ code: string }>();
   const [card, setCard] = useState<CardData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [square, setSquare] = useState(true);
+  // Square only: the shape choice was removed. The story layout code stays
+  // in place behind this flag in case it is wanted back.
+  const square = true;
   const [busy, setBusy] = useState(false);
   const [customiseOpen, setCustomiseOpen] = useState(false);
   const [show, setShow] = useState<Record<BlockKey, boolean>>({
@@ -188,6 +190,29 @@ const PlayerCard = () => {
       height: size.h,
       windowWidth: size.w,
       windowHeight: size.h,
+      x: 0,
+      y: 0,
+      scrollX: 0,
+      scrollY: 0,
+      // On screen the art sits inside a scale() wrapper to fit the phone.
+      // html2canvas keeps ancestor transforms, which shrank the card into a
+      // corner of the PNG and collided its text. Undo them in the clone so
+      // the export is laid out at the art's true size.
+      onclone: (_doc, el) => {
+        let node: HTMLElement | null = el.parentElement;
+        while (node) {
+          node.style.transform = "none";
+          node = node.parentElement;
+        }
+        el.style.borderRadius = "0";
+        // Pin the clone to the page origin so the x/y crop above is exact,
+        // whatever sits above the card on screen.
+        Object.assign(el.style, { position: "fixed", top: "0", left: "0", margin: "0", zIndex: "2147483647" });
+        el.querySelectorAll<HTMLElement>("[data-export-unclip]").forEach((n) => {
+          n.style.overflow = "visible";
+          n.style.maxHeight = "none";
+        });
+      },
     });
     return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   }, [size.w, size.h]);
@@ -364,10 +389,13 @@ const PlayerCard = () => {
         <img src={img("tournamentLogo")} alt="" crossOrigin="anonymous"
           style={{ width: 50, height: 50, borderRadius: 10, background: "#fff", objectFit: "contain", flexShrink: 0 }} />
       )}
-      <p style={{
+      <p data-export-unclip style={{
         margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-        fontSize: tournamentSize, lineHeight: 0.98, fontWeight: 700, textTransform: "uppercase",
-        color: theme.accent, maxHeight: tournamentSize * 2, overflow: "hidden",
+        // Line height above 1: html2canvas draws this face a little high, and
+        // with a tighter box plus overflow:hidden the export lost the tops of
+        // the letters.
+        fontSize: tournamentSize, lineHeight: 1.12, fontWeight: 700, textTransform: "uppercase",
+        color: theme.accent, maxHeight: tournamentSize * 1.12 * 2, overflow: "hidden",
       }}>{tournamentName}</p>
     </div>
   );
@@ -577,33 +605,8 @@ const PlayerCard = () => {
           </div>
         </div>
 
-        {/* Shape: a segmented control, since exactly one is always on. */}
-        <div
-          role="radiogroup"
-          aria-label="Card shape"
-          className="mx-auto mt-5 flex w-full max-w-[330px] rounded-xl border border-white/10 bg-white/[0.04] p-1"
-        >
-          {[
-            { label: "Square", hint: "1:1", on: square, set: true },
-            { label: "Story", hint: "9:16", on: !square, set: false },
-          ].map((o) => (
-            <button
-              key={o.label}
-              type="button"
-              role="radio"
-              aria-checked={o.on}
-              onClick={() => setSquare(o.set)}
-              className={`min-h-10 flex-1 rounded-lg text-[13px] font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
-                o.on ? "bg-violet-600 text-white shadow-sm" : "text-white/60 hover:text-white"
-              }`}
-            >
-              {o.label} <span className={o.on ? "text-white/70" : "text-white/35"}>{o.hint}</span>
-            </button>
-          ))}
-        </div>
-
         {/* Actions sit right under the card: sharing is why people are here. */}
-        <div className="mt-5 flex flex-col gap-2">
+        <div className="mt-6 flex flex-col gap-2">
           <Button
             type="button"
             onClick={shareCard}
