@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Check, Copy, Download, Loader2, Play, Share2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, Loader2, Play, Share2, SlidersHorizontal } from "lucide-react";
 import html2canvas from "html2canvas";
 import apiConfig from "@/config/apiConfig";
 import cricbidLogo from "@/assets/logo.webp";
@@ -112,6 +112,26 @@ const initials = (name: string | null) =>
     .join("");
 
 /** Two lines where the name allows it, so the display type can run large. */
+// The card's display face. Only this page uses it, so it is loaded here rather
+// than for the whole site. Without it the name falls back to a much wider
+// font and long surnames run off the card.
+const FONT_HREF = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,700&display=swap";
+if (typeof document !== "undefined" && !document.querySelector(`link[href="${FONT_HREF}"]`)) {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = FONT_HREF;
+  document.head.appendChild(link);
+}
+
+/**
+ * Shrink the name for long words so it always fits its box. `fits` is how many
+ * characters of the longest line the box holds at the base size.
+ */
+const fitName = (base: number, fits: number, lines: string[]) => {
+  const longest = Math.max(...lines.filter(Boolean).map((l) => l.length), 1);
+  return longest <= fits ? base : Math.max(28, Math.floor((base * fits) / longest));
+};
+
 const nameLines = (name: string | null) => {
   const parts = (name || "Player").trim().split(/\s+/);
   if (parts.length === 1) return [parts[0]];
@@ -125,6 +145,7 @@ const PlayerCard = () => {
   const [error, setError] = useState<string | null>(null);
   const [square, setSquare] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [customiseOpen, setCustomiseOpen] = useState(false);
   const [show, setShow] = useState<Record<BlockKey, boolean>>({
     photo: true, result: true, category: true, tournament: true, stats: false,
   });
@@ -156,6 +177,8 @@ const PlayerCard = () => {
   /** Rasterise the card at 2x, which is 1080px wide — the size every app wants. */
   const toBlob = useCallback(async (): Promise<Blob | null> => {
     if (!artRef.current) return null;
+    // The export must use the condensed face, or long names clip in the PNG.
+    try { await document.fonts.ready; } catch { /* older browsers: export anyway */ }
     const canvas = await html2canvas(artRef.current, {
       scale: 2,
       backgroundColor: null,
@@ -429,7 +452,7 @@ const PlayerCard = () => {
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
                 {show.photo && photoBox(false, square ? 190 : 210)}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <h1 style={{ margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: square ? 58 : 54, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase" }}>
+                  <h1 style={{ margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontSize: fitName(square ? 58 : 54, 10, [lineA, lineB]), lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase" }}>
                     {lineA}{lineB && <><br />{lineB}</>}
                   </h1>
                   {show.category && roleBits && (
@@ -450,7 +473,7 @@ const PlayerCard = () => {
             {show.photo && photoBox(true, square ? 168 : 250)}
             <h1 style={{
               margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-              fontSize: square ? 48 : 58, lineHeight: 0.88, fontWeight: 700, textTransform: "uppercase",
+              fontSize: fitName(square ? 48 : 58, 16, [lineA, lineB]), lineHeight: 0.88, fontWeight: 700, textTransform: "uppercase",
               textAlign: "center", textShadow: "0 2px 14px rgba(0,0,0,0.75)",
             }}>
               {lineA}{lineB && <><br />{lineB}</>}
@@ -484,7 +507,7 @@ const PlayerCard = () => {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 style={{
                   margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: display,
-                  fontSize: 58, lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase",
+                  fontSize: fitName(58, show.photo ? 9 : 16, [lineA, lineB]), lineHeight: 0.86, fontWeight: 700, textTransform: "uppercase",
                   textShadow: "0 3px 16px rgba(0,0,0,0.8)",
                   ...(theme.nameBox
                     ? { border: `1px solid ${theme.accent}`, borderRadius: 4, padding: "8px 12px 10px" }
@@ -517,78 +540,70 @@ const PlayerCard = () => {
   // Fit the fixed-size art into whatever width the phone gives us.
   const scale = Math.min(1, 330 / size.w);
 
+  const available = BLOCKS.filter((b) => !(b.key === "stats" && !card.stats));
+  const shownCount = available.filter((b) => show[b.key]).length;
+
   return (
-    <div className="min-h-screen bg-[#0f0f16] text-white">
-      <div className="mx-auto max-w-md px-4 pb-8 pt-5">
-        <p className="text-center text-sm font-bold">{p.name}</p>
-        <p className="mt-0.5 text-center text-xs text-white/50">
-          {p.sold ? "Your card is ready to share" : "Your player card"}
-        </p>
+    <div
+      className="min-h-screen text-white"
+      style={{ background: "radial-gradient(120% 60% at 50% 0%, #1d1630 0%, #0f0f16 55%)" }}
+    >
+      <div className="mx-auto max-w-md px-4 pb-10 pt-6">
+        <header className="text-center">
+          {card.tournament?.name && (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-300/70">
+              {card.tournament.name}
+            </p>
+          )}
+          <h1 className="mt-1 text-lg font-bold leading-tight">{p.name}</h1>
+          <p className="mt-0.5 text-xs text-white/50">
+            {p.sold ? "Your card is ready to share" : "Your player card"}
+          </p>
+        </header>
 
         {/* The card, scaled for display. The export uses the unscaled node. */}
-        <div className="mt-4 flex justify-center">
+        <div className="mt-5 flex justify-center">
           <div style={{ width: size.w * scale, height: size.h * scale }}>
             {/* The wrapper needs the art's own size: it clips, and a narrower
                 box would cut the card off rather than scale it. */}
             <div style={{
               width: size.w, height: size.h,
               transform: `scale(${scale})`, transformOrigin: "top left",
-              borderRadius: 14, overflow: "hidden", boxShadow: "0 10px 34px rgba(0,0,0,0.5)",
+              borderRadius: 14, overflow: "hidden",
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 18px 50px -10px rgba(124,58,237,0.35), 0 10px 30px rgba(0,0,0,0.55)",
             }}>
               {art}
             </div>
           </div>
         </div>
 
-        <p className="mt-6 text-[11px] font-bold uppercase tracking-wider text-white/40">Shape</p>
-        <div className="mt-2 flex gap-2">
+        {/* Shape: a segmented control, since exactly one is always on. */}
+        <div
+          role="radiogroup"
+          aria-label="Card shape"
+          className="mx-auto mt-5 flex w-full max-w-[330px] rounded-xl border border-white/10 bg-white/[0.04] p-1"
+        >
           {[
-            { label: "Square 1:1", on: square, set: true },
-            { label: "Story 9:16", on: !square, set: false },
+            { label: "Square", hint: "1:1", on: square, set: true },
+            { label: "Story", hint: "9:16", on: !square, set: false },
           ].map((o) => (
             <button
               key={o.label}
               type="button"
+              role="radio"
+              aria-checked={o.on}
               onClick={() => setSquare(o.set)}
-              aria-pressed={o.on}
-              className={`min-h-11 flex-1 rounded-xl border text-[13px] font-semibold transition-colors duration-150 ease-out active:scale-[0.97] ${
-                o.on ? "border-violet-600 bg-violet-600/15 text-white" : "border-white/15 text-white/70"
+              className={`min-h-10 flex-1 rounded-lg text-[13px] font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
+                o.on ? "bg-violet-600 text-white shadow-sm" : "text-white/60 hover:text-white"
               }`}
             >
-              {o.label}
+              {o.label} <span className={o.on ? "text-white/70" : "text-white/35"}>{o.hint}</span>
             </button>
           ))}
         </div>
 
-        <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-white/40">What to show</p>
-        <div className="mt-2 flex flex-col gap-2">
-          {BLOCKS.map((b) => {
-            const disabled = b.key === "stats" && !card.stats;
-            const on = show[b.key] && !disabled;
-            return (
-              <button
-                key={b.key}
-                type="button"
-                disabled={disabled}
-                onClick={() => setShow((s) => ({ ...s, [b.key]: !s[b.key] }))}
-                aria-pressed={on}
-                className="flex min-h-12 items-center gap-3 rounded-xl border px-3 text-left transition-colors duration-150 ease-out disabled:opacity-40"
-                style={{ borderColor: on ? "#3b3b4d" : "#22222c", background: on ? "#17171f" : "transparent" }}
-              >
-                <span
-                  className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-md border"
-                  style={{ background: on ? "#7c3aed" : "transparent", borderColor: on ? "#7c3aed" : "#3b3b4d" }}
-                >
-                  {on && <Check className="h-3 w-3" />}
-                </span>
-                <span className="flex-1 text-sm font-semibold">{b.label}</span>
-                {disabled && <span className="text-[11px] text-white/40">not linked</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2">
+        {/* Actions sit right under the card: sharing is why people are here. */}
+        <div className="mt-5 flex flex-col gap-2">
           <Button
             type="button"
             onClick={shareCard}
@@ -607,6 +622,59 @@ const PlayerCard = () => {
               className="h-11 flex-1 rounded-xl border-white/15 text-[13px] transition-transform duration-150 ease-out active:scale-[0.97]">
               <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy link
             </Button>
+          </div>
+
+          {/* What to show: tucked away, most people share the default. */}
+          <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+            <button
+              type="button"
+              onClick={() => setCustomiseOpen((o) => !o)}
+              aria-expanded={customiseOpen}
+              aria-controls="card-customise"
+              className="flex min-h-12 w-full items-center gap-3 px-3.5 text-left transition-colors duration-150 ease-out hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400"
+            >
+              <SlidersHorizontal className="h-4 w-4 text-violet-300" />
+              <span className="flex-1 text-sm font-semibold">What to show</span>
+              <span className="text-[12px] text-white/45">{shownCount} of {available.length}</span>
+              <ChevronDown
+                className={`h-4 w-4 text-white/50 transition-transform duration-200 ease-out ${customiseOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            <div
+              id="card-customise"
+              className="grid transition-[grid-template-rows] duration-200 ease-out"
+              style={{ gridTemplateRows: customiseOpen ? "1fr" : "0fr" }}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="flex flex-col border-t border-white/10 py-1">
+                  {BLOCKS.map((b) => {
+                    const disabled = b.key === "stats" && !card.stats;
+                    const on = show[b.key] && !disabled;
+                    return (
+                      <button
+                        key={b.key}
+                        type="button"
+                        role="switch"
+                        disabled={disabled}
+                        tabIndex={customiseOpen ? 0 : -1}
+                        onClick={() => setShow((s) => ({ ...s, [b.key]: !s[b.key] }))}
+                        aria-checked={on}
+                        className="flex min-h-11 items-center gap-3 px-3.5 text-left transition-colors duration-150 ease-out hover:bg-white/[0.03] disabled:opacity-40 disabled:hover:bg-transparent"
+                      >
+                        <span
+                          className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-md border transition-colors duration-150"
+                          style={{ background: on ? "#7c3aed" : "transparent", borderColor: on ? "#7c3aed" : "#3b3b4d" }}
+                        >
+                          {on && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="flex-1 text-[13px] font-medium text-white/90">{b.label}</span>
+                        {disabled && <span className="text-[11px] text-white/40">not linked</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
           {card.tournament?.streamUrl && (
             <a
