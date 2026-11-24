@@ -18,6 +18,27 @@ export interface AuctionState {
     bidPrice: number;
     hasAuctioneer: boolean;
     viewerCount: number;
+    /** Summary of a preset random order, when the tournament uses one. */
+    presetOrder?: { total: number; position: number | null; drawnAt: string } | null;
+}
+
+export interface PresetOrderRow {
+    position: number;
+    serial?: number | null;
+    name?: string | null;
+    category?: string | null;
+    role?: string | null;
+    status?: string;
+    team?: string;
+    amount?: number | null;
+    missing?: boolean;
+}
+
+export interface PresetOrderExport {
+    success: boolean;
+    message?: string;
+    drawnAt?: string;
+    rows?: PresetOrderRow[];
 }
 
 export const useAuctionSocket = (tournamentId: string | undefined, userId: string | undefined) => {
@@ -198,6 +219,18 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
         socketRef.current.emit("auction:resetMode", { tournamentId });
     }, [tournamentId]);
 
+    /** Host only: fetch the preset random order to download. */
+    const exportPresetOrder = useCallback((): Promise<PresetOrderExport> => {
+        if (!tournamentId) return Promise.resolve({ success: false, message: "No tournament" });
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => resolve({ success: false, message: "Timed out, try again" }), 15000);
+            socketRef.current.emit("auction:presetOrderExport", { tournamentId }, (res: PresetOrderExport) => {
+                clearTimeout(timer);
+                resolve(res || { success: false, message: "No response" });
+            });
+        });
+    }, [tournamentId]);
+
     const updateSlabs = useCallback((bidIncrementSlabs: Array<{ minBid: number; maxBid: number | null; increment: number }>) => {
         if (!tournamentId) return;
         socketRef.current.emit("auction:updateSlabs", { tournamentId, bidIncrementSlabs });
@@ -217,7 +250,8 @@ export const useAuctionSocket = (tournamentId: string | undefined, userId: strin
             markSold,
             markUnsold,
             resetMode,
-            updateSlabs
+            updateSlabs,
+            exportPresetOrder
         }
     };
 };

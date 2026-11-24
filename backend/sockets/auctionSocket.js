@@ -73,6 +73,38 @@ module.exports = (io) => {
     socket.tournamentId = null;
   };
 
+  /**
+   * Called once, when the host picks how players come up. Draws a preset
+   * random order only when the tournament opted in (features.presetRandomOrder
+   * === true — this flag defaults OFF, unlike most) and the mode is Random.
+   */
+  const applyPresetOrderChoice = async (tournamentId, mode) => {
+    try {
+      await drawOrClearPresetOrder(tournamentId, mode);
+    } catch (err) {
+      // Never let this stop the auction: without a list, Random simply keeps
+      // its original live-random behaviour.
+      console.error(`[auction] preset order not drawn for ${tournamentId}:`, err.message);
+      auctionStateManager.clearPresetOrder(tournamentId);
+    }
+  };
+
+  const drawOrClearPresetOrder = async (tournamentId, mode) => {
+    if (mode !== 'category') {
+      auctionStateManager.clearPresetOrder(tournamentId);
+      return;
+    }
+    const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { features: true } });
+    const enabled = !!(t && t.features && t.features.presetRandomOrder === true);
+    if (!enabled) {
+      auctionStateManager.clearPresetOrder(tournamentId);
+      return;
+    }
+    const ids = await auctionService.eligiblePlayerIds(tournamentId);
+    const drawn = auctionStateManager.drawPresetOrder(tournamentId, ids);
+    console.log(`[auction] preset random order drawn for ${tournamentId}: ${drawn.ids.length} player(s)`);
+  };
+
   const autoAdvanceNextPlayer = (tournamentId, socket, auctionRaw) => {
     const category = auctionRaw.selectedCategory || 'All';
     const orderMode = auctionRaw.auctionMode === 'serial' ? 'serial' : 'random';
@@ -81,7 +113,13 @@ module.exports = (io) => {
     // than after it. The queries take 0.3-1.3s against the live database, and
     // running them after the wait left that much dead air between players.
     const lookahead = (async () => {
-      const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category, orderMode);
+      const presetIds = orderMode === 'random' ? auctionStateManager.presetOrderIds(tournamentId) : null;
+      // With a preset order, continue from the last player picked from it
+      // rather than the top of the list. Without one, unchanged: nothing passed.
+      const cursor = presetIds ? auctionStateManager.presetCursorId(tournamentId) : null;
+      const justDone = cursor ? { id: cursor } : {};
+      const nextPlayer = await auctionService.nextAuctionPlayer(tournamentId, category, orderMode, justDone, presetIds);
+      if (presetIds) auctionStateManager.notePresetPick(tournamentId, nextPlayer && (nextPlayer._id || nextPlayer.id));
       const t = await prisma.tournament.findUnique({
         where: { id: tournamentId },
         select: { bidIncrementSlabs: true },
@@ -518,6 +556,13 @@ module.exports = (io) => {
             auctionRaw.auctionMode = 'category';
             auctionRaw.selectedCategory = category || 'All';
           }
+
+          // The host has just chosen how players come up. With the tournament's
+          // presetRandomOrder feature on and Random chosen, shuffle everyone
+          // eligible once, now, so the order is fixed and can be downloaded.
+          // Any other choice — or the feature off — clears an old list, leaving
+          // the original live-random behaviour untouched.
+          await applyPresetOrderChoice(tournamentId, auctionRaw.auctionMode);
         }
 
         let player;
@@ -552,12 +597,22 @@ module.exports = (io) => {
           // on the block is passed through so "Next" actually advances past
           // them — selecting does not mark anyone auctioned.
           const onBlock = auctionRaw && auctionRaw.currentPlayer ? auctionRaw.currentPlayer : null;
+          const isRandom = auctionRaw.auctionMode !== 'serial';
+          const presetIds = isRandom ? auctionStateManager.presetOrderIds(tournamentId) : null;
+          // A preset order walks forward from its own cursor; everything else
+          // passes the player on the block exactly as before.
+          const cursor = presetIds ? auctionStateManager.presetCursorId(tournamentId) : null;
+          const current = cursor
+            ? { id: cursor }
+            : onBlock ? { id: onBlock._id || onBlock.id, serial: onBlock.auctionSerialNumber } : {};
           player = await auctionService.nextAuctionPlayer(
             tournamentId,
             category,
-            auctionRaw.auctionMode === 'serial' ? 'serial' : 'random',
-            onBlock ? { id: onBlock._id || onBlock.id, serial: onBlock.auctionSerialNumber } : {}
+            isRandom ? 'random' : 'serial',
+            current,
+            presetIds
           );
+          if (isRandom) auctionStateManager.notePresetPick(tournamentId, player && (player._id || player.id));
         }
 
         // Between players is the natural moment to pick up anything changed
@@ -694,6 +749,8 @@ module.exports = (io) => {
         auction.leadingTeam = null;
         auction.teamBids = {};
         auction.bidHistory = [];
+        // Choosing Random again draws a fresh order; until then there is none.
+        auctionStateManager.clearPresetOrder(tournamentId);
 
         auctionNamespace.to(tournamentId).emit("auction:state", auctionStateManager.getAuctionState(tournamentId));
         socket.emit("auction:info", "Returned to mode selection");
@@ -922,6 +979,46 @@ module.exports = (io) => {
 
     // Leave a room without closing the socket, so navigating away from an
     // auction stops that room's events reaching this browser.
+    // The preset random order, for the host to download. Only the socket in the
+    // auctioneer seat gets it: the order is the host's to know, not viewers'.
+    socket.on("auction:presetOrderExport", async ({ tournamentId } = {}, ack) => {
+      const reply = typeof ack === "function" ? ack : () => {};
+      try {
+        if (!auctionStateManager.isAuctioneer(tournamentId, socket.id)) {
+          return reply({ success: false, message: "Only the host can download the order" });
+        }
+        const preset = auctionStateManager.getPresetOrder(tournamentId);
+        if (!preset) return reply({ success: false, message: "No preset order for this auction" });
+
+        const players = await prisma.player.findMany({
+          where: { id: { in: preset.ids }, touranmentId: tournamentId },
+          select: {
+            id: true, name: true, auctionSerialNumber: true, playerCategory: true, skill: true,
+            sold: true, auctionStatus: true, amtSold: true, team: { select: { name: true } },
+          },
+        });
+        const byId = new Map(players.map((p) => [p.id, p]));
+        const rows = preset.ids.map((id, i) => {
+          const p = byId.get(id);
+          if (!p) return { position: i + 1, missing: true };
+          return {
+            position: i + 1,
+            serial: p.auctionSerialNumber,
+            name: p.name,
+            category: p.playerCategory,
+            role: p.skill,
+            status: p.sold ? "Sold" : p.auctionStatus ? "Unsold" : "Pending",
+            team: p.sold && p.team ? p.team.name : "",
+            amount: p.sold ? p.amtSold : null,
+          };
+        });
+        reply({ success: true, drawnAt: preset.drawnAt, rows });
+      } catch (err) {
+        console.error("[auction] preset order export failed:", err);
+        reply({ success: false, message: "Could not build the order" });
+      }
+    });
+
     socket.on("auction:leave", () => {
       leaveCurrentRoom(socket);
     });

@@ -4,6 +4,7 @@
  * Each tournament can have one active auction session
  */
 
+const crypto = require("crypto");
 const prisma = require("../db/prisma");
 const { computeMaxBiddableAmount, describeCategoryLimit } = require("./teamService");
 
@@ -35,6 +36,7 @@ const snapshotOf = (auction) => ({
   bidPrice: auction.bidPrice,
   auctioneerUserId: auction.auctioneerUserId,
   bidIncrementSlabs: auction.bidIncrementSlabs,
+  presetOrder: auction.presetOrder || null,
 });
 
 /**
@@ -110,6 +112,7 @@ const restoreFromDatabase = async ({ maxAgeHours = 12 } = {}) => {
         auctioneerSocketId: null,
         auctioneerUserId: snap.auctioneerUserId ?? null,
         bidIncrementSlabs: snap.bidIncrementSlabs ?? [],
+        presetOrder: snap.presetOrder ?? null,
         connectedViewers: new Set(),
       });
       restored++;
@@ -146,6 +149,9 @@ const getOrCreateAuction = (tournamentId) => {
       auctioneerSocketId: null,
       auctioneerUserId: null, // Track by User ID for reconnection
       bidIncrementSlabs: [],
+      // { ids: string[], drawnAt: ISO string } when the tournament's
+      // presetRandomOrder feature is on and the host chose Random.
+      presetOrder: null,
       connectedViewers: new Set()
     });
   }
@@ -197,8 +203,78 @@ const getAuctionState = (tournamentId) => {
     playerNumber: auction.playerNumber,
     bidPrice: auction.bidPrice,
     hasAuctioneer: !!auction.auctioneerSocketId,
-    viewerCount: auction.connectedViewers.size
+    viewerCount: auction.connectedViewers.size,
+    // A summary only. This state is broadcast to every viewer, so the order
+    // itself never goes in it — the host fetches that separately.
+    presetOrder: presetOrderSummary(auction),
   };
+};
+
+const presetOrderSummary = (auction) => {
+  const po = auction.presetOrder;
+  if (!po || !Array.isArray(po.ids)) return null;
+  const currentId = auction.currentPlayer ? String(auction.currentPlayer._id || auction.currentPlayer.id || "") : "";
+  const index = currentId ? po.ids.indexOf(currentId) : -1;
+  return { total: po.ids.length, position: index >= 0 ? index + 1 : null, drawnAt: po.drawnAt };
+};
+
+/** Fisher–Yates with a cryptographic source, so the draw is fair. */
+const shuffle = (ids) => {
+  const out = ids.slice();
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = crypto.randomInt(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
+
+/** Shuffle a fresh preset order for this auction, replacing any earlier one. */
+const drawPresetOrder = (tournamentId, ids) => {
+  const auction = getOrCreateAuction(tournamentId);
+  auction.presetOrder = { ids: shuffle(ids), drawnAt: new Date().toISOString() };
+  persist(tournamentId);
+  return auction.presetOrder;
+};
+
+const clearPresetOrder = (tournamentId) => {
+  const auction = activeAuctions.get(tournamentId);
+  if (!auction || !auction.presetOrder) return;
+  auction.presetOrder = null;
+  persist(tournamentId);
+};
+
+/** The ids to walk, or null when this auction has no preset order. */
+const presetOrderIds = (tournamentId) => {
+  const auction = activeAuctions.get(tournamentId);
+  return auction && auction.presetOrder && Array.isArray(auction.presetOrder.ids) && auction.presetOrder.ids.length
+    ? auction.presetOrder.ids
+    : null;
+};
+
+/**
+ * A player picked from outside the list (became eligible after the shuffle)
+ * joins the end of it, so the downloaded order matches what actually happened.
+ */
+const notePresetPick = (tournamentId, playerId) => {
+  const auction = activeAuctions.get(tournamentId);
+  if (!auction || !auction.presetOrder || !playerId) return;
+  const id = String(playerId);
+  if (!auction.presetOrder.ids.includes(id)) auction.presetOrder.ids.push(id);
+  // Where the walk is up to, so the next pick continues forward from here —
+  // also after Sold/Unsold, when the player on the block has been cleared.
+  auction.presetOrder.cursorId = id;
+  persist(tournamentId);
+};
+
+/** The last player picked from the preset order, or null before the first. */
+const presetCursorId = (tournamentId) => {
+  const auction = activeAuctions.get(tournamentId);
+  return auction && auction.presetOrder ? auction.presetOrder.cursorId || null : null;
+};
+
+const getPresetOrder = (tournamentId) => {
+  const auction = activeAuctions.get(tournamentId);
+  return auction && auction.presetOrder ? auction.presetOrder : null;
 };
 
 /**
@@ -581,5 +657,12 @@ module.exports = {
   cleanupAuction,
   getCurrentBidIncrement,
   getAllActiveAuctions,
-  updateBidIncrementSlabs
+  updateBidIncrementSlabs,
+  drawPresetOrder,
+  clearPresetOrder,
+  presetOrderIds,
+  notePresetPick,
+  presetCursorId,
+  getPresetOrder,
+  shuffle,
 };

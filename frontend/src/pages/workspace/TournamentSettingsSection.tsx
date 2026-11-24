@@ -32,7 +32,7 @@ type DangerAction = {
   pickCategories?: boolean;
 };
 
-const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description: string }[] = [
+const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description: string; defaultOff?: boolean }[] = [
   { key: "whatsappNotifications", label: "WhatsApp notifications", description: "Send players a WhatsApp message when they are sold or unsold." },
   { key: "obsOverlays", label: "OBS live streaming overlays", description: "Show overlay links for Camera HUD, fullscreen scoreboard, and split-screen layouts." },
   { key: "publicPlayerRegistration", label: "Public player registration", description: "Allow players to self-register via a shareable public link." },
@@ -41,6 +41,7 @@ const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description:
   { key: "dataExport", label: "Data export (CSV & PDF)", description: "Allow downloading player and team data as CSV or PDF files." },
   { key: "cricHeroesStats", label: "CricHeroes player stats", description: "Show a player's CricHeroes career record on their card and on the live auction screen. Only players matched to a confirmed CricHeroes profile show anything." },
   { key: "showRegisteredPlayers", label: "Show registered players publicly", description: "Let visitors on the public players page see who has registered so far. Turning this off hides the player list from everyone except tournament admins." },
+  { key: "presetRandomOrder", label: "Fixed random player order", description: "When the host chooses Random order in the auction room, shuffle all players once at that moment and let the host download the order as a CSV. Choosing Random again draws a new order. Off: a random player is picked each time, as before.", defaultOff: true },
 ];
 
 const TournamentSettingsSection = () => {
@@ -233,8 +234,10 @@ const TournamentSettingsSection = () => {
           <CardDescription>Enable or disable features for this tournament. Changing a setting takes effect immediately.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {FEATURE_DEFS.map(({ key, label, description }) => {
-            const enabled = isFeatureOn(tournament, key);
+          {FEATURE_DEFS.map(({ key, label, description, defaultOff }) => {
+            const enabled = defaultOff
+              ? (tournament.features as TournamentFeatures | undefined)?.[key] === true
+              : isFeatureOn(tournament, key);
             const saving = savingFeature === key;
             return (
               <div key={key} className="flex items-start justify-between gap-4">

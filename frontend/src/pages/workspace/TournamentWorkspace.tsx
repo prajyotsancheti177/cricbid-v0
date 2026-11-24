@@ -17,6 +17,8 @@ export interface TournamentFeatures {
   dataExport?: boolean;
   showRegisteredPlayers?: boolean;
   cricHeroesStats?: boolean;
+  /** Off unless set to true — unlike the flags above, which default on. */
+  presetRandomOrder?: boolean;
   countdownEnabled?: boolean;
   countdownSeconds?: number;
   /** Optional live-stream URL, shown on the card page and sent with results. */

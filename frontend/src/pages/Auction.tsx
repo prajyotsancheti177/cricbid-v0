@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gavel, Search, Settings, Volume2, VolumeX, Sparkles } from "lucide-react";
+import { Download, Gavel, Search, Settings, Volume2, VolumeX, Sparkles } from "lucide-react";
 import stadiumBg from "@/assets/stadium-bg.jpg";
 import logo from "@/assets/logo.webp";
 import { useNavigate, useParams } from "react-router-dom";
@@ -94,6 +94,41 @@ const Auction = () => {
   } = useAuctionSocket(tournamentId || undefined, user?._id);
 
   const cricHeroesStats = useCricHeroesStats(tournamentId);
+
+  // Preset random order (tournament feature): host-only download as CSV.
+  const [downloadingOrder, setDownloadingOrder] = useState(false);
+  const downloadPresetOrder = async () => {
+    setDownloadingOrder(true);
+    try {
+      const res = await actions.exportPresetOrder();
+      if (!res.success || !res.rows) throw new Error(res.message || "Could not download the order");
+      const cell = (v: unknown) => {
+        const s = v === null || v === undefined ? "" : String(v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = ["Position", "Serial", "Name", "Category", "Role", "Status", "Team", "Amount"];
+      const lines = res.rows.map((r) =>
+        r.missing
+          ? [r.position, "", "(player removed)", "", "", "", "", ""]
+          : [r.position, r.serial, r.name, r.category, r.role, r.status, r.team, r.amount]);
+      const csv = [header, ...lines].map((row) => row.map(cell).join(",")).join("\n");
+      const stamp = (res.drawnAt ? new Date(res.drawnAt) : new Date())
+        .toISOString().slice(0, 16).replace(/[:T]/g, "-");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `random-order-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
+    } finally {
+      setDownloadingOrder(false);
+    }
+  };
 
   // Derived State
   const currentPlayer = auctionState?.currentPlayer || null;
@@ -535,6 +570,23 @@ const Auction = () => {
             {auctionState?.auctionMode === "serial" && (
               <span className="text-xs md:text-sm px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
                 Serial Order
+              </span>
+            )}
+            {/* Host only: the order itself is not for viewers' eyes. */}
+            {isAuctioneer && auctionState?.presetOrder && (
+              <span className="inline-flex items-center gap-1.5 text-xs md:text-sm pl-2 pr-1 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
+                <span>
+                  Preset order{auctionState.presetOrder.position ? ` · ${auctionState.presetOrder.position} of ${auctionState.presetOrder.total}` : ` · ${auctionState.presetOrder.total} players`}
+                </span>
+                <button
+                  type="button"
+                  onClick={downloadPresetOrder}
+                  disabled={downloadingOrder}
+                  title="Download the order as CSV"
+                  className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  <Download className="h-3 w-3" /> CSV
+                </button>
               </span>
             )}
           </div>

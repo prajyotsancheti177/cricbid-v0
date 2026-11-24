@@ -24,7 +24,52 @@ const playerCategories = async (tournamentId) => {
  * Selecting a player does not mark them auctioned, so without this the serial
  * order kept returning the same lowest-serial player and "Next" appeared dead.
  */
-const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'random', current = {}) => {
+/**
+ * Uniform random pick among players matching `where`. The original random
+ * strategy, unchanged: count, then skip to a random offset.
+ */
+const randomPick = async (where) => {
+    const count = await prisma.player.count({ where });
+    if (count === 0) return null;
+    const skip = Math.floor(Math.random() * count);
+    const [candidate] = await prisma.player.findMany({ where, skip, take: 1 });
+    return candidate || null;
+};
+
+/**
+ * Pick from a preset random order (the `presetRandomOrder` tournament feature).
+ *
+ * The order was shuffled once when the host chose Random; here we walk it:
+ * the earliest listed player who is still eligible (same filter as always —
+ * category, unsold, not yet called, payment verified) and not on the block.
+ *
+ * A player who became eligible after the shuffle (verified mid-auction, say)
+ * is not in the list. Once every listed player is used up, those are drawn at
+ * random — the caller appends them to the list so the download stays true.
+ * Returns { candidate, offList }.
+ */
+const pickFromPresetOrder = async (where, notCurrent, presetOrder, currentId) => {
+    const listed = await prisma.player.findMany({
+        where: { AND: [where, notCurrent, { id: { in: presetOrder } }] },
+        select: { id: true },
+    });
+    if (listed.length) {
+        const position = new Map(presetOrder.map((id, i) => [id, i]));
+        listed.sort((a, b) => position.get(a.id) - position.get(b.id));
+        // "Next" without a result does not mark anyone called, so move forward
+        // from whoever is on the block; wrap to the start for anyone skipped
+        // earlier — the same way serial order advances.
+        const from = currentId && position.has(currentId) ? position.get(currentId) : -1;
+        const ahead = listed.find((r) => position.get(r.id) > from) || listed[0];
+        const candidate = await prisma.player.findUnique({ where: { id: ahead.id } });
+        return { candidate, offList: false };
+    }
+    const unlisted = await randomPick({ AND: [where, notCurrent, { id: { notIn: presetOrder } }] });
+    if (unlisted) return { candidate: unlisted, offList: true };
+    return { candidate: null, offList: false };
+};
+
+const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'random', current = {}, presetOrder = null) => {
     if (!touranmentId) {
         throw new Error("touranmentId is required");
     }
@@ -81,6 +126,14 @@ const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'rand
         if (!candidate) {
             throw new Error("No more players available for auction.");
         }
+    } else if (Array.isArray(presetOrder) && presetOrder.length > 0) {
+        // Preset random order: walk the list shuffled when Random was chosen.
+        ({ candidate } = await pickFromPresetOrder(where, notCurrent, presetOrder, currentId));
+        if (!candidate) {
+            // Only the player on the block is left — same fallback as below.
+            candidate = await randomPick(where);
+            if (!candidate) throw new Error("No more players available for auction.");
+        }
     } else {
         // Random selection (replaces $sample): pick a random matching candidate,
         // never handing back the player already on the block.
@@ -108,7 +161,20 @@ const nextAuctionPlayer = async (touranmentId, playerCategory, orderMode = 'rand
     return nextPlayer;
 };
 
+/**
+ * Everyone who could be called right now, in any category: the pool a preset
+ * random order is shuffled from. Same gate as nextAuctionPlayer's 'All'.
+ */
+const eligiblePlayerIds = async (touranmentId) => {
+    const rows = await prisma.player.findMany({
+        where: { touranmentId, sold: false, auctionStatus: false, paymentVerified: true },
+        select: { id: true },
+    });
+    return rows.map((r) => r.id);
+};
+
 module.exports = {
     playerCategories,
     nextAuctionPlayer,
+    eligiblePlayerIds,
 };
