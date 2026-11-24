@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Check, ChevronDown, Copy, Download, Loader2, Play, Share2, SlidersHorizontal } from "lucide-react";
-import html2canvas from "html2canvas";
+import { toBlob as toBlobPng, toPng } from "html-to-image";
 import apiConfig from "@/config/apiConfig";
 import cricbidLogo from "@/assets/logo.webp";
 import { Button } from "@/components/ui/button";
@@ -112,16 +112,12 @@ const initials = (name: string | null) =>
     .join("");
 
 /** Two lines where the name allows it, so the display type can run large. */
-// The card's display face. Only this page uses it, so it is loaded here rather
-// than for the whole site. Without it the name falls back to a much wider
-// font and long surnames run off the card.
-const FONT_HREF = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,700&display=swap";
-if (typeof document !== "undefined" && !document.querySelector(`link[href="${FONT_HREF}"]`)) {
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = FONT_HREF;
-  document.head.appendChild(link);
-}
+// The card's display face, bundled with this lazy page only. Without it the
+// name falls back to a much wider font and long surnames run off the card.
+// Self-hosted rather than Google Fonts: the PNG export inlines fonts by
+// reading stylesheets, and a cross-origin stylesheet cannot be read.
+import "@fontsource/barlow-condensed/700.css";
+import "@fontsource/barlow-condensed/700-italic.css";
 
 /**
  * Shrink the name for long words so it always fits its box. `fits` is how many
@@ -181,40 +177,26 @@ const PlayerCard = () => {
     if (!artRef.current) return null;
     // The export must use the condensed face, or long names clip in the PNG.
     try { await document.fonts.ready; } catch { /* older browsers: export anyway */ }
-    const canvas = await html2canvas(artRef.current, {
-      scale: 2,
-      backgroundColor: null,
-      useCORS: true,
-      logging: false,
+    // html-to-image, not html2canvas: it hands the cloned DOM to the browser
+    // (SVG foreignObject), so text is laid out by the same engine that drew
+    // the screen. html2canvas re-implements text placement and drifted on
+    // Android — names spilled out of their box and labels sat low.
+    // Only the art node is cloned, so the on-screen scale() wrapper is not
+    // inherited; images come from our own /api/player-card/image proxy.
+    const opts = {
       width: size.w,
       height: size.h,
-      windowWidth: size.w,
-      windowHeight: size.h,
-      x: 0,
-      y: 0,
-      scrollX: 0,
-      scrollY: 0,
-      // On screen the art sits inside a scale() wrapper to fit the phone.
-      // html2canvas keeps ancestor transforms, which shrank the card into a
-      // corner of the PNG and collided its text. Undo them in the clone so
-      // the export is laid out at the art's true size.
-      onclone: (_doc, el) => {
-        let node: HTMLElement | null = el.parentElement;
-        while (node) {
-          node.style.transform = "none";
-          node = node.parentElement;
-        }
-        el.style.borderRadius = "0";
-        // Pin the clone to the page origin so the x/y crop above is exact,
-        // whatever sits above the card on screen.
-        Object.assign(el.style, { position: "fixed", top: "0", left: "0", margin: "0", zIndex: "2147483647" });
-        el.querySelectorAll<HTMLElement>("[data-export-unclip]").forEach((n) => {
-          n.style.overflow = "visible";
-          n.style.maxHeight = "none";
-        });
-      },
-    });
-    return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      pixelRatio: 2,
+      cacheBust: true,
+      // The photo and both logos share one URL and differ only by query
+      // string; without this the library caches them as one image.
+      includeQueryParams: true,
+      style: { transform: "none", borderRadius: "0", margin: "0" },
+    };
+    // Safari/WebKit sometimes paints images into the SVG only on a second
+    // pass; the first render warms them up.
+    await toPng(artRef.current, opts).catch(() => null);
+    return toBlobPng(artRef.current, opts);
   }, [size.w, size.h]);
 
   const fileName = `${(card?.player.name || "player").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-cricbid.png`;
