@@ -85,7 +85,7 @@ const THEMES: Theme[] = [
     glow: "radial-gradient(ellipse at 50% 100%, rgba(124,58,237,0.55) 0%, rgba(124,58,237,0.14) 48%, rgba(124,58,237,0) 74%)",
     ink: "#ffffff", muted: "#a78bfa", panel: "#160b26",
     accent: "#7c3aed", onAccent: "#ffffff", line: "#3b2152", price: "#ff9d3d",
-    stamp: "neon", italic: false,
+    stamp: "red", italic: false,
     glowPos: "bottom", photoRound: false, nameBox: true,
   },
 ];
@@ -326,13 +326,21 @@ const PlayerCard = () => {
       color: "#ffffff", textShadow: `0 0 10px ${theme.accent}, 0 0 26px ${theme.accent}`,
     }}>Sold</p>
   ) : (
-    <div style={{ transform: "rotate(-13deg)", display: "inline-block" }}>
-      <div style={{ border: "5px solid #e11d2f", borderRadius: 9, padding: "4px 16px 7px", background: "rgba(0,0,0,0.3)" }}>
-        <p style={{
-          margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif", fontStyle: "italic",
-          fontSize: 60, lineHeight: 0.82, fontWeight: 700, letterSpacing: "0.05em",
-          color: "#e11d2f", textTransform: "uppercase",
-        }}>Sold</p>
+    // A rubber auction stamp: double red border, slightly worn, tilted.
+    <div style={{ transform: "rotate(-14deg)", display: "inline-block", opacity: 0.94 }}>
+      <div style={{
+        border: "6px solid #ef233c", borderRadius: 14, padding: 5,
+        background: "rgba(20,4,8,0.55)",
+        boxShadow: "0 0 0 2px rgba(239,35,60,0.25), 0 8px 30px rgba(239,35,60,0.35)",
+      }}>
+        <div style={{ border: "2px solid #ef233c", borderRadius: 8, padding: "6px 22px 4px", textAlign: "center" }}>
+          <p style={{
+            margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif",
+            fontSize: 96, lineHeight: 0.9, fontWeight: 700, letterSpacing: "0.08em",
+            color: "#ef233c", textTransform: "uppercase",
+            textShadow: "0 0 18px rgba(239,35,60,0.45)",
+          }}>Sold</p>
+        </div>
       </div>
     </div>
   );
@@ -386,8 +394,16 @@ const PlayerCard = () => {
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
         {card.team?.logo && (
-          <img src={img("teamLogo")} alt="" crossOrigin="anonymous"
-            style={{ width: 56, height: 56, borderRadius: 11, background: "#fff", objectFit: "contain", flexShrink: 0 }} />
+          // Logos arrive in every shape. Fill a framed square (cover) so a
+          // tall or padded file reads as a badge, not a sliver on white.
+          <div style={{
+            width: 72, height: 72, borderRadius: 16, overflow: "hidden", flexShrink: 0,
+            border: `2px solid ${theme.accent}`, background: theme.panel,
+            boxShadow: `0 0 18px ${theme.accent}66`,
+          }}>
+            <img src={img("teamLogo")} alt="" crossOrigin="anonymous"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
         )}
         <div style={{ minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: theme.muted }}>Sold to</p>
@@ -436,6 +452,22 @@ const PlayerCard = () => {
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
+      {/* Stadium backdrop: floodlight beams from the top corners, a violet
+          wash behind the photo, and a large faint cricket ball low left. */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: [
+          "conic-gradient(from 155deg at 0% 0%, transparent 0deg, rgba(167,139,250,0.16) 8deg, transparent 18deg, transparent 26deg, rgba(167,139,250,0.10) 32deg, transparent 40deg)",
+          "conic-gradient(from 165deg at 100% 0%, transparent 0deg, rgba(167,139,250,0.10) 8deg, transparent 16deg, transparent 24deg, rgba(167,139,250,0.14) 30deg, transparent 38deg)",
+          "radial-gradient(circle at 82% 30%, rgba(124,58,237,0.35) 0%, rgba(124,58,237,0) 45%)",
+          "linear-gradient(160deg, #150a26 0%, #0b0613 55%, #12061a 100%)",
+        ].join(", "),
+      }} />
+      <svg width="360" height="360" viewBox="0 0 100 100" style={{ position: "absolute", left: -120, bottom: -40, opacity: 0.09 }}>
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#c4b5fd" strokeWidth="2.2" />
+        <path d="M30 8 C 44 30, 44 70, 30 92" fill="none" stroke="#c4b5fd" strokeWidth="1.6" strokeDasharray="3 2.4" />
+        <path d="M70 8 C 56 30, 56 70, 70 92" fill="none" stroke="#c4b5fd" strokeWidth="1.6" strokeDasharray="3 2.4" />
+      </svg>
       {theme.rays !== "none" && <div style={{ position: "absolute", inset: 0, background: theme.rays }} />}
       {theme.glow !== "none" && (
         <div style={theme.glowPos === "bottom"
@@ -538,8 +570,14 @@ const PlayerCard = () => {
               {statsRow}
               {resultRow}
               {notSoldRow}
-              {stampMark && <div style={{ display: "flex", alignItems: "center" }}>{stampMark}</div>}
             </div>
+            {/* The stamp is slammed across the card, over the photo's corner,
+                rather than taking a row of its own. */}
+            {stampMark && (
+              <div style={{ position: "absolute", right: 46, top: 236, zIndex: 3, pointerEvents: "none" }}>
+                {stampMark}
+              </div>
+            )}
           </div>
         )}
         {footer}
