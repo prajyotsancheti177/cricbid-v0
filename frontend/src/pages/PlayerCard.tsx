@@ -329,14 +329,14 @@ const PlayerCard = () => {
     // A rubber auction stamp: double red border, slightly worn, tilted.
     <div style={{ transform: "rotate(-14deg)", display: "inline-block", opacity: 0.94 }}>
       <div style={{
-        border: "6px solid #ef233c", borderRadius: 14, padding: 5,
+        border: "5px solid #ef233c", borderRadius: 12, padding: 4,
         background: "rgba(20,4,8,0.55)",
         boxShadow: "0 0 0 2px rgba(239,35,60,0.25), 0 8px 30px rgba(239,35,60,0.35)",
       }}>
-        <div style={{ border: "2px solid #ef233c", borderRadius: 8, padding: "6px 22px 4px", textAlign: "center" }}>
+        <div style={{ border: "2px solid #ef233c", borderRadius: 7, padding: "5px 18px 3px", textAlign: "center" }}>
           <p style={{
             margin: 0, fontFamily: "'Barlow Condensed', Inter, sans-serif",
-            fontSize: 96, lineHeight: 0.9, fontWeight: 700, letterSpacing: "0.08em",
+            fontSize: 74, lineHeight: 0.9, fontWeight: 700, letterSpacing: "0.08em",
             color: "#ef233c", textTransform: "uppercase",
             textShadow: "0 0 18px rgba(239,35,60,0.45)",
           }}>Sold</p>
@@ -574,7 +574,7 @@ const PlayerCard = () => {
             {/* The stamp is slammed across the card, over the photo's corner,
                 rather than taking a row of its own. */}
             {stampMark && (
-              <div style={{ position: "absolute", right: 46, top: 236, zIndex: 3, pointerEvents: "none" }}>
+              <div style={{ position: "absolute", right: 52, top: 246, zIndex: 3, pointerEvents: "none" }}>
                 {stampMark}
               </div>
             )}
