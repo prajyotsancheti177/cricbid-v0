@@ -1,4 +1,27 @@
 /**
+ * Copies a picked file into memory, so an upload no longer depends on the
+ * phone still being able to hand over the original.
+ *
+ * On Android a file chosen from the gallery is only a handle, read when the
+ * form is sent. If it can no longer be read then — a cloud-backed photo, a
+ * screenshot the gallery has since touched, the player having gone off to a
+ * UPI app to pay — Chrome abandons the request before a byte leaves the phone
+ * and `fetch` reports "Failed to fetch". Production showed exactly that: one
+ * player failed 30 times over two networks while nginx never saw a single
+ * upload. Retrying cannot help, because it sends the same unreadable handle.
+ *
+ * Reading the bytes when the file is picked moves any failure to that moment,
+ * where the player can simply choose the photo again. Throws if unreadable.
+ */
+export async function readIntoMemory(file: File): Promise<File> {
+  const bytes = await file.arrayBuffer();
+  return new File([bytes], file.name, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+/**
  * Compresses an image file using canvas before upload.
  * Resizes to maxWidth/maxHeight while maintaining aspect ratio,
  * and compresses to the target quality (JPEG output).
@@ -9,9 +32,10 @@ export async function compressImage(
   maxHeight = 1200,
   quality = 0.7
 ): Promise<File> {
-  // If file is already small enough (< 500KB), skip compression
+  // Small enough already: skip compression, but still hand back an in-memory
+  // copy rather than the picked file itself — see readIntoMemory.
   if (file.size <= 500 * 1024) {
-    return file;
+    return readIntoMemory(file);
   }
 
   return new Promise((resolve, reject) => {

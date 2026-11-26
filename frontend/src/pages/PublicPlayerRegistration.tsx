@@ -10,12 +10,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy, Download, Info } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
-import { compressImage } from "@/lib/imageCompressor";
+import { compressImage, readIntoMemory } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
 import { buildUpiUri, buildUpiIntentUri, isAndroid, newUpiReference, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
 import { authHeaders } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
+
+/**
+ * Turn a picked file into one that is safe to send later: images are
+ * compressed, and everything ends up as an in-memory copy rather than a handle
+ * to the file on the phone (see readIntoMemory for why that matters).
+ * Throws if the phone cannot hand the file over.
+ */
+async function prepareUpload(file: File): Promise<File> {
+  if (file.type.startsWith("image/")) {
+    try {
+      return await compressImage(file);
+    } catch {
+      // Not decodable as an image (e.g. HEIC on some phones): send it as is,
+      // but still from memory.
+    }
+  }
+  return readIntoMemory(file);
+}
+
+/** Whether the bytes of a file can still be read. */
+async function isReadable(file: File): Promise<boolean> {
+  try {
+    await file.slice(0, 1).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const PublicPlayerRegistration = () => {
   const { tournamentId } = useParams();
@@ -147,19 +175,28 @@ const PublicPlayerRegistration = () => {
       return;
     }
     setError("");
+    setErrorId("");
 
-    // Auto-compress images before storing
-    if (file.type.startsWith("image/")) {
-      try {
-        const compressed = await compressImage(file);
-        setFormData((prev: any) => ({ ...prev, [field]: compressed }));
-      } catch {
-        // If compression fails, use the original file
-        setFormData((prev: any) => ({ ...prev, [field]: file }));
-      }
-    } else {
-      setFormData((prev: any) => ({ ...prev, [field]: file }));
+    try {
+      const ready = await prepareUpload(file);
+      setFormData((prev: any) => ({ ...prev, [field]: ready }));
+    } catch (err) {
+      setFormData((prev: any) => ({ ...prev, [field]: null }));
+      await reportUnreadable(fieldLabel(field, 'Photo'), field, file, err);
     }
+  };
+
+  /**
+   * The phone could not hand over a file the player picked. Say so now, while
+   * choosing it again is one tap, rather than at submit as "check your
+   * internet" — which is what this used to look like.
+   */
+  const reportUnreadable = async (label: string, field: string, file: File, err: unknown) => {
+    await failWith(
+      'FILE_UNREADABLE',
+      `We couldn't read the ${label} from your phone. Please choose it again. If it keeps happening, take a fresh screenshot or pick it from a different folder.`,
+      { stage: 'pick', field, fileName: file.name, size: file.size, type: file.type, lastModified: file.lastModified, error: err instanceof Error ? `${err.name}: ${err.message}` : String(err) },
+    );
   };
 
   const handleCustomInputChange = (id: string, value: any) => {
@@ -211,17 +248,17 @@ const PublicPlayerRegistration = () => {
 
         {cf.type === 'file' && (
           <Input id={cf.id} type="file" accept="image/*" onChange={async (e) => {
-            const f = e.target.files?.[0];
+            const input = e.target;
+            const f = input.files?.[0];
             if (!f) return;
-            if (f.type.startsWith("image/")) {
-              try {
-                const compressed = await compressImage(f);
-                handleCustomInputChange(cf.id, compressed);
-              } catch {
-                handleCustomInputChange(cf.id, f);
-              }
-            } else {
-              handleCustomInputChange(cf.id, f);
+            setErrorId("");
+            try {
+              handleCustomInputChange(cf.id, await prepareUpload(f));
+            } catch (err) {
+              // Clear the picker too, so it no longer shows a file we can't send.
+              input.value = "";
+              handleCustomInputChange(cf.id, null);
+              await reportUnreadable(cf.label || 'file', cf.id, f, err);
             }
           }} required={cf.required} />
         )}
@@ -434,9 +471,14 @@ const PublicPlayerRegistration = () => {
       if (formData.skill) formPayload.append('skill', formData.skill.trim());
       if (formData.playerCategory) formPayload.append('playerCategory', formData.playerCategory);
       
+      // Every file being sent, with the label the player knows it by — so a
+      // failure can name the one at fault and be recorded with its details.
+      const fileEntries: { field: string; label: string; file: File }[] = [];
+
       // Handle the Photo File
       if (formData.photo instanceof File) {
          formPayload.append('photo', formData.photo);
+         fileEntries.push({ field: 'photo', label: fieldLabel('photo', 'Photo'), file: formData.photo });
       }
 
       // Handle Custom fields
@@ -449,6 +491,7 @@ const PublicPlayerRegistration = () => {
                if (cf.type === 'file') {
                   if (val instanceof File) {
                      formPayload.append(cf.id, val); // Appended with cf_ ID for Multer
+                     fileEntries.push({ field: cf.id, label: cf.label || 'file', file: val });
                   }
                } else {
                   primitiveCustomFields[cf.id] = val;
@@ -487,12 +530,21 @@ const PublicPlayerRegistration = () => {
       //
       // Every one of those failures was a person retrying by hand. Do it for
       // them, with a short backoff, before giving up.
+      //
+      // Retrying only helps a genuinely dropped connection. Files are now read
+      // into memory when picked, which removes the other cause — an
+      // unreadable gallery file, which failed every attempt identically — but
+      // that case is still checked for below, after the attempts run out.
       const ATTEMPTS = 3;
       let response: Response | null = null;
       let lastNetErr: unknown = null;
       let networkFailed = false;
+      // How long each failed attempt took. An attempt that fails in a few ms
+      // never sent anything; one that fails after seconds died mid-upload.
+      const attemptMs: number[] = [];
 
       for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+        const startedAt = performance.now();
         try {
           response = await fetch(`${apiConfig.baseUrl}/api/player/register-public`, {
             method: 'POST',
@@ -502,6 +554,7 @@ const PublicPlayerRegistration = () => {
           });
           break;
         } catch (netErr: any) {
+          attemptMs.push(Math.round(performance.now() - startedAt));
           lastNetErr = netErr;
           networkFailed = true;
           response = null;
@@ -513,8 +566,33 @@ const PublicPlayerRegistration = () => {
       }
 
       if (!response) {
-        await failWith('NETWORK', 'Could not reach the server. Please check your internet connection and try again.',
-          { error: String((lastNetErr as any)?.message || lastNetErr), attempts: ATTEMPTS });
+        const files = await Promise.all(fileEntries.map(async ({ field, file }) => ({
+          field, size: file.size, type: file.type, readable: await isReadable(file),
+        })));
+        const details = {
+          error: String((lastNetErr as any)?.message || lastNetErr),
+          attempts: ATTEMPTS, attemptMs, totalBytes, files,
+          online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+        };
+
+        // A file the phone can no longer read fails every attempt the same
+        // way; that is not the player's internet, and re-picking it fixes it.
+        const unreadable = fileEntries.filter((_, i) => !files[i].readable);
+        if (unreadable.length) {
+          for (const { field } of unreadable) {
+            if (field === 'photo') setFormData((prev: any) => ({ ...prev, photo: null }));
+            else handleCustomInputChange(field, null);
+            const input = document.getElementById(field) as HTMLInputElement | null;
+            if (input) input.value = "";
+          }
+          const names = unreadable.map((u) => u.label).join(' and ');
+          await failWith('FILE_UNREADABLE',
+            `We couldn't read the ${names} from your phone. Please choose ${unreadable.length > 1 ? 'them' : 'it'} again and press Register.`,
+            { ...details, stage: 'submit' });
+          return;
+        }
+
+        await failWith('NETWORK', 'Could not reach the server. Please check your internet connection and try again.', details);
         return;
       }
       setError("");
@@ -814,12 +892,20 @@ const PublicPlayerRegistration = () => {
                     type="file"
                     accept="image/*"
                     className={photoPreview ? "hidden" : undefined}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const f = e.target.files?.[0];
                       e.target.value = "";
                       if (!f) return;
-                      if (f.type.startsWith("image/")) setPhotoToCrop(f);
-                      else handleFileChange('photo', f);
+                      if (!f.type.startsWith("image/")) { handleFileChange('photo', f); return; }
+                      // In memory before cropping: "Adjust" re-crops from this
+                      // copy later, by which time the phone may no longer
+                      // hand over the original.
+                      try {
+                        setPhotoToCrop(await readIntoMemory(f));
+                      } catch (err) {
+                        setErrorId("");
+                        await reportUnreadable(fieldLabel('photo', 'Photo'), 'photo', f, err);
+                      }
                     }}
                     required={isFieldRequired('photo') && !formData.photo}
                   />
