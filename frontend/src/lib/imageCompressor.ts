@@ -22,6 +22,34 @@ export async function readIntoMemory(file: File): Promise<File> {
 }
 
 /**
+ * Turn a picked file into one that is safe to send later: images are
+ * compressed, and everything ends up as an in-memory copy rather than a handle
+ * to the file on the phone (see readIntoMemory for why that matters).
+ * Throws if the phone cannot hand the file over.
+ */
+export async function prepareUpload(file: File): Promise<File> {
+  if (file.type.startsWith("image/")) {
+    try {
+      return await compressImage(file);
+    } catch {
+      // Not decodable as an image (e.g. HEIC on some phones): send it as is,
+      // but still from memory.
+    }
+  }
+  return readIntoMemory(file);
+}
+
+/** Whether the bytes of a file can still be read. */
+export async function isReadable(file: File): Promise<boolean> {
+  try {
+    await file.slice(0, 1).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Compresses an image file using canvas before upload.
  * Resizes to maxWidth/maxHeight while maintaining aspect ratio,
  * and compresses to the target quality (JPEG output).

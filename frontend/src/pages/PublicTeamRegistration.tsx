@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Users, Trophy, Loader2 } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
-import { compressImage } from "@/lib/imageCompressor";
+import { prepareUpload, isReadable } from "@/lib/imageCompressor";
+
+const UNREADABLE_LOGO = "We couldn't read the Team Logo from your phone. Please choose it again. If it keeps happening, pick the image from a different folder.";
 
 const PublicTeamRegistration = () => {
   const { tournamentId } = useParams();
@@ -64,17 +66,17 @@ const PublicTeamRegistration = () => {
     }
     setError("");
 
-    // Auto-compress images before storing
-    if (file.type.startsWith("image/")) {
-      try {
-        const compressed = await compressImage(file);
-        setFormData((prev: any) => ({ ...prev, [field]: compressed }));
-      } catch {
-        // If compression fails, use the original file
-        setFormData((prev: any) => ({ ...prev, [field]: file }));
-      }
-    } else {
-      setFormData((prev: any) => ({ ...prev, [field]: file }));
+    // Compress, and in any case copy into memory now. Keeping the picked file
+    // itself meant Android could fail to read it at submit, which surfaced as
+    // "check your internet connection" — see readIntoMemory.
+    try {
+      const ready = await prepareUpload(file);
+      setFormData((prev: any) => ({ ...prev, [field]: ready }));
+    } catch {
+      setFormData((prev: any) => ({ ...prev, [field]: null }));
+      const input = document.getElementById(field) as HTMLInputElement | null;
+      if (input) input.value = "";
+      setError(UNREADABLE_LOGO);
     }
   };
 
@@ -159,6 +161,15 @@ const PublicTeamRegistration = () => {
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network')) {
+        // A logo the phone can no longer read fails exactly like a dropped
+        // connection. Check before blaming the internet.
+        if (formData.logo instanceof File && !(await isReadable(formData.logo))) {
+          setFormData((prev: any) => ({ ...prev, logo: null }));
+          const input = document.getElementById('logo') as HTMLInputElement | null;
+          if (input) input.value = "";
+          setError(UNREADABLE_LOGO);
+          return;
+        }
         setError('Unable to connect to the server. Please check your internet connection and try again.');
       } else {
         setError(msg || 'Something went wrong. Please try again.');

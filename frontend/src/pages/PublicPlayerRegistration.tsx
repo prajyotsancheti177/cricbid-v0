@@ -10,40 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UserPlus, Trophy, Loader2, CheckCircle2, LogIn, LogOut, QrCode, Smartphone, Copy, Download, Info } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
-import { compressImage, readIntoMemory } from "@/lib/imageCompressor";
+import { readIntoMemory, prepareUpload, isReadable } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
 import { buildUpiUri, buildUpiIntentUri, isAndroid, newUpiReference, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
 import { authHeaders } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
-
-/**
- * Turn a picked file into one that is safe to send later: images are
- * compressed, and everything ends up as an in-memory copy rather than a handle
- * to the file on the phone (see readIntoMemory for why that matters).
- * Throws if the phone cannot hand the file over.
- */
-async function prepareUpload(file: File): Promise<File> {
-  if (file.type.startsWith("image/")) {
-    try {
-      return await compressImage(file);
-    } catch {
-      // Not decodable as an image (e.g. HEIC on some phones): send it as is,
-      // but still from memory.
-    }
-  }
-  return readIntoMemory(file);
-}
-
-/** Whether the bytes of a file can still be read. */
-async function isReadable(file: File): Promise<boolean> {
-  try {
-    await file.slice(0, 1).arrayBuffer();
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 const PublicPlayerRegistration = () => {
   const { tournamentId } = useParams();
