@@ -101,6 +101,26 @@ const getManagedTournamentsForAdmin = async (userId) => {
     }
 };
 
+/**
+ * Ids of every tournament this user may manage — the same rule as
+ * canManageTournament (owned or granted; boss/super_user also every public
+ * one). The frontend uses it to decide which management controls to show, so
+ * a host granted a tournament they did not create gets the same controls as
+ * its creator.
+ */
+const getManagedTournamentIds = async (userId, role) => {
+    if (!userId || !canManageAnything(role)) return [];
+    const ownedOrGranted = [
+        { tournamentHostId: userId },
+        { access: { some: { userId } } },
+    ];
+    const rows = await prisma.tournament.findMany({
+        where: { OR: isAdminRole(role) ? [{ isPrivate: false }, ...ownedOrGranted] : ownedOrGranted },
+        select: { id: true },
+    });
+    return rows.map((r) => r.id);
+};
+
 const getTournamentsByHost = async (hostId) => {
     try {
         // Owned OR granted. A host keeps the tournaments they created and gains
@@ -397,6 +417,7 @@ module.exports = {
     createTournament,
     getAllTournaments,
     getManagedTournamentsForAdmin,
+    getManagedTournamentIds,
     getTournamentsByHost,
     getTournamentDetail,
     updateTournament,

@@ -8,6 +8,7 @@ import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
 import { getStoredUser, jsonAuthHeaders, useCurrentUser } from "@/lib/auth";
 import { useVisibility, type ResourceKey } from "@/lib/visibility";
+import { useManagedTournaments } from "@/lib/managedTournaments";
 
 export interface TournamentFeatures {
   whatsappNotifications?: boolean;
@@ -77,6 +78,7 @@ const TournamentWorkspace = () => {
   // Subscribe so the sidebar re-renders once the real role arrives.
   useCurrentUser();
   const { can } = useVisibility();
+  const { canManage } = useManagedTournaments();
   const { tournamentId } = useParams();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState<WorkspaceTournament | null>(null);
@@ -133,14 +135,11 @@ const TournamentWorkspace = () => {
 
   const authUser = getAuthUser();
   const isLoggedIn = Boolean(authUser);
-  // "admin" is not one of the roles — Role is boss | super_user |
-  // tournament_host | player — so this was always false, and boss and
-  // super_user were treated as if they owned nothing.
-  const isAdmin = authUser?.role === "boss" || authUser?.role === "super_user";
-  const hostId = typeof tournament.tournamentHostId === "object"
-    ? (tournament.tournamentHostId as { _id?: string } | null)?._id
-    : (tournament.tournamentHostId as string | undefined);
-  const isOwner = isAdmin || (Boolean(authUser?._id) && authUser._id === hostId);
+  // Whether this person may manage THIS tournament, as the server decides it:
+  // its creator, someone granted it on the Grant access screen, or an admin.
+  // Comparing the creator id alone hid "Add player" and "Bulk upload" from
+  // hosts who were granted the tournament rather than having created it.
+  const isOwner = canManage(tournamentId) === true;
 
   return (
     <div className="container mx-auto px-4 py-6">

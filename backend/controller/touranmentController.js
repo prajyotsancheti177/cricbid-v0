@@ -48,6 +48,16 @@ const getManagedTournaments = async (req, res) => {
     }
 };
 
+/** POST /api/tournament/managed-ids — ids of the tournaments the caller may manage. */
+const getManagedTournamentIds = async (req, res) => {
+    try {
+        const ids = await tournamentService.getManagedTournamentIds(req.userId, req.userRole);
+        return sendSuccess(res, 200, "Managed tournament ids", ids);
+    } catch (error) {
+        return sendError(res, 500, "Failed to fetch tournaments", error);
+    }
+};
+
 const getTournamentDetail = async (req, res) => {
     try {
         const { tournamentId } = req.body;
@@ -217,6 +227,7 @@ module.exports = {
     addTournamnet,
     getAllTournaments,
     getManagedTournaments,
+    getManagedTournamentIds,
     getTournamentDetail,
     updateTournament,
     deleteTournament,

@@ -12,6 +12,7 @@ import apiConfig from "@/config/apiConfig";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Plus, Gavel, Radio, Trash2 } from "lucide-react";
 import { jsonAuthHeaders, getSessionToken } from "@/lib/auth";
+import { useManagedTournaments } from "@/lib/managedTournaments";
 
 interface ActiveAuction {
     tournamentId: string;
@@ -41,7 +42,10 @@ export default function LiveAuctionLobby() {
 
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
-    const isHost = !!user; // Simplified check, refine if needed
+    // Starting a room is for roles that manage tournaments; a player signed in
+    // with Google used to see the button and an empty tournament list.
+    const isHost = ["boss", "super_user", "tournament_host"].includes(user?.role);
+    const { canManage } = useManagedTournaments();
 
     useEffect(() => {
         const socket = getSocket();
@@ -98,38 +102,19 @@ export default function LiveAuctionLobby() {
         setShowCreateDialog(true);
         setLoadingTournaments(true);
         try {
-            // Assuming an endpoint exists or we filter client side specific to user?
-            // Since we don't know the exact endpoint for "my tournaments", let's try the general list 
-            // but arguably we should only show tournaments where user is host.
-            // For now, fetching all and filtering if possible, or just all.
-            // The previous TournamentManagement used apiConfig.baseUrl + "/api/tournament/get-all-tournaments"
-
-            const response = await fetch(`${apiConfig.baseUrl}/api/tournament/all`, {
+            // The tournaments this person may run an auction for, as the server
+            // decides it: created, granted on the Grant access screen, or (for an
+            // admin) any public one. Filtering the full list by creator left out
+            // every tournament a host had been granted rather than created.
+            const response = await fetch(`${apiConfig.baseUrl}/api/tournament/managed`, {
                 method: "POST",
                 headers: jsonAuthHeaders(),
-                body: JSON.stringify({
-                    userId: user._id,
-                    userRole: user.role
-                })
+                body: JSON.stringify({}),
             });
 
             if (response.ok) {
                 const resData = await response.json();
-                console.log("Fetched tournaments response:", resData);
-
-                const all = resData.data || [];
-                console.log("All active tournaments:", all);
-                console.log("Current user:", user);
-
-                const my = all.filter((t: any) => {
-                    const hostId = t.tournamentHostId?._id || t.tournamentHostId;
-                    const isHost = hostId === user._id;
-                    const isAdmin = ['boss', 'super_user'].includes(user.role);
-                    return isHost || isAdmin;
-                });
-
-                console.log("Filtered tournaments for dropdown:", my);
-                setMyTournaments(my);
+                setMyTournaments(resData.data || []);
             }
         } catch (error) {
             console.error("Error fetching tournaments", error);
@@ -216,7 +201,8 @@ export default function LiveAuctionLobby() {
                         </div>
                     ) : (
                         activeAuctions.map(auction => {
-                            const isOwner = user && (user._id === auction.hostId || ['boss', 'super_user'].includes(user?.role));
+                            // Same rule the server applies to auction:delete.
+                            const isOwner = canManage(auction.tournamentId) === true;
 
                             return (
                                 <Card key={auction.tournamentId} className="group hover:shadow-glow transition-all duration-300 border-2 overflow-hidden cursor-pointer relative" onClick={() => navigate(`/auction/room/${auction.tournamentId}`)}>

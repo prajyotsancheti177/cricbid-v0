@@ -17,6 +17,11 @@ tournamentRouter.post("/all", touranmentController.getAllTournaments);
 // a host gets only owned + granted tournaments, boss/super_user get all.
 tournamentRouter.post("/managed", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), touranmentController.getManagedTournaments);
 
+// Just the ids the caller may manage — what the UI uses to show management
+// controls (owned or granted; admins also every public tournament). Any
+// signed-in user may ask; a player simply gets an empty list.
+tournamentRouter.post("/managed-ids", authMiddleware, touranmentController.getManagedTournamentIds);
+
 // Get Individual Tournament Detail - Public (for viewing)
 tournamentRouter.post("/detail", requireTournamentVisible, touranmentController.getTournamentDetail);
 

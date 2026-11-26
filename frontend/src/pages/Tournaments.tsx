@@ -10,6 +10,7 @@ import apiConfig from "@/config/apiConfig";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import { trackEvent } from "@/lib/eventTracker";
 import { jsonAuthHeaders } from "@/lib/auth";
+import { useManagedTournaments } from "@/lib/managedTournaments";
 
 interface Tournament {
   _id: string;
@@ -33,10 +34,7 @@ const Tournaments = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Get current user
-  const userStr = localStorage.getItem("user");
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.role === 'boss' || user?.role === 'super_user';
+  const { canManage } = useManagedTournaments();
 
   useEffect(() => {
     const fetchTournaments = async () => {
@@ -314,7 +312,9 @@ const Tournaments = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
-                    {(isAdmin || tournament.tournamentHostId === user?._id) && (
+                    {/* Who may announce is who may manage it — creator, a granted
+                        host, or an admin — as the server decides. */}
+                    {canManage(tournament._id) === true && (
                       <Button
                         variant="outline"
                         size="sm"
