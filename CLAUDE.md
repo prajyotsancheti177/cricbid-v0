@@ -126,6 +126,15 @@ REST is genuinely authenticated now; the socket layer is the part with history.
 - Tournament-level permission is `canManageTournament` / `canViewTournament` in
   `utils/tournamentAccess.js`: the host, or a `tournament_access` grant. For a **private**
   tournament the boss/super_user shortcut deliberately does **not** apply.
+  `requireTournamentAccess` checks **every** tournament a request touches: the claimed id plus
+  the real tournament of any `playerId`, `teamId`, `teamAId`/`teamBId`, `topupId`, `matchId` or
+  `matches[]`. Mount it on any new route a `tournament_host` can reach, after any multer
+  middleware. Never record a body `userId` as the actor; use `req.userId`.
+- Google sign-in (`userService.loginWithGoogle`): a first sign-in creates a `player`. Auto-link
+  to an existing admin account happens only for Gmail or Workspace (`hd`) addresses; otherwise
+  `LINK_REQUIRES_PASSWORD`. Redirect mode never signs in at the callback: it issues a one-time
+  `#code=` that `/login` exchanges with the tab's nonce. Test harness:
+  `backend/scripts/auth-test/` (local DB only; see `docs/GOOGLE_AUTH_TEST_PLAN_AND_ROLE_VISIBILITY.md` §9–10).
 - `PlayerProfile` has its own separate mobile-based auth path (`playerProfileAuthMiddleware.js`).
 
 ### The socket layer is the one that bit us

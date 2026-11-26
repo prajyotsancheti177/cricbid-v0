@@ -2,9 +2,15 @@ const userService = require("../services/userService");
 const { sendSuccess, sendError } = require("../utils");
 const config = require("../config");
 
+const crypto = require("crypto");
+
+const userAgentOf = (req) => req.headers['user-agent'] || null;
+
 const createUser = async (req, res) => {
     try {
-        const user = await userService.createUser(req.body);
+        // The creator is whoever is signed in — never a body field, which the
+        // caller could leave out to skip the permission check entirely.
+        const user = await userService.createUser({ ...req.body, createdBy: req.userId });
         return sendSuccess(res, 201, "User created successfully", user);
     } catch (error) {
         return sendError(res, 400, "Failed to create user", error);
@@ -13,22 +19,64 @@ const createUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
     try {
-        const user = await userService.loginUser(req.body);
+        const user = await userService.loginUser(req.body, { userAgent: userAgentOf(req) });
         return sendSuccess(res, 200, "Login successful", user);
     } catch (error) {
         return sendError(res, 401, "Login failed", error);
     }
 };
 
-/** POST /api/user/google-login — sign in an existing host with Google. */
+/** POST /api/user/google-login — popup sign-in with Google. */
 const googleLoginUser = async (req, res) => {
     try {
-        const user = await userService.loginWithGoogle(req.body?.credential);
+        const user = await userService.loginWithGoogle(req.body?.credential, { userAgent: userAgentOf(req) });
         return sendSuccess(res, 200, "Login successful", user);
     } catch (error) {
-        // The message matters here: "not registered" is actionable, and there
-        // is no account to enumerate that an administrator did not already make.
         return sendError(res, 401, error.message || "Google sign-in failed", error);
+    }
+};
+
+/**
+ * POST /api/user/link-google — link a Google account to the signed-in user.
+ * Used after a password sign-in when Google sign-in answered
+ * LINK_REQUIRES_PASSWORD.
+ */
+const linkGoogle = async (req, res) => {
+    try {
+        const user = await userService.linkGoogleToUser(req.userId, req.body?.credential);
+        return sendSuccess(res, 200, "Google account linked", user);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not link that Google account", error);
+    }
+};
+
+/** POST /api/user/unlink-google — boss/super_user: clear someone's Google link. */
+const unlinkGoogle = async (req, res) => {
+    try {
+        const user = await userService.unlinkGoogle(req.userId, req.body?.targetUserId);
+        return sendSuccess(res, 200, "Google sign-in unlinked", user);
+    } catch (error) {
+        return sendError(res, 400, error.message || "Could not unlink", error);
+    }
+};
+
+/** GET /api/user/sessions — the devices this account is signed in on. */
+const listSessions = async (req, res) => {
+    try {
+        const sessions = await userService.listSessions(req.userId);
+        return sendSuccess(res, 200, "Sessions", sessions);
+    } catch (error) {
+        return sendError(res, 400, "Could not list sessions", error);
+    }
+};
+
+/** POST /api/user/logout-all — sign this account out on every device. */
+const logoutAll = async (req, res) => {
+    try {
+        await userService.logoutEverywhere(req.userId);
+        return sendSuccess(res, 200, "Signed out everywhere", null);
+    } catch (error) {
+        return sendError(res, 400, "Could not sign out everywhere", error);
     }
 };
 
@@ -60,6 +108,14 @@ const setUserAccess = async (req, res) => {
 };
 
 /**
+ * One-time codes from the redirect callback, waiting for the browser that
+ * started the sign-in to exchange them. In memory (single process); a code
+ * lives two minutes and is gone after one use.
+ */
+const pendingGoogleCodes = new Map();
+const GOOGLE_CODE_TTL_MS = 2 * 60 * 1000;
+
+/**
  * POST /api/user/google-callback — Google's redirect-mode sign-in.
  *
  * The popup flow hands the credential back through `window.opener`, which fails
@@ -67,13 +123,20 @@ const setUserAccess = async (req, res) => {
  * hang on Google's own /gsi/transfer page. Redirect mode avoids all of it —
  * Google POSTs the credential straight here as a normal form submission.
  *
- * Google sends `g_csrf_token` in both a cookie and the body; they must match.
- * The cookie is absent on some browsers for a cross-site POST, so a missing
- * cookie is tolerated while a MISMATCH is refused. The real control is the ID
- * token itself, which is signed by Google and bound to our client id.
+ * Anyone can POST here, including a page an attacker controls — with the
+ * attacker's own, perfectly valid credential. Signing the browser straight in
+ * (as this used to) logged the victim into the attacker's account. Google's
+ * `g_csrf_token` double-submit cookie cannot stop it: the cookie is missing on
+ * many browsers for a cross-site POST, so it had to be optional.
  *
- * Ends with a redirect carrying the session token in the URL FRAGMENT, which
- * browsers never send to a server and which the login page strips immediately.
+ * So this no longer signs anyone in. It checks the credential, parks it under a
+ * one-time code, and sends the browser to /login#code=… . The login page then
+ * exchanges the code together with the nonce it generated before leaving for
+ * Google, and the exchange requires the ID token to carry that same nonce. An
+ * attacker's credential carries their nonce, not the victim's, and fails.
+ *
+ * The fragment is never sent to a server, and the code is useless after two
+ * minutes or one use — unlike the 90-day session token that used to sit there.
  */
 const googleCallback = async (req, res) => {
     const appUrl = config.appUrl;
@@ -86,15 +149,42 @@ const googleCallback = async (req, res) => {
             ?.split('=')[1];
 
         if (cookieToken && bodyToken && cookieToken !== bodyToken) {
-            return res.redirect(`${appUrl}/login?error=csrf`);
+            return res.redirect(`${appUrl}/login?error=CSRF`);
         }
 
-        const user = await userService.loginWithGoogle(req.body?.credential);
-        return res.redirect(`${appUrl}/login#token=${encodeURIComponent(user.sessionToken)}`);
+        const credential = req.body?.credential;
+        await userService.verifyGoogleCredential(credential);
+
+        const now = Date.now();
+        for (const [k, v] of pendingGoogleCodes) if (v.expires < now) pendingGoogleCodes.delete(k);
+        const code = crypto.randomBytes(24).toString('hex');
+        pendingGoogleCodes.set(code, { credential, expires: now + GOOGLE_CODE_TTL_MS });
+
+        return res.redirect(`${appUrl}/login#code=${code}`);
     } catch (error) {
-        // The message is shown to the user, so keep it short and readable.
-        const msg = encodeURIComponent(error.message || "Google sign-in failed");
-        return res.redirect(`${appUrl}/login?error=${msg}`);
+        // A fixed code, never free text: the login page maps it to a message,
+        // so a crafted link cannot put arbitrary words on our sign-in screen.
+        return res.redirect(`${appUrl}/login?error=${encodeURIComponent(error.code || 'GOOGLE_FAILED')}`);
+    }
+};
+
+/** POST /api/user/google-exchange — finish a redirect sign-in. Body: { code, nonce }. */
+const googleExchange = async (req, res) => {
+    try {
+        const code = String(req.body?.code || '');
+        const entry = pendingGoogleCodes.get(code);
+        pendingGoogleCodes.delete(code);
+        if (!entry || entry.expires < Date.now()) {
+            const err = new userService.AuthError('EXPIRED_CODE', "That sign-in took too long. Please try again.");
+            return sendError(res, 401, err.message, err);
+        }
+        const user = await userService.loginWithGoogle(entry.credential, {
+            userAgent: userAgentOf(req),
+            expectedNonce: req.body?.nonce ? String(req.body.nonce) : null,
+        });
+        return sendSuccess(res, 200, "Login successful", user);
+    } catch (error) {
+        return sendError(res, 401, error.message || "Google sign-in failed", error);
     }
 };
 
@@ -156,12 +246,11 @@ const getAllUsers = async (req, res) => {
 
 const updateUser = async (req, res) => {
     try {
-        const updateData = { ...req.body };
-        // If targetUserId is provided, use it as the userId for the update service
-        if (req.body.targetUserId) {
-            updateData.userId = req.body.targetUserId;
-        }
-        const user = await userService.updateUser(updateData);
+        // The account changed is targetUserId, or the caller's own. A body
+        // `userId` no longer names it — that let any admin aim this anywhere
+        // without saying so.
+        const updateData = { ...req.body, userId: req.body.targetUserId || req.userId };
+        const user = await userService.updateUser(updateData, req.userId);
         return sendSuccess(res, 200, "User updated successfully", user);
     } catch (error) {
         return sendError(res, 400, "Failed to update user", error);
@@ -170,9 +259,9 @@ const updateUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
     try {
-        // Use targetUserId if provided, otherwise fallback to userId (though usually we want targetUserId for deletion)
-        const targetUserId = req.body.targetUserId || req.userId;
-        const result = await userService.deleteUser(targetUserId, req.body.hardDelete);
+        const targetUserId = req.body.targetUserId;
+        if (!targetUserId) throw new Error("targetUserId is required");
+        const result = await userService.deleteUser(targetUserId, req.body.hardDelete === true, req.userId);
         return sendSuccess(res, 200, result.message, result);
     } catch (error) {
         return sendError(res, 400, "Failed to delete user", error);
@@ -184,6 +273,11 @@ module.exports = {
     loginUser,
     googleLoginUser,
     googleCallback,
+    googleExchange,
+    linkGoogle,
+    unlinkGoogle,
+    listSessions,
+    logoutAll,
     logoutUser,
     searchUsers,
     setUserAccess,

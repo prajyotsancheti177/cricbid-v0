@@ -1,12 +1,13 @@
 const express = require('express');
 const playerProfileController = require('../controller/playerProfileController');
 const playerProfileAuthMiddleware = require('../utils/playerProfileAuthMiddleware');
+const { googleLoginLimit } = require('../utils/rateLimit');
 
 const playerProfileRouter = express.Router();
 
 // Public — no auth. There is no password login: Google now, WhatsApp OTP later.
 playerProfileRouter.get("/auth-config", playerProfileController.authConfig);
-playerProfileRouter.post("/google", playerProfileController.googleLogin);
+playerProfileRouter.post("/google", googleLoginLimit, playerProfileController.googleLogin);
 
 // Protected — requires x-player-token header
 playerProfileRouter.get("/me", playerProfileAuthMiddleware, playerProfileController.getMe);

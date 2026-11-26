@@ -12,6 +12,9 @@ const sendError = (res, statusCode = 500, message = "Internal Server Error", err
         success: false,
         message,
         error: error?.message || error || null,
+        // A stable machine-readable reason, when the error carries one (auth
+        // errors do), so a client can act on it without matching message text.
+        ...(error && typeof error === 'object' && error.code && typeof error.code === 'string' ? { code: error.code } : {}),
     });
 };
 

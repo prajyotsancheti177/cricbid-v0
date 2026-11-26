@@ -116,7 +116,9 @@ const broadcastTeamsChanged = async (req, touranmentId) => {
 
 const updateTeam = async (req, res) => {
     try {
-        const { teamId, name, ownerName, ownerEmail, ownerMobile, userId } = req.body;
+        const { teamId, name, ownerName, ownerEmail, ownerMobile } = req.body;
+        // Who made the change is the signed-in caller, never a body field.
+        const userId = req.userId;
 
         // logo: undefined (client didn't send it) leaves it untouched; a new
         // uploaded file overrides it. Never fall back to "" here — that would
@@ -155,7 +157,10 @@ const deleteTeam = async (req, res) => {
 
 const topUpTeamBudget = async (req, res) => {
     try {
-        const { teamId, amount, note, userId } = req.body;
+        const { teamId, amount, note } = req.body;
+        // Recorded as createdBy on the top-up, so it must be the signed-in caller:
+        // a body userId let anyone file a top-up in someone else's name.
+        const userId = req.userId;
         const result = await teamService.topUpTeamBudget({ teamId, amount, note, userId });
         await broadcastTeamsChanged(req, result.touranmentId);
         return sendSuccess(res, 201, "Team balance topped up successfully", result);
@@ -175,7 +180,8 @@ const getTeamBudgetTopups = async (req, res) => {
 
 const deleteTeamBudgetTopup = async (req, res) => {
     try {
-        const { topupId, userId } = req.body;
+        const { topupId } = req.body;
+        const userId = req.userId;
         const result = await teamService.deleteTeamBudgetTopup({ topupId, userId });
         await broadcastTeamsChanged(req, result.touranmentId);
         return sendSuccess(res, 200, "Top-up deleted successfully", result);

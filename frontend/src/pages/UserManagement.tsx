@@ -21,6 +21,8 @@ interface User {
   email: string;
   role: string;
   isActive: boolean;
+  /** Google sign-in is linked to this account. */
+  googleLinked?: boolean;
   createdAt: string;
   createdBy?: {
     _id: string;
@@ -166,6 +168,31 @@ const UserManagement = () => {
     }
   };
 
+  /**
+   * Clear someone's Google link. Their next Google sign-in links afresh by
+   * email — the fix for "Another Google account is already linked", which
+   * happens when a Workspace account is recreated or a Gmail address recycled.
+   */
+  const handleUnlinkGoogle = async (target: User) => {
+    if (!confirm(`Unlink Google sign-in for ${target.email}? Their next Google sign-in will link the Google account that owns this email.`)) {
+      return;
+    }
+    try {
+      const response = await fetch(`${apiConfig.baseUrl}/api/user/unlink-google`, {
+        method: "POST",
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ targetUserId: target._id }),
+      });
+      const data = await response.json();
+      toast(data.success
+        ? { title: "Google unlinked", description: `${target.email} can link Google again by signing in with it.` }
+        : { title: "Error", description: (typeof data.error === "string" && data.error) || data.message || "Could not unlink", variant: "destructive" });
+      if (data.success && currentUser) fetchUsers(currentUser);
+    } catch {
+      toast({ title: "Error", description: "Failed to connect to server", variant: "destructive" });
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm("Remove this user's access? They keep their account and can still sign in, but will have no admin access.")) {
       return;
@@ -175,7 +202,7 @@ const UserManagement = () => {
       const response = await fetch(`${apiConfig.baseUrl}/api/user/delete`, {
         method: "POST",
         headers: jsonAuthHeaders(),
-        body: JSON.stringify({ targetUserId: userId, hardDelete: false, userId: currentUser?._id }),
+        body: JSON.stringify({ targetUserId: userId, hardDelete: false }),
       });
 
       const data = await response.json();
@@ -192,7 +219,8 @@ const UserManagement = () => {
       } else {
         toast({
           title: "Error",
-          description: data.message || "Could not remove access",
+          // The reason ("Only a boss can change a super user") is in `error`.
+          description: (typeof data.error === "string" && data.error) || data.message || "Could not remove access",
           variant: "destructive",
         });
       }
@@ -420,6 +448,17 @@ const UserManagement = () => {
                     </TableCell>
                     <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
+                      {user.googleLinked && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUnlinkGoogle(user)}
+                          className="text-xs text-muted-foreground"
+                          title="Unlink Google sign-in"
+                        >
+                          Unlink Google
+                        </Button>
+                      )}
                       {user.role !== 'boss' && user.isActive && (
                         <Button
                           variant="ghost"

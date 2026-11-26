@@ -14,9 +14,7 @@ const playerProfileAuthMiddleware = async (req, res, next) => {
     // `x-session-token`, and only accepting the first made these endpoints
     // reject a perfectly valid session.
     const token = req.headers["x-player-token"]
-        || req.headers["x-session-token"]
-        || req.body?.playerToken
-        || req.body?.sessionToken;
+        || req.headers["x-session-token"];
     if (!token) return sendError(res, 401, "Please sign in to continue.");
 
     const account = await playerProfileService.getAccountByToken(token);

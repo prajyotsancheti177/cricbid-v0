@@ -54,7 +54,7 @@ playerRouter.post("/categories", requireTournamentVisible, playerController.getP
 playerRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkCreatePlayers);
 
 // Reset Unsold Players - Protected (Admin and Tournament Host)
-playerRouter.post("/reset-unsold", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.resetUnsoldPlayers);
+playerRouter.post("/reset-unsold", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.resetUnsoldPlayers);
 
 // Bulk Update Existing Players - Protected
 playerRouter.post("/bulk-update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkUpdatePlayers);
@@ -69,8 +69,8 @@ playerRouter.post("/verify-payments", authMiddleware, roleMiddleware(['boss', 's
 playerRouter.post("/resequence-serials", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.resequenceSerials);
 
 // Edit history and undo
-playerRouter.post("/history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.getPlayerHistory);
-playerRouter.post("/undo", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), playerController.undoPlayerChanges);
+playerRouter.post("/history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.getPlayerHistory);
+playerRouter.post("/undo", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.undoPlayerChanges);
 
 // NOTE: sheet -> database sync was removed on 2026-09-08. Matching sheet rows
 // back to players proved unreliable (duplicate headers, renamed columns, ids

@@ -13,7 +13,7 @@ import apiConfig from "@/config/apiConfig";
 import { readIntoMemory, prepareUpload, isReadable } from "@/lib/imageCompressor";
 import { PhotoCropDialog } from "@/components/form/PhotoCropDialog";
 import { buildUpiUri, buildUpiIntentUri, isAndroid, newUpiReference, resolvePaymentMode, UPI_APPS } from "@/lib/upi";
-import { authHeaders } from "@/lib/auth";
+import { authHeaders, takeGoogleResume } from "@/lib/auth";
 import { buildPaymentProofField, asksForPaymentProof, isPaymentProofRequired, isPaymentProofField } from "@/lib/paymentProof";
 import PlayerProfileModal, { getStoredPlayerToken, clearPlayerToken, fetchAccountWithToken } from "@/components/PlayerProfileModal";
 
@@ -58,6 +58,9 @@ const PublicPlayerRegistration = () => {
       fetchConfig();
     }
     // Restore session if player was already logged in
+    // Back from a phone's redirect sign-in that started in the profile picker:
+    // carry on where they were rather than making them find the button again.
+    const resuming = takeGoogleResume("player-profile");
     const token = getStoredPlayerToken();
     if (token) {
       fetchAccountWithToken(token).then((acc) => {
@@ -65,6 +68,7 @@ const PublicPlayerRegistration = () => {
         // An account can own several players, so only auto-select when there is
         // no ambiguity. With two children the parent has to say which one.
         if (acc.profiles.length === 1) setActiveProfile(acc.profiles[0]);
+        else if (resuming) setShowProfileModal(true);
       });
     }
   }, [tournamentId]);

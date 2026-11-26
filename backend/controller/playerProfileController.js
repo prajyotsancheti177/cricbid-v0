@@ -9,10 +9,16 @@ const googleLogin = async (req, res) => {
         // Same sign-in as the admin login — there is one identity now, and the
         // role on it decides what the caller can do. A first-time signer-in is
         // created as a `player`.
-        const user = await userService.loginWithGoogle(req.body?.credential);
+        const user = await userService.loginWithGoogle(req.body?.credential, {
+            userAgent: req.headers['user-agent'] || null,
+        });
         const account = await playerProfileService.getAccountByToken(user.sessionToken);
+        const { sessionToken, ...signedInUser } = user;
         return sendSuccess(res, 200, "Signed in with Google", {
-            token: user.sessionToken,
+            token: sessionToken,
+            // The same user object /user/login returns, so the registration
+            // modal can sign the whole app in, not just itself.
+            user: signedInUser,
             account,
         });
     } catch (error) {

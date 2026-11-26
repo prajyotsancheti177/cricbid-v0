@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import apiConfig from "@/config/apiConfig";
-import { jsonAuthHeaders } from "@/lib/auth";
+import { googleNonce, jsonAuthHeaders, rememberGoogleReturn } from "@/lib/auth";
 
 /**
  * "Continue with Google" for player profiles.
@@ -80,6 +80,68 @@ const isMobileLike = () => {
 };
 
 /**
+ * The app whose built-in browser this page is open in, or null.
+ *
+ * Google refuses sign-in inside embedded browsers outright ("Error 403:
+ * disallowed_useragent"), and CricBid links travel by WhatsApp and Instagram,
+ * so this is the common case, not an edge one. `; wv)` is the token every
+ * Android WebView carries, which covers in-app browsers that don't name
+ * themselves.
+ */
+export const inAppBrowserName = (): string | null => {
+  if (typeof navigator === "undefined") return null;
+  const ua = navigator.userAgent || "";
+  if (/Instagram/i.test(ua)) return "Instagram";
+  if (/FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) return "Facebook";
+  if (/WhatsApp/i.test(ua)) return "WhatsApp";
+  if (/Snapchat/i.test(ua)) return "Snapchat";
+  if (/LinkedInApp/i.test(ua)) return "LinkedIn";
+  if (/\bLine\//i.test(ua)) return "LINE";
+  if (/; wv\)/.test(ua)) return "this app";
+  return null;
+};
+
+/**
+ * Shown instead of the Google button inside an in-app browser: a way out to a
+ * real browser, where Google sign-in works.
+ */
+const OpenInBrowser = ({ app }: { app: string }) => {
+  const [copied, setCopied] = useState(false);
+  const isAndroid = /Android/i.test(navigator.userAgent || "");
+  const { host, pathname, search, protocol, href } = window.location;
+  // Chrome's intent URL opens the same page in Chrome, falling back to the
+  // plain URL if Chrome is not installed.
+  const intentUrl = `intent://${host}${pathname}${search}#Intent;scheme=${protocol.replace(":", "")};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(href)};end`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopied(true);
+    } catch {
+      window.prompt("Copy this link and open it in your browser:", href);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm space-y-2 text-left">
+      <p className="font-medium">Google sign-in doesn't work inside {app}'s browser.</p>
+      {isAndroid ? (
+        <a href={intentUrl} className="inline-flex w-full justify-center rounded-md bg-primary px-3 py-2 font-medium text-primary-foreground">
+          Open in Chrome
+        </a>
+      ) : (
+        <p className="text-muted-foreground">
+          Tap <span className="font-semibold">•••</span> or the share button and choose <span className="font-semibold">Open in Safari</span>, then sign in there.
+        </p>
+      )}
+      <button type="button" onClick={copy} className="w-full rounded-md border border-border px-3 py-2 text-muted-foreground hover:bg-muted">
+        {copied ? "Link copied — paste it into your browser" : "Copy link"}
+      </button>
+    </div>
+  );
+};
+
+/**
  * The server's sign-in config.
  *
  * `googleRedirectUri` is null unless redirect mode is switched on server-side,
@@ -112,21 +174,35 @@ export const useAuthConfig = (): AuthConfig => {
 /** Just the client id — most callers only need to know whether sign-in is on. */
 export const useGoogleClientId = (): string | null => useAuthConfig().googleClientId;
 
+/** What a failed sign-in reports, beyond the message. */
+export interface GoogleSignInFailure {
+  /** Stable reason from the server, e.g. LINK_REQUIRES_PASSWORD. */
+  code?: string;
+  /** The Google credential, so a caller can finish a flow (link after password). */
+  credential?: string;
+}
+
 interface Props {
   /**
-   * Where to send the Google credential for verification. Players and hosts
-   * are separate identities with separate rules — a player account is created
-   * on first sign-in, a host is only ever matched to one an administrator
-   * already made — so they verify at different endpoints.
+   * Where to send the Google credential for verification (popup mode): the
+   * admin login page uses /api/user/google-login, the registration modal
+   * /api/player-profile/google. Redirect mode always comes back through
+   * /login, which finishes the sign-in and returns here.
    */
   endpoint?: string;
   /** Called with whatever that endpoint returned, once the server verified it. */
   onSignedIn: (data: any) => void;
-  onError?: (message: string) => void;
+  onError?: (message: string, failure?: GoogleSignInFailure) => void;
+  /**
+   * Redirect mode only: a marker the page reads after coming back (see
+   * takeGoogleResume), so it can pick up where the person left off.
+   */
+  resume?: string;
 }
 
-export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError }: Props) => {
+export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", onSignedIn, onError, resume }: Props) => {
   const { googleClientId: clientId, googleRedirectUri, googleRedirectOn } = useAuthConfig();
+  const [inApp] = useState(inAppBrowserName);
 
   // Redirect where the popup cannot work; popup where it does.
   const useRedirect = Boolean(googleRedirectUri) && (
@@ -140,15 +216,24 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
   onErrorRef.current = onError;
 
   useEffect(() => {
-    if (!clientId || !holder.current) return;
+    if (!clientId || inApp || !holder.current) return;
     let cancelled = false;
 
     loadGis()
       .then(() => {
         if (cancelled || !holder.current || !window.google?.accounts?.id) return;
 
+        // Redirect mode leaves this page. Note where it was, so the person
+        // comes back here — /login itself is never a destination.
+        if (useRedirect && !window.location.pathname.startsWith("/login")) {
+          rememberGoogleReturn(resume);
+        }
+
         window.google.accounts.id.initialize({
           client_id: clientId,
+          // Written into the ID token by Google; the redirect exchange only
+          // accepts a token carrying this tab's nonce.
+          nonce: googleNonce(),
           ...(useRedirect
             ? { ux_mode: "redirect", login_uri: googleRedirectUri }
             : {}),
@@ -190,7 +275,13 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
                 body: JSON.stringify({ credential: response.credential }),
               });
               const body = await res.json();
-              if (!res.ok) throw new Error(body.message || "Google sign-in failed");
+              if (!res.ok) {
+                onErrorRef.current?.(body.message || "Google sign-in failed", {
+                  code: body.code,
+                  credential: response.credential,
+                });
+                return;
+              }
               onSignedInRef.current(body.data);
             } catch (err) {
               onErrorRef.current?.(err instanceof Error ? err.message : "Google sign-in failed");
@@ -209,9 +300,10 @@ export const GoogleSignInButton = ({ endpoint = "/api/player-profile/google", on
       .catch(err => onErrorRef.current?.(err.message));
 
     return () => { cancelled = true; };
-  }, [clientId, endpoint, useRedirect, googleRedirectUri]);
+  }, [clientId, endpoint, useRedirect, googleRedirectUri, inApp, resume]);
 
   if (!clientId) return null;
+  if (inApp) return <OpenInBrowser app={inApp} />;
 
   return <div ref={holder} className="flex justify-center min-h-[44px]" />;
 };

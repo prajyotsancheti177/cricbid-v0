@@ -15,6 +15,6 @@ plannerRouter.post("/reorder", plannerController.reorderCategory);
 
 // Host-facing: hands out and rotates the per-team links.
 plannerRouter.post("/links", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, plannerController.getLinks);
-plannerRouter.post("/link-reset", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), plannerController.resetLink);
+plannerRouter.post("/link-reset", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, plannerController.resetLink);
 
 module.exports = plannerRouter;

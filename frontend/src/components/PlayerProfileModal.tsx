@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, LogIn, Plus, User, ChevronRight } from "lucide-react";
 import apiConfig from "@/config/apiConfig";
 import { GoogleSignInButton, useGoogleClientId } from "@/components/auth/GoogleSignInButton";
+import { clearSession, getSessionToken, storeSession } from "@/lib/auth";
 
 /**
  * Sign in, then choose which player you are registering.
@@ -45,8 +46,17 @@ interface Props {
 
 const STORAGE_KEY = "cricbid_player_token";
 
-export const getStoredPlayerToken = () => localStorage.getItem(STORAGE_KEY);
-export const clearPlayerToken = () => localStorage.removeItem(STORAGE_KEY);
+/**
+ * The signed-in session, whichever way it was made.
+ *
+ * This read only the player key, while /login (and every phone sign-in, which
+ * returns through /login) stores the shared one — so someone already signed in
+ * opened a registration link and was asked to sign in again, and on a phone
+ * went round in a loop. There is one identity, so there is one token.
+ */
+export const getStoredPlayerToken = () => getSessionToken();
+/** Signing out here signs out the app: it is the same session. */
+export const clearPlayerToken = () => clearSession();
 
 /** The signed-in account, or null when the token is missing or expired. */
 export const fetchAccountWithToken = async (token: string): Promise<PlayerAccount | null> => {
@@ -94,11 +104,17 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
 
   const closeAll = () => { reset(); onClose(); };
 
-  const handleGoogleSignedIn = (result: { token: string; account: PlayerAccount }) => {
+  const handleGoogleSignedIn = (result: { token: string; account: PlayerAccount; user?: Record<string, unknown> }) => {
     setError("");
     localStorage.setItem(STORAGE_KEY, result.token);
     // Same token the rest of the app authenticates with — one identity now.
-    localStorage.setItem("cricbid_session_token", result.token);
+    // Storing the user as well signs the whole app in, so the navbar shows who
+    // is signed in instead of a "Login" button.
+    if (result.user) {
+      storeSession({ ...(result.user as { _id: string }), sessionToken: result.token });
+    } else {
+      localStorage.setItem("cricbid_session_token", result.token);
+    }
     setAccount(result.account);
     // A new account owns nobody yet, so go straight to adding a player rather
     // than showing an empty list.
@@ -156,7 +172,7 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
               Sign in once and your details are saved for every tournament you enter.
             </p>
             {googleEnabled ? (
-              <GoogleSignInButton onSignedIn={handleGoogleSignedIn} onError={setError} />
+              <GoogleSignInButton onSignedIn={handleGoogleSignedIn} onError={setError} resume="player-profile" />
             ) : (
               <Alert>
                 <AlertDescription>
@@ -164,8 +180,10 @@ const PlayerProfileModal = ({ open, onClose, onProfileLoaded }: Props) => {
                 </AlertDescription>
               </Alert>
             )}
+            {/* Signing in is a convenience, never a requirement: inside
+                WhatsApp's browser, or with Google unavailable, the form still works. */}
             <p className="text-center text-xs text-muted-foreground">
-              Signing in with a mobile number is coming soon.
+              Prefer not to sign in? Close this and fill in the form below.
             </p>
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           </div>

@@ -34,11 +34,12 @@ const buildAdminLinks = () => {
     if (!userStr) return links;
     const user = JSON.parse(userStr);
 
-    // Authenticated users manage tournaments
-    links.push({ path: "/tournaments/manage", label: "Manage Tournaments" });
-    links.push({ path: "/add-player", label: "Add Player" });
-
+    // Only roles that manage something get management links. Everyone who
+    // signs in with Google starts as a `player`, and showing them "Manage
+    // Tournaments" only to bounce them off it looked broken.
     if (user.role === 'tournament_host' || user.role === 'super_user' || user.role === 'boss') {
+      links.push({ path: "/tournaments/manage", label: "Manage Tournaments" });
+      links.push({ path: "/add-player", label: "Add Player" });
       links.push({ path: "/bulk-upload", label: "Bulk Upload" });
     }
     if (user.role === 'boss' || user.role === 'super_user') {
@@ -105,21 +106,27 @@ export const Navbar = () => {
     };
   }, [mobileMenuOpen]);
 
-  const handleLogout = () => {
+  /**
+   * @param everywhere - end every session this account has (lost phone,
+   *   shared device), not just this browser's
+   */
+  const handleLogout = (everywhere = false) => {
     // Track logout event before clearing user data
     const userStr = localStorage.getItem("user");
     if (userStr) {
       const user = JSON.parse(userStr);
-      trackEvent("logout", { userId: user._id, role: user.role });
+      trackEvent("logout", { userId: user._id, role: user.role, everywhere });
     }
 
-    // Tell the server first so the token stops working everywhere, then clear.
-    fetch(`${apiConfig.baseUrl}/api/user/logout`, { method: "POST", headers: jsonAuthHeaders() })
+    // Tell the server first so the token stops working, then clear.
+    fetch(`${apiConfig.baseUrl}/api/user/${everywhere ? "logout-all" : "logout"}`, { method: "POST", headers: jsonAuthHeaders() })
       .catch(() => { /* clearing locally still signs this browser out */ });
     clearSession();
     toast({
       title: "Logged Out",
-      description: "You have been successfully logged out.",
+      description: everywhere
+        ? "You have been signed out on every device."
+        : "You have been successfully logged out.",
     });
     setMobileMenuOpen(false);
     navigate("/tournaments"); // Redirect to public page instead of login
@@ -130,7 +137,9 @@ export const Navbar = () => {
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const user = JSON.parse(userStr);
-        return user.name;
+        // A Google account may have no display name; the email still says
+        // who is signed in, and a null here showed "Login" to a signed-in user.
+        return user.name || user.email || null;
       }
     } catch {
       return null;
@@ -227,9 +236,12 @@ export const Navbar = () => {
                       </DropdownMenuItem>
                     ))}
                     {adminLinks.length > 0 && <DropdownMenuSeparator />}
-                    <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem onClick={() => handleLogout()} className="text-destructive focus:text-destructive">
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleLogout(true)} className="text-xs text-muted-foreground">
+                      Sign out of all devices
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -348,11 +360,17 @@ export const Navbar = () => {
                     </a>
                     */}
                     <button
-                      onClick={handleLogout}
+                      onClick={() => handleLogout()}
                       className="w-full px-4 py-3 rounded-lg font-medium text-left transition-all text-destructive hover:bg-destructive/10 flex items-center gap-2"
                     >
                       <LogOut className="h-4 w-4" />
                       <span>Logout</span>
+                    </button>
+                    <button
+                      onClick={() => handleLogout(true)}
+                      className="w-full px-4 py-2 rounded-lg text-sm text-left text-muted-foreground hover:bg-muted"
+                    >
+                      Sign out of all devices
                     </button>
                   </>
                 ) : (

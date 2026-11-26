@@ -165,45 +165,79 @@ const requireTournamentVisible = async (req, res, next) => {
  * Reads the tournament id from wherever the existing routes put it, so it can
  * be dropped in without changing their request shapes.
  */
-const requireTournamentAccess = async (req, res, next) => {
-    const claimed =
-        req.body?.tournamentId || req.body?.touranmentId
-        || req.params?.tournamentId || req.query?.tournamentId;
+/**
+ * Every tournament a managing request touches.
+ *
+ * The claimed tournament id, plus the tournament each named record really
+ * belongs to: a player, a team (including a match's two teams), a budget
+ * top-up, a match, and each entry of a bulk `matches` list. Edits to one record
+ * (the player dialog, the sheet, the scorer) often send only that record's id,
+ * so it has to be looked up.
+ *
+ * It used to resolve one id and let it win, and skipped the team lookup when a
+ * tournament id was also sent — so a host could name their own tournament while
+ * renaming or deleting another tournament's team. Now the caller must be
+ * allowed on all of them. An id that matches nothing adds nothing; the handler
+ * reports "not found" itself.
+ */
+const tournamentsTouched = async (req) => {
+    const b = req.body || {};
+    const ids = new Set();
+    const add = (v) => { if (v) ids.add(String(v)); };
 
-    // Edits to one player or team (the player dialog, the sheet) send only that
-    // record's id. Without a tournament id every host was refused — only boss
-    // and super_user got through, as they skip the per-tournament check. So the
-    // tournament comes from the record itself, and it wins over any id the
-    // caller sent: otherwise a host could name their own tournament while
-    // editing someone else's player.
-    let owning = null;
-    try {
-        if (req.body?.playerId) {
-            const player = await prisma.player.findUnique({
-                where: { id: String(req.body.playerId) },
-                select: { touranmentId: true },
-            });
-            owning = player?.touranmentId || null;
-        } else if (req.body?.teamId && !claimed) {
-            const team = await prisma.team.findUnique({
-                where: { id: String(req.body.teamId) },
-                select: { touranmentId: true },
-            });
-            owning = team?.touranmentId || null;
+    add(b.tournamentId || b.touranmentId || req.params?.tournamentId || req.query?.tournamentId);
+
+    const lookups = [];
+    const viaTeam = (id) => id && lookups.push(
+        prisma.team.findUnique({ where: { id: String(id) }, select: { touranmentId: true } }).then(r => add(r?.touranmentId))
+    );
+    if (b.playerId) {
+        lookups.push(prisma.player.findUnique({ where: { id: String(b.playerId) }, select: { touranmentId: true } }).then(r => add(r?.touranmentId)));
+    }
+    viaTeam(b.teamId);
+    viaTeam(b.teamAId);
+    viaTeam(b.teamBId);
+    if (b.topupId) {
+        lookups.push(prisma.teamBudgetTopup.findUnique({ where: { id: String(b.topupId) }, select: { touranmentId: true } }).then(r => add(r?.touranmentId)));
+    }
+    if (b.matchId) {
+        lookups.push(prisma.match.findUnique({ where: { id: String(b.matchId) }, select: { tournamentId: true } }).then(r => add(r?.tournamentId)));
+    }
+    if (Array.isArray(b.matches)) {
+        for (const m of b.matches) {
+            add(m && m.tournamentId);
+            viaTeam(m && m.teamAId);
+            viaTeam(m && m.teamBId);
         }
-    } catch {
-        owning = null;
     }
+    await Promise.all(lookups.map(p => p.catch(() => {})));
+    return [...ids];
+};
 
-    const tournamentId = owning || claimed;
-    const allowed = await canManageTournament(req.userId, req.userRole, tournamentId);
-    if (!allowed) {
-        return res.status(403).json({
-            success: false,
-            message: "You do not have permission to manage this tournament",
-        });
+/**
+ * Express guard for any route that manages one tournament.
+ *
+ * Reads the tournament id from wherever the existing routes put it, so it can
+ * be dropped in without changing their request shapes.
+ */
+const requireTournamentAccess = async (req, res, next) => {
+    const deny = () => res.status(403).json({
+        success: false,
+        message: "You do not have permission to manage this tournament",
+    });
+    try {
+        const ids = await tournamentsTouched(req);
+        // No tournament at all: only an admin can be acting on "any" one.
+        if (!ids.length) {
+            return (await canManageTournament(req.userId, req.userRole, null)) ? next() : deny();
+        }
+        for (const id of ids) {
+            if (!(await canManageTournament(req.userId, req.userRole, id))) return deny();
+        }
+        next();
+    } catch {
+        return deny();
     }
-    next();
 };
 
 module.exports = {

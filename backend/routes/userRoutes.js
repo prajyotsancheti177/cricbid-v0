@@ -1,17 +1,30 @@
 const express = require('express');
 const userController = require('../controller/userController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { passwordLoginLimits, googleLoginLimit } = require('../utils/rateLimit');
 const userRouter = express.Router();
 
 // User Login (public)
-userRouter.post("/login", userController.loginUser);
+userRouter.post("/login", ...passwordLoginLimits, userController.loginUser);
 
 // Sign in with Google (public)
-userRouter.post("/google-login", userController.googleLoginUser);
+userRouter.post("/google-login", googleLoginLimit, userController.googleLoginUser);
 
 // Google redirect-mode sign-in: Google POSTs the credential here directly,
-// so no popup and no window.opener handoff is involved.
-userRouter.post("/google-callback", userController.googleCallback);
+// so no popup and no window.opener handoff is involved. It answers with a
+// one-time code, which the login page exchanges together with its nonce.
+userRouter.post("/google-callback", googleLoginLimit, userController.googleCallback);
+userRouter.post("/google-exchange", googleLoginLimit, userController.googleExchange);
+
+// Link Google to the signed-in account (after a password sign-in proved it)
+userRouter.post("/link-google", authMiddleware, googleLoginLimit, userController.linkGoogle);
+
+// Clear someone's Google link so their next Google sign-in links afresh
+userRouter.post("/unlink-google", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.unlinkGoogle);
+
+// The devices this account is signed in on, and signing out of all of them
+userRouter.get("/sessions", authMiddleware, userController.listSessions);
+userRouter.post("/logout-all", authMiddleware, userController.logoutAll);
 
 // Create User - Protected
 userRouter.post("/create", authMiddleware, roleMiddleware(['boss', 'super_user']), userController.createUser);

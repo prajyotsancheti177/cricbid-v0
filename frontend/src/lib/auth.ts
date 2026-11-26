@@ -98,6 +98,69 @@ export const jsonAuthHeaders = (extra: Record<string, string> = {}) =>
 export const isSessionExpired = (status: number, body?: { code?: string }) =>
   status === 401 && (!body?.code || String(body.code).startsWith("SESSION") || body.code === "NO_SESSION");
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Google redirect sign-in: what survives the trip to Google and back
+ *
+ * On phones the sign-in leaves the page entirely and comes back to /login. Two
+ * things have to survive that trip, in sessionStorage (this tab only):
+ *
+ *  - a nonce. Google writes it into the ID token; the server only accepts a
+ *    redirect sign-in whose token carries the nonce this tab generated. That is
+ *    what stops someone else's page from signing this browser into their
+ *    account (login CSRF).
+ *  - where the person was, so a player who started on a registration link goes
+ *    back to it instead of being dropped on /tournaments.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const GOOGLE_NONCE_KEY = "cricbid_google_nonce";
+const GOOGLE_RETURN_KEY = "cricbid_google_return";
+const GOOGLE_RESUME_KEY = "cricbid_google_resume";
+
+const safeSession = {
+  get: (k: string) => { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string) => { try { sessionStorage.setItem(k, v); } catch { /* private mode */ } },
+  del: (k: string) => { try { sessionStorage.removeItem(k); } catch { /* private mode */ } },
+};
+
+/** The nonce for this tab's Google sign-in, made once and reused until spent. */
+export const googleNonce = (): string => {
+  const existing = safeSession.get(GOOGLE_NONCE_KEY);
+  if (existing) return existing;
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const nonce = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+  safeSession.set(GOOGLE_NONCE_KEY, nonce);
+  return nonce;
+};
+
+/**
+ * Remember where to come back to after a redirect sign-in.
+ * @param resume - a marker for the page to pick up where it left off (e.g. reopen the profile picker)
+ */
+export const rememberGoogleReturn = (resume?: string) => {
+  if (typeof window === "undefined") return;
+  const here = window.location.pathname + window.location.search;
+  if (!here.startsWith("/login")) safeSession.set(GOOGLE_RETURN_KEY, here);
+  if (resume) safeSession.set(GOOGLE_RESUME_KEY, resume); else safeSession.del(GOOGLE_RESUME_KEY);
+};
+
+/** Spend the nonce and the return path. Only a same-site path is ever returned. */
+export const takeGoogleRedirectState = (): { nonce: string | null; returnTo: string | null } => {
+  const nonce = safeSession.get(GOOGLE_NONCE_KEY);
+  const ret = safeSession.get(GOOGLE_RETURN_KEY);
+  safeSession.del(GOOGLE_NONCE_KEY);
+  safeSession.del(GOOGLE_RETURN_KEY);
+  const returnTo = ret && ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/login") ? ret : null;
+  return { nonce, returnTo };
+};
+
+/** A page asks whether it should resume after a redirect sign-in; true once. */
+export const takeGoogleResume = (marker: string): boolean => {
+  if (safeSession.get(GOOGLE_RESUME_KEY) !== marker) return false;
+  safeSession.del(GOOGLE_RESUME_KEY);
+  return true;
+};
+
 /** Clear the session and go to login. Safe to call from anywhere. */
 export const forceSignOut = () => {
   clearSession();

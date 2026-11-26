@@ -7,6 +7,71 @@ const config = require('../config');
 // Matches the player session length.
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
+/**
+ * An auth failure the client can act on. `code` is stable and safe to put in a
+ * URL (the redirect sign-in reports failures as `?error=<code>`); the message
+ * is for people.
+ */
+class AuthError extends Error {
+    constructor(code, message) {
+        super(message);
+        this.code = code;
+    }
+}
+
+const MANAGING_ROLES = ['boss', 'super_user', 'tournament_host'];
+const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
+
+/**
+ * The Gmail mailbox an address delivers to. Gmail ignores dots and anything
+ * after a `+` in the local part, and googlemail.com is the same service, so
+ * john.doe+cricbid@googlemail.com and johndoe@gmail.com are one inbox — and
+ * one person. Other domains are left alone: their dots are significant.
+ */
+const canonicalEmail = (email) => {
+    const lower = String(email || '').trim().toLowerCase();
+    const at = lower.lastIndexOf('@');
+    if (at < 0) return lower;
+    const local = lower.slice(0, at);
+    const domain = lower.slice(at + 1);
+    if (!GMAIL_DOMAINS.has(domain)) return lower;
+    return `${local.split('+')[0].replace(/\./g, '')}@gmail.com`;
+};
+
+/**
+ * Whether Google is the authority for this address, so its "verified" means
+ * the signer-in controls the mailbox today. True for Gmail and for Workspace
+ * accounts (`hd`). For any other address Google only proves someone could read
+ * it once, when the Google account was made — an ex-employee may still hold
+ * that Google account after losing the mailbox.
+ */
+const isAuthoritativeGoogleEmail = (payload) => {
+    const domain = String(payload.email || '').toLowerCase().split('@')[1] || '';
+    return GMAIL_DOMAINS.has(domain) || Boolean(payload.hd);
+};
+
+/**
+ * Google ID tokens already exchanged for a session, so one credential cannot
+ * mint several (the token stays valid for an hour). In memory: production runs
+ * a single process, and a restart only forgets tokens that are about to expire.
+ */
+const usedGoogleTokens = new Map();
+const markGoogleTokenUsed = (payload, credential) => {
+    const now = Date.now();
+    if (usedGoogleTokens.size > 1000) {
+        for (const [k, exp] of usedGoogleTokens) if (exp < now) usedGoogleTokens.delete(k);
+    }
+    const key = payload.jti || crypto.createHash('sha256').update(String(credential)).digest('hex');
+    if (usedGoogleTokens.has(key)) {
+        throw new AuthError('REPLAYED', "That Google sign-in was already used. Please sign in again.");
+    }
+    usedGoogleTokens.set(key, (Number(payload.exp) || now / 1000) * 1000 + 5 * 60 * 1000);
+    // Marked before any await, so two simultaneous uses cannot both pass.
+    // The release is for a sign-in that ends in "now prove it with your
+    // password": that credential is spent on linkGoogleToUser instead.
+    return () => usedGoogleTokens.delete(key);
+};
+
 // Permission columns -> permissions{} object (preserves the old API shape)
 const permsOf = (u) => ({
     canCreateSuperUser: u.canCreateSuperUser,
@@ -45,6 +110,8 @@ const serializeUser = (u) => {
         createdBy,
         logo: u.logo,
         isActive: u.isActive,
+        // Whether Google sign-in is linked — never the Google id itself.
+        googleLinked: Boolean(u.googleSub),
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
     };
@@ -62,26 +129,27 @@ const createUser = async (userData) => {
         throw new Error("Name, email, password, and role are required");
     }
 
-    const validRoles = ['boss', 'super_user', 'tournament_host'];
+    // A boss is never created over the API — scripts/createBossUser.js is the
+    // only way, so no account can mint one.
+    const validRoles = ['super_user', 'tournament_host'];
     if (!validRoles.includes(role)) {
-        throw new Error("Invalid role. Must be: boss, super_user, or tournament_host");
+        throw new Error("Invalid role. Must be: super_user or tournament_host");
     }
 
-    // Check permissions of creator
-    if (createdBy) {
-        const creator = await prisma.user.findUnique({ where: { id: createdBy } });
-        if (!creator) {
-            throw new Error("Creator user not found");
-        }
-        if (role === 'super_user' && !creator.canCreateSuperUser) {
-            throw new Error("You don't have permission to create super users");
-        }
-        if (role === 'tournament_host' && !creator.canCreateTournamentHost) {
-            throw new Error("You don't have permission to create tournament hosts");
-        }
-        if (role === 'boss') {
-            throw new Error("Cannot create boss users");
-        }
+    // The creator is the signed-in caller (the controller sets it from the
+    // session). This check used to run only `if (createdBy)`, and createdBy came
+    // from the request body — so leaving it out skipped every check, and a
+    // super_user could create a boss.
+    if (!createdBy) throw new Error("Not permitted");
+    const creator = await prisma.user.findUnique({ where: { id: createdBy } });
+    if (!creator || !creator.isActive) {
+        throw new Error("Not permitted");
+    }
+    if (role === 'super_user' && creator.role !== 'boss') {
+        throw new Error("Only a boss can create super users");
+    }
+    if (role === 'tournament_host' && !['boss', 'super_user'].includes(creator.role)) {
+        throw new Error("You don't have permission to create tournament hosts");
     }
 
     // Validate email format
@@ -123,14 +191,16 @@ const createUser = async (userData) => {
 /**
  * Login user with email and password
  */
-const loginUser = async (credentials) => {
+const loginUser = async (credentials, { userAgent } = {}) => {
     const { email, password } = credentials;
 
     if (!email || !password) {
         throw new Error("Email and password are required");
     }
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    // Trimmed as well as lowercased: accounts are created trimmed, and a phone
+    // keyboard's autocomplete often adds a trailing space.
+    const user = await prisma.user.findUnique({ where: { email: String(email).trim().toLowerCase() } });
     if (!user) {
         throw new Error("Invalid email or password");
     }
@@ -150,7 +220,7 @@ const loginUser = async (credentials) => {
         throw new Error("Invalid email or password");
     }
 
-    const token = await createSession(user.id);
+    const token = await createSession(user.id, userAgent);
 
     const s = serializeUser(user);
     delete s.createdBy;
@@ -196,84 +266,207 @@ const listSessions = (userId) =>
         orderBy: { lastSeenAt: 'desc' },
     });
 
+const DEACTIVATED_MESSAGE = "Your account has been deactivated. Please contact support.";
+
 /**
- * Sign in with Google.
+ * Check a Google ID token and return its payload. Does not mark it used, so
+ * the redirect callback can validate early and leave the exchange to spend it.
  *
- * A host is never CREATED by signing in — the Google account is matched to a
- * user an administrator already made. Without that rule anyone with a Google
- * account could sign in and be handed a tournament_host role, which is the
- * whole reason this is not the same flow as a player account.
- *
- * The match is on the Google-verified email. An unverified one proves nothing
- * about who controls the address, so it is refused.
- *
- * @param {string} credential - ID token from Google Identity Services
- * @returns {Promise<Object>} the same serialized user shape as loginUser
+ * The underlying reason a token fails (expired, clock skew, wrong audience,
+ * certificate fetch) is logged here: the person only ever sees "could not
+ * verify", and without the log a skewed server clock looks like Google being
+ * broken for everyone.
  */
-const loginWithGoogle = async (credential) => {
-    if (!config.googleClientId) throw new Error("Google sign-in is not configured");
-    if (!credential) throw new Error("Missing Google credential");
+const verifyGoogleCredential = async (credential) => {
+    if (!config.googleClientId) throw new AuthError('NOT_CONFIGURED', "Google sign-in is not configured");
+    if (!credential) throw new AuthError('INVALID_TOKEN', "Missing Google credential");
 
     const client = new OAuth2Client(config.googleClientId);
     let payload;
     try {
         const ticket = await client.verifyIdToken({
-            idToken: credential,
+            idToken: String(credential),
             audience: config.googleClientId,
         });
         payload = ticket.getPayload();
-    } catch {
-        throw new Error("Could not verify that Google sign-in");
+    } catch (err) {
+        console.warn(`[google sign-in] token verification failed: ${err && err.message}`);
+        throw new AuthError('INVALID_TOKEN', "Could not verify that Google sign-in");
     }
 
-    if (!payload?.sub) throw new Error("Could not verify that Google sign-in");
+    if (!payload?.sub) throw new AuthError('INVALID_TOKEN', "Could not verify that Google sign-in");
     if (payload.email_verified !== true || !payload.email) {
-        throw new Error("That Google account has no verified email address");
+        throw new AuthError('UNVERIFIED_EMAIL', "That Google account has no verified email address");
     }
+    return payload;
+};
 
-    const email = String(payload.email).toLowerCase();
+/**
+ * The existing user a first Google sign-in belongs to, if any: the exact email,
+ * or for Gmail the same mailbox under another spelling (dots, +tag,
+ * googlemail.com). Without the second lookup a host an admin created as
+ * johndoe@gmail.com who signs in as john.doe@gmail.com silently got a second,
+ * powerless `player` account.
+ */
+const findUserForGoogleEmail = async (email) => {
+    const exact = await prisma.user.findUnique({ where: { email } });
+    if (exact) return exact;
+
+    const canonical = canonicalEmail(email);
+    if (!canonical.endsWith('@gmail.com')) return null;
+    const local = canonical.split('@')[0];
+
+    const rows = await prisma.$queryRaw`
+        SELECT id FROM "user"
+        WHERE lower(split_part(email, '@', 2)) IN ('gmail.com', 'googlemail.com')
+          AND replace(split_part(split_part(lower(email), '@', 1), '+', 1), '.', '') = ${local}
+        ORDER BY "createdAt" ASC
+        LIMIT 2`;
+    if (!rows.length) return null;
+    if (rows.length > 1) {
+        console.warn(`[google sign-in] ${rows.length}+ accounts share the Gmail mailbox ${canonical}; using the oldest`);
+    }
+    return prisma.user.findUnique({ where: { id: rows[0].id } });
+};
+
+/**
+ * Sign in with Google.
+ *
+ * Anyone may sign in; a first sign-in creates a `player`, and a role is only
+ * ever granted afterwards by a boss. An existing account is found by its linked
+ * Google id, else by email, and linked on the way.
+ *
+ * Linking is refused in two cases that used to go through:
+ *  - the account is suspended: nothing is written to it at all;
+ *  - the account manages something and the email is one Google is not the
+ *    authority for (see isAuthoritativeGoogleEmail). The person proves it is
+ *    theirs by signing in with the password once, which links Google
+ *    (linkGoogleToUser).
+ *
+ * @param {string} credential - ID token from Google Identity Services
+ * @param {{ userAgent?: string, expectedNonce?: string|null }} [options]
+ *   expectedNonce — set by the redirect exchange: the token must carry the
+ *   nonce the browser that started the sign-in generated, which is what stops
+ *   an attacker's credential being planted on someone else's browser.
+ * @returns {Promise<Object>} the same serialized user shape as loginUser
+ */
+const loginWithGoogle = async (credential, { userAgent, expectedNonce } = {}) => {
+    const payload = await verifyGoogleCredential(credential);
+
+    if (expectedNonce !== undefined && (!expectedNonce || payload.nonce !== expectedNonce)) {
+        throw new AuthError('CSRF', "That sign-in could not be verified. Please try again.");
+    }
+    const releaseToken = markGoogleTokenUsed(payload, credential);
+
+    const email = String(payload.email).trim().toLowerCase();
 
     // Prefer the recorded link; fall back to the email for a first sign-in.
     let user = await prisma.user.findUnique({ where: { googleSub: payload.sub } });
-    if (!user) {
-        user = await prisma.user.findUnique({ where: { email } });
 
-        if (user && user.googleSub && user.googleSub !== payload.sub) {
-            throw new Error("Another Google account is already linked to this CricBid user");
+    if (user) {
+        if (!user.isActive) throw new AuthError('DEACTIVATED', DEACTIVATED_MESSAGE);
+
+        // The Google account's address changed. Keep ours current so WhatsApp
+        // and registration lookups by email still find this person — unless
+        // another account already holds the new address.
+        if (user.email !== email) {
+            const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+            if (!holder) {
+                user = await prisma.user.update({ where: { id: user.id }, data: { email, emailVerified: true } });
+            } else {
+                console.warn(`[google sign-in] ${user.id} now signs in as ${email}, which belongs to ${holder.id}; email left as ${user.email}`);
+            }
         }
+    } else {
+        user = await findUserForGoogleEmail(email);
 
         if (user) {
+            if (!user.isActive) throw new AuthError('DEACTIVATED', DEACTIVATED_MESSAGE);
+            if (user.googleSub && user.googleSub !== payload.sub) {
+                throw new AuthError('SUB_CONFLICT', "Another Google account is already linked to this CricBid user. Ask an administrator to unlink it.");
+            }
+            if (MANAGING_ROLES.includes(user.role) && !isAuthoritativeGoogleEmail(payload)) {
+                releaseToken();
+                throw new AuthError('LINK_REQUIRES_PASSWORD', "This email belongs to an admin account. Sign in with your password once to link Google to it.");
+            }
             user = await prisma.user.update({
                 where: { id: user.id },
                 data: { googleSub: payload.sub, emailVerified: true, name: user.name || payload.name || null },
             });
         } else {
-            // Anyone may sign in, and everyone starts as a player. A role is
-            // something a boss grants afterwards to someone who already exists
-            // — signing in never confers access to anything.
-            user = await prisma.user.create({
-                data: {
-                    email,
-                    name: payload.name || null,
-                    googleSub: payload.sub,
-                    emailVerified: true,
-                    role: 'player',
-                    password: null,
-                },
-            });
+            try {
+                user = await prisma.user.create({
+                    data: {
+                        email,
+                        name: payload.name || null,
+                        googleSub: payload.sub,
+                        emailVerified: true,
+                        role: 'player',
+                        password: null,
+                    },
+                });
+            } catch (e) {
+                // Two first sign-ins for one person racing (two tabs, a
+                // double tap): the loser finds the row the winner made.
+                if (e.code !== 'P2002') throw e;
+                user = await prisma.user.findUnique({ where: { googleSub: payload.sub } })
+                    || await prisma.user.findUnique({ where: { email } });
+                if (!user) throw e;
+            }
         }
     }
 
-    if (!user.isActive) {
-        throw new Error("Your account has been deactivated. Please contact support.");
-    }
-
-    const token = await createSession(user.id);
+    const token = await createSession(user.id, userAgent);
 
     const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
     return { ...s, sessionToken: token };
+};
+
+/**
+ * Link a Google account to the signed-in user — the second half of the
+ * LINK_REQUIRES_PASSWORD flow, after the password sign-in proved ownership.
+ * The Google address must be the account's own mailbox.
+ */
+const linkGoogleToUser = async (userId, credential) => {
+    const payload = await verifyGoogleCredential(credential);
+    markGoogleTokenUsed(payload, credential);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) throw new AuthError('DEACTIVATED', DEACTIVATED_MESSAGE);
+    if (canonicalEmail(user.email) !== canonicalEmail(payload.email)) {
+        throw new AuthError('EMAIL_MISMATCH', "That Google account's email does not match this CricBid account.");
+    }
+    if (user.googleSub === payload.sub) return serializeUser(user);
+    if (user.googleSub) {
+        throw new AuthError('SUB_CONFLICT', "Another Google account is already linked to this CricBid user. Ask an administrator to unlink it.");
+    }
+    const other = await prisma.user.findUnique({ where: { googleSub: payload.sub }, select: { id: true } });
+    if (other) throw new AuthError('SUB_CONFLICT', "That Google account is already linked to a different CricBid user.");
+
+    const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { googleSub: payload.sub, emailVerified: true },
+    });
+    return serializeUser(updated);
+};
+
+/**
+ * Remove someone's Google link, so their next Google sign-in links afresh by
+ * email. The recovery for "Another Google account is already linked" — a
+ * Workspace account deleted and recreated, or a Gmail address recycled.
+ */
+const unlinkGoogle = async (actorId, targetUserId) => {
+    const actor = await prisma.user.findUnique({ where: { id: actorId } });
+    if (!actor || !actor.isActive || !['boss', 'super_user'].includes(actor.role)) throw new Error("Not permitted");
+    const target = await prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new Error("User not found");
+    if (['boss', 'super_user'].includes(target.role) && actor.role !== 'boss' && target.id !== actor.id) {
+        throw new Error("Only a boss can change another administrator's sign-in");
+    }
+    const updated = await prisma.user.update({ where: { id: target.id }, data: { googleSub: null } });
+    return serializeUser(updated);
 };
 
 /**
@@ -291,6 +484,9 @@ const getUserBySessionToken = async (token) => {
         return null;
     }
     const user = session.user;
+    // Same rule as authMiddleware. Without it a suspended person's open
+    // sessions kept working on every player-profile route.
+    if (!user || !user.isActive) return null;
     const s = serializeUser(user);
     delete s.createdBy;
     delete s.updatedAt;
@@ -366,6 +562,12 @@ const setUserAccess = async (actorId, { userId, role, tournamentIds }) => {
     if (role && role !== target.role) {
         if ((role === 'boss' || target.role === 'boss') && actor.role !== 'boss') {
             throw new Error("Only a boss can change boss access");
+        }
+        // Same line as createUser: a super_user may hand out hosting, not
+        // administration. Otherwise this screen was a way round the rule that
+        // super users cannot create super users.
+        if ((role === 'super_user' || target.role === 'super_user') && actor.role !== 'boss') {
+            throw new Error("Only a boss can grant or remove super user access");
         }
         if (target.id === actor.id) {
             throw new Error("You cannot change your own role");
@@ -515,11 +717,36 @@ const getAllUsers = async (filters = {}) => {
 /**
  * Update user details
  */
-const updateUser = async (updateData) => {
+/**
+ * Whether `actor` may change or remove `target`'s account.
+ *
+ * A boss may act on anyone but another boss; a super_user only on hosts and
+ * players. Both route guards admitted any boss or super_user, and nothing here
+ * looked at who the target was — so a super_user could suspend the boss.
+ */
+const assertMayAdminister = (actor, target) => {
+    if (!actor || !actor.isActive || !['boss', 'super_user'].includes(actor.role)) throw new Error("Not permitted");
+    if (target.role === 'boss' && target.id !== actor.id) throw new Error("A boss account cannot be changed here");
+    if (target.role === 'super_user' && actor.role !== 'boss' && target.id !== actor.id) {
+        throw new Error("Only a boss can change a super user");
+    }
+};
+
+const updateUser = async (updateData, actorId) => {
     const { userId, name, logo, isActive } = updateData;
 
     if (!userId) {
         throw new Error("User ID is required");
+    }
+
+    const [actor, target] = await Promise.all([
+        prisma.user.findUnique({ where: { id: actorId } }),
+        prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    if (!target) throw new Error("User not found");
+    assertMayAdminister(actor, target);
+    if (isActive !== undefined && target.id === actor.id) {
+        throw new Error("You cannot suspend or reactivate your own account");
     }
 
     const updates = {};
@@ -545,7 +772,7 @@ const updateUser = async (updateData) => {
 /**
  * Delete/deactivate user
  */
-const deleteUser = async (userId, hardDelete = false) => {
+const deleteUser = async (userId, hardDelete = false, actorId) => {
     if (!userId) {
         throw new Error("User ID is required");
     }
@@ -557,6 +784,15 @@ const deleteUser = async (userId, hardDelete = false) => {
 
     if (user.role === 'boss') {
         throw new Error("Cannot delete boss user");
+    }
+
+    const actor = await prisma.user.findUnique({ where: { id: actorId } });
+    if (user.id === actorId) throw new Error("You cannot remove your own access");
+    assertMayAdminister(actor, user);
+    // Permanent deletion cascades to the person's player profiles and orphans
+    // tournaments that name them as host, so it stays with the boss.
+    if (hardDelete && actor.role !== 'boss') {
+        throw new Error("Only a boss can permanently delete an account");
     }
 
     if (hardDelete) {
@@ -585,7 +821,12 @@ const deleteUser = async (userId, hardDelete = false) => {
 };
 
 module.exports = {
+    AuthError,
+    canonicalEmail,
+    verifyGoogleCredential,
     loginWithGoogle,
+    linkGoogleToUser,
+    unlinkGoogle,
     searchUsers,
     setUserAccess,
     getUserBySessionToken,

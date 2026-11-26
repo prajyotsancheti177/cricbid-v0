@@ -24,11 +24,12 @@ const prisma = require('../db/prisma');
  * no longer establishes who you are: `req.userId` always comes from the token.
  */
 
+// Headers only. A token in the query string lands in nginx access logs and
+// browser history, and one in a body is easy to forward by accident; nothing in
+// either frontend sends it that way.
 const readToken = (req) =>
     req.headers['x-session-token']
     || req.headers['x-player-token']
-    || (req.body && req.body.sessionToken)
-    || req.query.sessionToken
     || null;
 
 const authMiddleware = async (req, res, next) => {

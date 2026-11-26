@@ -19,19 +19,19 @@ teamRouter.post("/detail", requireTournamentVisible, teamController.getTeamRepor
 
 // Update Individual Team - Protected (multipart: uploadMiddleware must run
 // before authMiddleware, since only multer populates req.body for multipart requests)
-teamRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), uploadMiddleware.any(), authMiddleware, teamController.updateTeam);
+teamRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), uploadMiddleware.any(), requireTournamentAccess, teamController.updateTeam);
 
 // Delete Individual Team - Protected
 teamRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.deleteTeam);
 
 // Top up a team's auction balance - Protected
-teamRouter.post("/topup-budget", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.topUpTeamBudget);
+teamRouter.post("/topup-budget", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.topUpTeamBudget);
 
 // Team budget top-up history for a tournament - Protected
-teamRouter.post("/topup-history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.getTeamBudgetTopups);
+teamRouter.post("/topup-history", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.getTeamBudgetTopups);
 
 // Delete a team budget top-up entry - Protected
-teamRouter.post("/topup-delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), teamController.deleteTeamBudgetTopup);
+teamRouter.post("/topup-delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, teamController.deleteTeamBudgetTopup);
 
 // Get All Team Names - Public (for viewing)
 teamRouter.post("/names", requireTournamentVisible, teamController.getTeamNames);

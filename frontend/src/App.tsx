@@ -1,4 +1,5 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
+import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -142,9 +143,23 @@ const RoleRoute = ({ allow, children }: { allow: string[]; children: React.React
   if (!ready) return null;
 
   if (!allow.includes(String(user?.role || ""))) {
-    return <Navigate to="/tournaments" replace />;
+    return <NotForYourRole />;
   }
   return <>{children}</>;
+};
+
+/**
+ * Sends someone off a screen their role cannot use, and says so. A silent
+ * bounce to /tournaments read as the link being broken.
+ */
+const NotForYourRole = () => {
+  useEffect(() => {
+    toast({
+      title: "Not available for your account",
+      description: "That page is for tournament organisers. Ask an administrator if you need access.",
+    });
+  }, []);
+  return <Navigate to="/tournaments" replace />;
 };
 
 const ManageRoute = ({ children }: { children: React.ReactNode }) => (
