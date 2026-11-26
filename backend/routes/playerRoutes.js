@@ -1,6 +1,7 @@
 const express = require('express');
 const playerController = require('../controller/playerController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireVisible } = require('../utils/requireVisible');
 const { requireTournamentAccess, requireTournamentVisible } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const registrationErrors = require('../services/registrationErrorService');
@@ -51,7 +52,7 @@ playerRouter.get("/cricheroes-stats/:tournamentId", requireTournamentVisible, pl
 playerRouter.post("/categories", requireTournamentVisible, playerController.getPlayerCategories);
 
 // Bulk Create Players - Protected
-playerRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkCreatePlayers);
+playerRouter.post("/bulk-create", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible(["page.workspace.bulkUpload", "page.bulkUpload"]), requireTournamentAccess, playerController.bulkCreatePlayers);
 
 // Reset Unsold Players - Protected (Admin and Tournament Host)
 playerRouter.post("/reset-unsold", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.resetUnsoldPlayers);
@@ -60,7 +61,7 @@ playerRouter.post("/reset-unsold", authMiddleware, roleMiddleware(['boss', 'supe
 playerRouter.post("/bulk-update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.bulkUpdatePlayers);
 
 // Delete All Players for a Tournament - Protected
-playerRouter.post("/delete-all", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.deleteAllPlayers);
+playerRouter.post("/delete-all", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible("action.bulkDelete"), requireTournamentAccess, playerController.deleteAllPlayers);
 
 // Payment verification — gates a registered player's entry into the auction
 playerRouter.post("/verify-payments", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.verifyPayments);
@@ -78,7 +79,7 @@ playerRouter.post("/undo", authMiddleware, roleMiddleware(['boss', 'super_user',
 // Tournament is the editing surface now. The export below is unaffected.
 
 // Push DB to Sheet - Protected
-playerRouter.post("/sync-to-sheet", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, playerController.syncToSheet);
+playerRouter.post("/sync-to-sheet", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible("page.workspace.data"), requireTournamentAccess, playerController.syncToSheet);
 
 // Get Overlay Stats - Public (for overlay marquee and top players)
 playerRouter.post("/overlay-stats", requireTournamentVisible, playerController.getOverlayStats);

@@ -1086,3 +1086,62 @@ Run on the local test stack (`backend-authtest` + `frontend-authtest`).
   - the production Google console (A5, A7).
 - **Deploy order:** backend first, frontend in the same deploy. A frontend built before this change still expects `#token=` and won't understand `#code=`. Cached copies of the old bundle will show a sign-in error until reloaded.
 - **Not changed:** `trust proxy` is still `true`, so per-IP limits are spoofable through `X-Forwarded-For`. The per-email password limit doesn't depend on IP.
+
+---
+
+## 11. Role visibility control page: built, 2026-11-26 (not deployed)
+
+Section 6's design is implemented: Phase 1 (screen gating) and Phase 2 (server enforcement for marked features).
+
+### Pieces
+
+| Piece | Where |
+|---|---|
+| The list of controllable things, defaults, ceilings, locks, and which are enforced | `shared/visibility-manifest.json`, read by both backend and frontend. 26 entries: 8 admin pages, 15 workspace tabs, 3 actions |
+| Boss changes (only differences from the defaults) | `role_visibility` table; migration `20261126120000_role_visibility` (additive `CREATE TABLE`) |
+| Decision, cache (15 s, cleared on every write), validation, audit | `backend/services/visibilityService.js`. Refuses to start if any ceiling contains `player` or a default/lock exceeds its ceiling |
+| API | `GET /api/visibility/me` (own role only); `GET /matrix` and `/history` (boss, super_user read-only); `PUT /api/visibility` (boss only). A change emits `visibility:changed` on the `/auction` socket |
+| Server enforcement | `utils/requireVisible.js`, mounted after the role guard and alongside `requireTournamentAccess` on:<br>• WhatsApp section routes (not the automatic sold/unsold messages or the webhook);<br>• backups, CricHeroes and top-ups;<br>• match and scoring writes;<br>• export and Sheets sync;<br>• bulk create;<br>• create and delete tournament;<br>• delete-all teams/players.<br>Refusals are `403` with code `FEATURE_HIDDEN` |
+| Frontend state | `src/lib/visibility.ts` (`useVisibility`, `useCan`). Fails closed while loading; caches per user; refetches on the socket event, on focus, and on sign-in or role change |
+| Gates | `components/auth/Gate.tsx`; `VisibleRoute` / `Tab` in `App.tsx` (a blocked workspace tab goes back to Overview with a toast); navbar admin links; workspace sidebar; Create Tournament button; Settings danger zone |
+| The page | `/site-settings/visibility` (`pages/RoleVisibility.tsx`), linked from Site settings and the menu |
+
+### What the page does
+
+- **A matrix per group** (admin pages, workspace tabs, actions) with one column per role:
+  - a switch per cell;
+  - 🔒 for always-on cells;
+  - "—" where the role can never have the item;
+  - a **server** badge on enforced items.
+- **Changes are staged and saved together.** Unsaved cells are highlighted, and each changed cell has a reset to its default. There's also "Reset everything to defaults", and a warning before leaving with unsaved changes.
+- **"Preview as a role"** lists what a role would see, including unsaved changes.
+- **Recent changes** shows who changed what, from `user_event` (`visibility_changed`).
+- **Super users get a view-only page**, unless a boss hides it from them.
+- **Saved settings for items removed from the manifest** are listed as ignored.
+
+### Guarantees (tested)
+
+- **Ceiling.** The server refuses a role above its ceiling: a `player` gets nothing, and hosts can't be given admin pages. Locked cells can't be switched off, so a boss can't lock themselves out.
+- **A switch-off holds on the server.** For enforced items, the API refuses the call too, even for a host's **own** tournament (V7).
+- **Restriction only.** `requireVisible` can only refuse what the role guard allows, never allow more. Tournament-level permission still applies on top.
+
+### Test results
+
+**Harness:** 78/78, including V1–V11 (`backend/scripts/auth-test/run.js`).
+
+**Browser, on the local test stack:**
+
+| Check | Result |
+|---|---|
+| Boss opens the page | Matrix renders with locks, "—" cells and switches |
+| Boss switches WhatsApp off for tournament hosts and saves | Staged highlight, "1 unsaved change" bar; after Save the row exists in `role_visibility` (by `u_boss`) and appears in Recent changes |
+| Host opens their workspace | WhatsApp is gone from the tab bar; `/tournament/T1/manage/whatsapp` bounces to Overview with "Not available for your account" |
+| Boss restores it while the host's page is open | WhatsApp reappears in the host's tab bar within 3 s, without a reload (socket event) |
+| Super user opens the page | "View only" banner; all 63 switches disabled; no reset button |
+
+### Adding a new page or feature later
+
+1. Add an entry to `shared/visibility-manifest.json`. With no database row its `default` applies; give managing features a default of the full ceiling, so nothing disappears on deploy.
+2. Wrap the route in `VisibleRoute` (or `Tab`), or a component in `<Gate k=…>`. `ResourceKey` is typed from the manifest, so a typo fails the build.
+3. If the feature has its own API, add `requireVisible("<key>")` after the role guard and mark the entry `"enforced": true`.
+4. The scoring app (`scoring/`) does not read visibility. Its server calls are still enforced through `page.workspace.schedule`.

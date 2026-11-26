@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireVisible } = require('../utils/requireVisible');
 const { requireTournamentAccess } = require('../utils/tournamentAccess');
 const { createBackup, listBackups, restoreBackup, deleteBackup } = require("../controller/backupController");
 
@@ -12,7 +13,7 @@ const { createBackup, listBackups, restoreBackup, deleteBackup } = require("../c
  * stranger who knew a tournament id could roll an event back mid-auction.
  * `/list` also disclosed what snapshots existed.
  */
-const managing = [authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess];
+const managing = [authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, requireVisible("page.workspace.backups")];
 
 router.post("/create", managing, createBackup);
 router.post("/list", managing, listBackups);

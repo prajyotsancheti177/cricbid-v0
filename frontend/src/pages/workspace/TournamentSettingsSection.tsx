@@ -15,6 +15,7 @@ import apiConfig from "@/config/apiConfig";
 import TournamentFormDialog from "@/components/tournament/TournamentFormDialog";
 import { useWorkspace, TournamentFeatures, isFeatureOn } from "./TournamentWorkspace";
 import { jsonAuthHeaders } from "@/lib/auth";
+import { useVisibility, type ResourceKey } from "@/lib/visibility";
 import { cn } from "@/lib/utils";
 
 const getUser = () => {
@@ -30,6 +31,8 @@ type DangerAction = {
   redirectAfter?: boolean;
   /** Show the category picker in the confirm dialog before running. */
   pickCategories?: boolean;
+  /** The Role visibility entry that can switch this action off for a role. */
+  visibility?: ResourceKey;
 };
 
 const FEATURE_DEFS: { key: keyof TournamentFeatures; label: string; description: string; defaultOff?: boolean }[] = [
@@ -140,6 +143,7 @@ const TournamentSettingsSection = () => {
     }
   };
 
+  const { can } = useVisibility();
   const actions: DangerAction[] = [
     {
       key: "reset", label: "Reset unsold players", icon: RotateCcw,
@@ -150,17 +154,17 @@ const TournamentSettingsSection = () => {
       }),
     },
     {
-      key: "delTeams", label: "Delete all teams", icon: UsersRound,
+      key: "delTeams", label: "Delete all teams", icon: UsersRound, visibility: "action.bulkDelete",
       description: "Permanently delete every team in this tournament. Players become unassigned.",
       run: (id) => post("/api/team/delete-all", { touranmentId: id, userId: user?._id }),
     },
     {
-      key: "delPlayers", label: "Delete all players", icon: UserMinus,
+      key: "delPlayers", label: "Delete all players", icon: UserMinus, visibility: "action.bulkDelete",
       description: "Permanently delete every player in this tournament.",
       run: (id) => post("/api/player/delete-all", { touranmentId: id, userId: user?._id }),
     },
     {
-      key: "delTournament", label: "Delete tournament", icon: Trash2,
+      key: "delTournament", label: "Delete tournament", icon: Trash2, visibility: "action.deleteTournament",
       description: "Permanently delete this tournament. This cannot be undone.",
       run: (id) => post("/api/tournament/delete", { tournamentId: id, userId: user?._id, userRole: user?.role }),
       redirectAfter: true,
@@ -341,7 +345,7 @@ const TournamentSettingsSection = () => {
           <CardDescription>These actions are destructive and may be irreversible.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {actions.map((a) => (
+          {actions.filter((a) => !a.visibility || can(a.visibility) === true).map((a) => (
             <div key={a.key} className="flex items-center justify-between gap-3 border border-border rounded-lg px-3 py-2">
               <div className="flex items-center gap-2 min-w-0">
                 <a.icon className="h-4 w-4 text-destructive shrink-0" />

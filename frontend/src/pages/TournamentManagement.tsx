@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { jsonAuthHeaders } from "@/lib/auth";
+import { Gate } from "@/components/auth/Gate";
 
 interface Tournament {
   _id: string;
@@ -117,10 +118,13 @@ export default function TournamentManagement() {
                   : "Manage all tournaments in the system"}
               </CardDescription>
             </div>
-            <Button onClick={() => { setEditingTournament(null); setFormDialogOpen(true); }} size="lg" className="w-full sm:w-auto">
-              <Plus className="h-5 w-5 mr-2" />
-              Create Tournament
-            </Button>
+            {/* A boss can switch tournament creation off per role (Role visibility). */}
+            <Gate k="action.createTournament">
+              <Button onClick={() => { setEditingTournament(null); setFormDialogOpen(true); }} size="lg" className="w-full sm:w-auto">
+                <Plus className="h-5 w-5 mr-2" />
+                Create Tournament
+              </Button>
+            </Gate>
           </div>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0 md:pt-0">

@@ -80,9 +80,11 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
 const SiteSettingsPage = lazy(() => import("./pages/SiteSettings"));
+const RoleVisibilityPage = lazy(() => import("./pages/RoleVisibility"));
 
 import { SiteSettingsProvider } from "@/lib/siteSettings";
 import { clearSession, getSessionToken, installSessionExpiryHandler, useCurrentUser } from "@/lib/auth";
+import { useVisibility, VISIBILITY_MANIFEST, type ResourceKey } from "@/lib/visibility";
 
 const queryClient = new QueryClient();
 
@@ -152,15 +154,35 @@ const RoleRoute = ({ allow, children }: { allow: string[]; children: React.React
  * Sends someone off a screen their role cannot use, and says so. A silent
  * bounce to /tournaments read as the link being broken.
  */
-const NotForYourRole = () => {
+const NotForYourRole = ({ to = "/tournaments", description = "That page is for tournament organisers. Ask an administrator if you need access." }: { to?: string; description?: string }) => {
   useEffect(() => {
-    toast({
-      title: "Not available for your account",
-      description: "That page is for tournament organisers. Ask an administrator if you need access.",
-    });
-  }, []);
-  return <Navigate to="/tournaments" replace />;
+    toast({ title: "Not available for your account", description });
+  }, [description]);
+  return <Navigate to={to} replace />;
 };
+
+/**
+ * A screen a boss can switch off per role on the Role visibility page.
+ *
+ * Sits inside the role guards, never instead of them: those say who could
+ * ever open it, this says whether the boss currently lets them. Waits for the
+ * answer rather than bouncing someone on a stale one.
+ *
+ * @param fallback - where to send someone it is switched off for
+ */
+const VisibleRoute = ({ k, fallback = "/tournaments", children }: { k: ResourceKey; fallback?: string; children: React.ReactNode }) => {
+  const { ready, can } = useVisibility();
+  if (!ready) return null;
+  if (!can(k)) {
+    return <NotForYourRole to={fallback} description={`${VISIBILITY_MANIFEST.resources[k].label} is turned off for your account. Ask an administrator if you need it.`} />;
+  }
+  return <>{children}</>;
+};
+
+/** A workspace tab: switched off means back to the workspace's Overview. */
+const Tab = ({ k, children }: { k: ResourceKey; children: React.ReactNode }) => (
+  <VisibleRoute k={k} fallback="..">{children}</VisibleRoute>
+);
 
 const ManageRoute = ({ children }: { children: React.ReactNode }) => (
   <RoleRoute allow={MANAGING_ROLES}>{children}</RoleRoute>
@@ -264,7 +286,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ManageRoute>
-                      <AddPlayer />
+                      <VisibleRoute k="page.addPlayer"><AddPlayer /></VisibleRoute>
                     </ManageRoute>
                   </ProtectedRoute>
                 }
@@ -279,7 +301,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ManageRoute>
-                      <TournamentManagement />
+                      <VisibleRoute k="page.manageTournaments"><TournamentManagement /></VisibleRoute>
                     </ManageRoute>
                   </ProtectedRoute>
                 }
@@ -296,21 +318,21 @@ const App = () => (
                 }
               >
                 <Route index element={<Navigate to="overview" replace />} />
-                <Route path="overview" element={<TournamentOverview />} />
-                <Route path="players" element={<Players />} />
-                <Route path="sheet" element={<TournamentPlayerSheetSection />} />
-                <Route path="teams" element={<Teams />} />
-                <Route path="add-player" element={<AddPlayer />} />
-                <Route path="bulk-upload" element={<BulkUpload />} />
-                <Route path="registration" element={<TournamentRegistrationSection />} />
-                <Route path="cricheroes" element={<TournamentCricHeroesSection />} />
-                <Route path="whatsapp" element={<TournamentWhatsAppSection />} />
-                <Route path="schedule" element={<TournamentScheduleSection />} />
-                <Route path="auction" element={<TournamentAuctionSection />} />
-                <Route path="top-up" element={<TournamentTopUpSection />} />
-                <Route path="data" element={<TournamentDataSection />} />
-                <Route path="backups" element={<TournamentBackupsSection />} />
-                <Route path="settings" element={<TournamentSettingsSection />} />
+                <Route path="overview" element={<Tab k="page.workspace.overview"><TournamentOverview /></Tab>} />
+                <Route path="players" element={<Tab k="page.workspace.players"><Players /></Tab>} />
+                <Route path="sheet" element={<Tab k="page.workspace.sheet"><TournamentPlayerSheetSection /></Tab>} />
+                <Route path="teams" element={<Tab k="page.workspace.teams"><Teams /></Tab>} />
+                <Route path="add-player" element={<Tab k="page.workspace.addPlayer"><AddPlayer /></Tab>} />
+                <Route path="bulk-upload" element={<Tab k="page.workspace.bulkUpload"><BulkUpload /></Tab>} />
+                <Route path="registration" element={<Tab k="page.workspace.registration"><TournamentRegistrationSection /></Tab>} />
+                <Route path="cricheroes" element={<Tab k="page.workspace.cricheroes"><TournamentCricHeroesSection /></Tab>} />
+                <Route path="whatsapp" element={<Tab k="page.workspace.whatsapp"><TournamentWhatsAppSection /></Tab>} />
+                <Route path="schedule" element={<Tab k="page.workspace.schedule"><TournamentScheduleSection /></Tab>} />
+                <Route path="auction" element={<Tab k="page.workspace.auction"><TournamentAuctionSection /></Tab>} />
+                <Route path="top-up" element={<Tab k="page.workspace.topUp"><TournamentTopUpSection /></Tab>} />
+                <Route path="data" element={<Tab k="page.workspace.data"><TournamentDataSection /></Tab>} />
+                <Route path="backups" element={<Tab k="page.workspace.backups"><TournamentBackupsSection /></Tab>} />
+                <Route path="settings" element={<Tab k="page.workspace.settings"><TournamentSettingsSection /></Tab>} />
               </Route>
 
               {/* Public Auction Routes */}
@@ -321,7 +343,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <RoleRoute allow={ADMIN_ROLES}>
-                      <UserManagement />
+                      <VisibleRoute k="page.users"><UserManagement /></VisibleRoute>
                     </RoleRoute>
                   </ProtectedRoute>
                 }
@@ -331,7 +353,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <ManageRoute>
-                      <BulkUpload />
+                      <VisibleRoute k="page.bulkUpload"><BulkUpload /></VisibleRoute>
                     </ManageRoute>
                   </ProtectedRoute>
                 }
@@ -341,7 +363,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <RoleRoute allow={ADMIN_ROLES}>
-                      <Analytics />
+                      <VisibleRoute k="page.analytics"><Analytics /></VisibleRoute>
                     </RoleRoute>
                   </ProtectedRoute>
                 }
@@ -351,7 +373,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <RoleRoute allow={ADMIN_ROLES}>
-                      <AssistantRequests />
+                      <VisibleRoute k="page.assistant"><AssistantRequests /></VisibleRoute>
                     </RoleRoute>
                   </ProtectedRoute>
                 }
@@ -361,7 +383,17 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <RoleRoute allow={ADMIN_ROLES}>
-                      <SiteSettingsPage />
+                      <VisibleRoute k="page.siteSettings"><SiteSettingsPage /></VisibleRoute>
+                    </RoleRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/site-settings/visibility"
+                element={
+                  <ProtectedRoute>
+                    <RoleRoute allow={ADMIN_ROLES}>
+                      <VisibleRoute k="page.visibility"><RoleVisibilityPage /></VisibleRoute>
                     </RoleRoute>
                   </ProtectedRoute>
                 }

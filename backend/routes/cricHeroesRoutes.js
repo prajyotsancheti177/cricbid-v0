@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('../controller/cricHeroesController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireVisible } = require('../utils/requireVisible');
 const { requireTournamentAccess } = require('../utils/tournamentAccess');
 
 const cricHeroesRouter = express.Router();
@@ -17,7 +18,7 @@ const cricHeroesRouter = express.Router();
  * GET /api/player/cricheroes-stats/:tournamentId, behind the tournament's own
  * visibility — because the overlays and the auction screen need it.
  */
-const host = [authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess];
+const host = [authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, requireVisible("page.workspace.cricheroes")];
 
 cricHeroesRouter.post("/review", ...host, controller.review);
 cricHeroesRouter.post("/resolve", ...host, controller.resolve);

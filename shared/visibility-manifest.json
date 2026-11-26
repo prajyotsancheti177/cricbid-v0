@@ -1,0 +1,139 @@
+{
+  "_doc": [
+    "Which roles see which pages, workspace tabs and actions. Read by the backend (services/visibilityService.js) and the frontend (src/lib/visibility.ts).",
+    "ceiling: the roles the server could ever allow. The Role visibility page can switch a role off or back on, but never above its ceiling.",
+    "default: what applies until a boss changes it. A new resource needs no database row.",
+    "locked: roles that always see it and cannot be switched off (keeps a boss from locking themselves out).",
+    "enforced: the backend refuses the matching API calls too (requireVisible), not just the screen. Without it, hiding is cosmetic.",
+    "A player can never be given anything here: every resource manages something, and the service refuses a ceiling containing player."
+  ],
+  "roles": ["boss", "super_user", "tournament_host", "player"],
+  "roleLabels": {
+    "boss": "Boss",
+    "super_user": "Super user",
+    "tournament_host": "Tournament host",
+    "player": "Player"
+  },
+  "groups": [
+    { "id": "admin", "label": "Admin pages" },
+    { "id": "workspace", "label": "Tournament workspace tabs" },
+    { "id": "actions", "label": "Buttons & actions" }
+  ],
+  "resources": {
+    "page.visibility": {
+      "group": "admin", "label": "Role visibility", "path": "/site-settings/visibility",
+      "description": "This page. Super users can open it read-only.",
+      "ceiling": ["boss", "super_user"], "default": ["boss", "super_user"], "locked": ["boss"]
+    },
+    "page.users": {
+      "group": "admin", "label": "Users", "path": "/users",
+      "ceiling": ["boss", "super_user"], "default": ["boss", "super_user"], "locked": ["boss"]
+    },
+    "page.siteSettings": {
+      "group": "admin", "label": "Site settings", "path": "/site-settings",
+      "ceiling": ["boss", "super_user"], "default": ["boss", "super_user"], "locked": ["boss"]
+    },
+    "page.analytics": {
+      "group": "admin", "label": "Analytics", "path": "/analytics",
+      "ceiling": ["boss", "super_user"], "default": ["boss", "super_user"]
+    },
+    "page.assistant": {
+      "group": "admin", "label": "Assistant", "path": "/assistant",
+      "ceiling": ["boss", "super_user"], "default": ["boss", "super_user"]
+    },
+    "page.manageTournaments": {
+      "group": "admin", "label": "Manage tournaments", "path": "/tournaments/manage",
+      "description": "The tournament list every workspace is opened from.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "locked": ["boss"]
+    },
+    "page.addPlayer": {
+      "group": "admin", "label": "Add player", "path": "/add-player",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.bulkUpload": {
+      "group": "admin", "label": "Bulk upload", "path": "/bulk-upload",
+      "description": "Also controls bulk player/team creation on the server, together with the workspace Bulk upload tab.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+
+    "page.workspace.overview": {
+      "group": "workspace", "label": "Overview", "path": "overview",
+      "description": "Where a workspace opens, so it cannot be hidden.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "locked": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.players": {
+      "group": "workspace", "label": "Players", "path": "players",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.sheet": {
+      "group": "workspace", "label": "Player sheet", "path": "sheet",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.teams": {
+      "group": "workspace", "label": "Teams", "path": "teams",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.addPlayer": {
+      "group": "workspace", "label": "Add player", "path": "add-player",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.bulkUpload": {
+      "group": "workspace", "label": "Bulk upload", "path": "bulk-upload",
+      "description": "Also controls bulk player/team creation on the server, together with the Bulk upload page.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.registration": {
+      "group": "workspace", "label": "Registration", "path": "registration",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.auction": {
+      "group": "workspace", "label": "Auction", "path": "auction",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+    "page.workspace.topUp": {
+      "group": "workspace", "label": "Top up balance", "path": "top-up",
+      "description": "Team budget top-ups. Hiding it also stops the top-up API.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.schedule": {
+      "group": "workspace", "label": "Schedule & Scores", "path": "schedule",
+      "description": "Match scheduling and ball-by-ball scoring, including the scoring app.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.cricheroes": {
+      "group": "workspace", "label": "CricHeroes", "path": "cricheroes",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.whatsapp": {
+      "group": "workspace", "label": "WhatsApp", "path": "whatsapp",
+      "description": "WhatsApp settings, reminders and announcements. Automatic sold/unsold messages during an auction are not affected.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.data": {
+      "group": "workspace", "label": "Data & export", "path": "data",
+      "description": "Exports and Google Sheets sync.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.backups": {
+      "group": "workspace", "label": "Backups", "path": "backups",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "enforced": true
+    },
+    "page.workspace.settings": {
+      "group": "workspace", "label": "Settings", "path": "settings",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"]
+    },
+
+    "action.createTournament": {
+      "group": "actions", "label": "Create tournament", "description": "The Create Tournament button, and the API behind it.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "locked": ["boss"], "enforced": true
+    },
+    "action.deleteTournament": {
+      "group": "actions", "label": "Delete tournament", "description": "In workspace Settings. Permanent.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "locked": ["boss"], "enforced": true
+    },
+    "action.bulkDelete": {
+      "group": "actions", "label": "Delete all teams / players", "description": "The bulk delete actions in workspace Settings. Permanent.",
+      "ceiling": ["boss", "super_user", "tournament_host"], "default": ["boss", "super_user", "tournament_host"], "locked": ["boss"], "enforced": true
+    }
+  }
+}

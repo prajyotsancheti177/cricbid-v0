@@ -17,6 +17,7 @@ import { getSocket } from "@/lib/socket";
 import logo from "@/assets/logo.webp";
 import apiConfig from "@/config/apiConfig";
 import { clearSession, jsonAuthHeaders } from "@/lib/auth";
+import { useVisibility, type ResourceKey } from "@/lib/visibility";
 
 // Public links shown in the main bar for everyone
 const PUBLIC_LINKS = [
@@ -26,37 +27,27 @@ const PUBLIC_LINKS = [
 ];
 
 // Admin/account links — tucked into the right-side account menu (and the mobile
-// menu). Built from the logged-in user's role.
-const buildAdminLinks = () => {
-  const links: { path: string; label: string }[] = [];
-  try {
-    const userStr = localStorage.getItem("user");
-    if (!userStr) return links;
-    const user = JSON.parse(userStr);
+// menu). Which ones a person gets is the Role visibility page's answer for
+// their role: a `player` gets none (no ceiling includes them), and a boss can
+// switch any of these off for a role without a deploy.
+const ADMIN_LINKS: { key: ResourceKey; path: string; label: string }[] = [
+  { key: "page.manageTournaments", path: "/tournaments/manage", label: "Manage Tournaments" },
+  { key: "page.addPlayer", path: "/add-player", label: "Add Player" },
+  { key: "page.bulkUpload", path: "/bulk-upload", label: "Bulk Upload" },
+  { key: "page.users", path: "/users", label: "Users" },
+  { key: "page.analytics", path: "/analytics", label: "Analytics" },
+  { key: "page.assistant", path: "/assistant", label: "Assistant" },
+  { key: "page.siteSettings", path: "/site-settings", label: "Site Settings" },
+  { key: "page.visibility", path: "/site-settings/visibility", label: "Role Visibility" },
+];
 
-    // Only roles that manage something get management links. Everyone who
-    // signs in with Google starts as a `player`, and showing them "Manage
-    // Tournaments" only to bounce them off it looked broken.
-    if (user.role === 'tournament_host' || user.role === 'super_user' || user.role === 'boss') {
-      links.push({ path: "/tournaments/manage", label: "Manage Tournaments" });
-      links.push({ path: "/add-player", label: "Add Player" });
-      links.push({ path: "/bulk-upload", label: "Bulk Upload" });
-    }
-    if (user.role === 'boss' || user.role === 'super_user') {
-      links.push({ path: "/users", label: "Users" });
-      links.push({ path: "/analytics", label: "Analytics" });
-      links.push({ path: "/assistant", label: "Assistant" });
-      links.push({ path: "/site-settings", label: "Site Settings" });
-    }
-  } catch {
-    // ignore localStorage errors
-  }
-  return links;
-};
+const buildAdminLinks = (can: (key: ResourceKey) => boolean | undefined) =>
+  ADMIN_LINKS.filter((link) => can(link.key) === true).map(({ path, label }) => ({ path, label }));
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hasLiveAuction, setHasLiveAuction] = useState(false);
+  const visibility = useVisibility();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -149,7 +140,7 @@ export const Navbar = () => {
 
   const userName = getUserName();
   const publicLinks = PUBLIC_LINKS;
-  const adminLinks = buildAdminLinks();
+  const adminLinks = buildAdminLinks(visibility.can);
   const mobileLinks = [...publicLinks, ...adminLinks];
 
   const handleNavClick = (path: string) => {

@@ -1,12 +1,13 @@
 const express = require('express');
 const touranmentController = require('../controller/touranmentController');
 const { authMiddleware, roleMiddleware } = require('../utils/authMiddleware');
+const { requireVisible } = require('../utils/requireVisible');
 const { requireTournamentAccess, requireTournamentVisible } = require('../utils/tournamentAccess');
 const uploadMiddleware = require('../utils/uploadMiddleware');
 const tournamentRouter = express.Router();
 
 // Register New Tournament - Protected
-tournamentRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), touranmentController.addTournamnet);
+tournamentRouter.post("/register", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible("action.createTournament"), touranmentController.addTournamnet);
 
 // Get All Tournaments (filtered by role) - Public (for viewing)
 tournamentRouter.post("/all", touranmentController.getAllTournaments);
@@ -23,13 +24,13 @@ tournamentRouter.post("/detail", requireTournamentVisible, touranmentController.
 tournamentRouter.post("/update", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.updateTournament);
 
 // Delete Tournament - Protected
-tournamentRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.deleteTournament);
+tournamentRouter.post("/delete", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible("action.deleteTournament"), requireTournamentAccess, touranmentController.deleteTournament);
 
 // Get All Tournament Hosts (for boss and super_user) - Protected
 tournamentRouter.get("/hosts", authMiddleware, roleMiddleware(['boss', 'super_user']), touranmentController.getAllTournamentHosts);
 
 // Export Tournament Data (teams and players) - Protected
-tournamentRouter.post("/export", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireTournamentAccess, touranmentController.exportTournamentData);
+tournamentRouter.post("/export", authMiddleware, roleMiddleware(['boss', 'super_user', 'tournament_host']), requireVisible("page.workspace.data"), requireTournamentAccess, touranmentController.exportTournamentData);
 
 // Get Public Registration Config - Public
 tournamentRouter.get("/:id/registration-config", requireTournamentVisible, touranmentController.getRegistrationConfig);

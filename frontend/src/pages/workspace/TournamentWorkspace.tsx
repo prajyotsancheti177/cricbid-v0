@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { setSelectedTournamentId } from "@/lib/tournamentUtils";
 import apiConfig from "@/config/apiConfig";
 import { getStoredUser, jsonAuthHeaders, useCurrentUser } from "@/lib/auth";
+import { useVisibility, type ResourceKey } from "@/lib/visibility";
 
 export interface TournamentFeatures {
   whatsappNotifications?: boolean;
@@ -47,22 +48,24 @@ export const isFeatureOn = (tournament: WorkspaceTournament, key: keyof Tourname
 // Sections in the tournament workspace sidebar.
 // adminOnly: shown only when a user is logged in (any authenticated user).
 // ownerOnly: shown only when the logged-in user is the tournament owner or has admin role.
-const SECTIONS: { to: string; label: string; icon: React.ElementType; adminOnly?: boolean; ownerOnly?: boolean }[] = [
-  { to: "overview", label: "Overview", icon: LayoutDashboard },
-  { to: "players", label: "Players", icon: Users },
-  { to: "sheet", label: "Player sheet", icon: Table2, adminOnly: true },
-  { to: "teams", label: "Teams", icon: Shield },
-  { to: "add-player", label: "Add player", icon: UserPlus, ownerOnly: true },
-  { to: "bulk-upload", label: "Bulk upload", icon: Upload, ownerOnly: true },
-  { to: "registration", label: "Registration", icon: LinkIcon },
-  { to: "auction", label: "Auction", icon: Gavel },
-  { to: "top-up", label: "Top up balance", icon: Wallet, adminOnly: true },
-  { to: "schedule", label: "Schedule & Scores", icon: CalendarDays, adminOnly: true },
-  { to: "cricheroes", label: "CricHeroes", icon: BarChart3, adminOnly: true },
-  { to: "whatsapp", label: "WhatsApp", icon: MessageSquare },
-  { to: "data", label: "Data & export", icon: Database },
-  { to: "backups", label: "Backups", icon: History },
-  { to: "settings", label: "Settings", icon: Settings },
+// `key` is the tab's entry on the Role visibility page; a boss can switch any
+// tab off per role there (Overview is locked on, since the workspace opens on it).
+const SECTIONS: { to: string; key: ResourceKey; label: string; icon: React.ElementType; adminOnly?: boolean; ownerOnly?: boolean }[] = [
+  { to: "overview", key: "page.workspace.overview", label: "Overview", icon: LayoutDashboard },
+  { to: "players", key: "page.workspace.players", label: "Players", icon: Users },
+  { to: "sheet", key: "page.workspace.sheet", label: "Player sheet", icon: Table2, adminOnly: true },
+  { to: "teams", key: "page.workspace.teams", label: "Teams", icon: Shield },
+  { to: "add-player", key: "page.workspace.addPlayer", label: "Add player", icon: UserPlus, ownerOnly: true },
+  { to: "bulk-upload", key: "page.workspace.bulkUpload", label: "Bulk upload", icon: Upload, ownerOnly: true },
+  { to: "registration", key: "page.workspace.registration", label: "Registration", icon: LinkIcon },
+  { to: "auction", key: "page.workspace.auction", label: "Auction", icon: Gavel },
+  { to: "top-up", key: "page.workspace.topUp", label: "Top up balance", icon: Wallet, adminOnly: true },
+  { to: "schedule", key: "page.workspace.schedule", label: "Schedule & Scores", icon: CalendarDays, adminOnly: true },
+  { to: "cricheroes", key: "page.workspace.cricheroes", label: "CricHeroes", icon: BarChart3, adminOnly: true },
+  { to: "whatsapp", key: "page.workspace.whatsapp", label: "WhatsApp", icon: MessageSquare },
+  { to: "data", key: "page.workspace.data", label: "Data & export", icon: Database },
+  { to: "backups", key: "page.workspace.backups", label: "Backups", icon: History },
+  { to: "settings", key: "page.workspace.settings", label: "Settings", icon: Settings },
 ];
 
 // Reads the same store the route gates use, revalidated against the server on
@@ -73,6 +76,7 @@ const getAuthUser = () => getStoredUser();
 const TournamentWorkspace = () => {
   // Subscribe so the sidebar re-renders once the real role arrives.
   useCurrentUser();
+  const { can } = useVisibility();
   const { tournamentId } = useParams();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState<WorkspaceTournament | null>(null);
@@ -153,7 +157,7 @@ const TournamentWorkspace = () => {
         {/* Sidebar (desktop) / horizontal tabs (mobile) */}
         <aside className="md:w-56 shrink-0">
           <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
-            {SECTIONS.filter(s => (!s.adminOnly || isLoggedIn) && (!s.ownerOnly || isOwner)).map(({ to, label, icon: Icon }) => (
+            {SECTIONS.filter(s => (!s.adminOnly || isLoggedIn) && (!s.ownerOnly || isOwner) && can(s.key) === true).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

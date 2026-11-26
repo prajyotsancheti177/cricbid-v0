@@ -128,7 +128,7 @@ const step = async (id, title, expected, fn) => {
 
 const PASSWORD = 'Passw0rd!';
 const seed = async () => {
-    await q('TRUNCATE "user", tournament RESTART IDENTITY CASCADE');
+    await q('TRUNCATE "user", tournament, role_visibility RESTART IDENTITY CASCADE');
     const hash = bcrypt.hashSync(PASSWORD, 10);
     const users = [
         ['u_boss', 'Boss', 'boss@test.local', 'boss', true, null],
@@ -159,7 +159,8 @@ const seed = async () => {
         await q(`INSERT INTO tournament (id, name, "tournamentHostId", "isPrivate", "updatedAt") VALUES ($1,$2,$3,$4,now())`, [id, name, hostId, priv]);
     }
     await q(`INSERT INTO team (id, name, "touranmentId", "updatedAt") VALUES ('TM1','Team One','T1',now()), ('TM2','Team Two','T2',now()), ('TM2B','Team Two B','T2',now())`);
-    await q(`INSERT INTO match (id, "tournamentId", "teamAId", "teamBId", "updatedAt") VALUES ('M2','T2','TM2','TM2B',now())`);
+    await q(`INSERT INTO team (id, name, "touranmentId", "updatedAt") VALUES ('TM1B','Team One B','T1',now())`);
+    await q(`INSERT INTO match (id, "tournamentId", "teamAId", "teamBId", "updatedAt") VALUES ('M2','T2','TM2','TM2B',now()), ('M1','T1','TM1','TM1B',now())`);
 };
 
 /* ── route inventory (for G1) ────────────────────────────────────────────── */
@@ -670,6 +671,95 @@ const main = async () => {
             const r = await api('PUT', `/api/player-profile/profiles/${pid}`, { playerToken: playerToken, body: { name: 'Stolen' } });
             const row = (await q('SELECT name FROM player_profile WHERE id=$1', [pid]))[0];
             return { pass: r.status >= 400 && row?.name === 'Child B', observed: `${r.status} "${r.json?.message}"; name=${row?.name}` };
+        });
+
+        /* V — role visibility */
+        const vBoss = (await pwLogin('boss@test.local')).json?.data?.sessionToken;
+        const vSuper = (await pwLogin('super@test.local')).json?.data?.sessionToken;
+        const vHost = (await googleLogin({ email: 'hostgmail@gmail.com', sub: 'sub-host' })).json?.data?.sessionToken;
+        const mine = async (token) => (await api('GET', '/api/visibility/me', { token })).json?.data;
+        const putVis = (token, changes) => api('PUT', '/api/visibility', { token, body: { changes } });
+
+        await step('V1', 'Default answer per role', 'boss/super see admin pages; host sees workspace not admin; player and signed-out see nothing', async () => {
+            const [b, s, h, p, anon] = [await mine(vBoss), await mine(vSuper), await mine(vHost), await mine(playerToken), await mine(null)];
+            const pass = b.visible.includes('page.visibility') && s.visible.includes('page.users') && h.visible.includes('page.workspace.whatsapp')
+                && !h.visible.includes('page.users') && p.visible.length === 0 && anon.visible.length === 0 && anon.role === null;
+            return { pass, observed: `boss ${b.visible.length}, super ${s.visible.length}, host ${h.visible.length} (users=${h.visible.includes('page.users')}), player ${p.visible.length}, signed-out ${anon.visible.length}` };
+        });
+        await step('V2', 'Who can read the matrix', 'boss 200, super_user 200, host 403, player 403', async () => {
+            const st = [];
+            for (const t of [vBoss, vSuper, vHost, playerToken]) st.push((await api('GET', '/api/visibility/matrix', { token: t })).status);
+            return { pass: st.join(',') === '200,200,403,403', observed: st.join(',') };
+        });
+        await step('V3', 'Only a boss can change it', 'super_user, host, player PUT → 403', async () => {
+            const st = [];
+            for (const t of [vSuper, vHost, playerToken]) st.push((await putVis(t, [{ role: 'tournament_host', key: 'page.workspace.whatsapp', visible: false }])).status);
+            const rows = (await q('SELECT count(*)::int AS n FROM role_visibility'))[0].n;
+            return { pass: st.every(s => s === 403) && rows === 0, observed: `${st.join(',')}; rows=${rows}` };
+        });
+        await step('V4', 'Ceiling, lock and unknown keys are refused', 'player→Users, boss off Role visibility, unknown key: all 400, nothing written', async () => {
+            const a = await putVis(vBoss, [{ role: 'player', key: 'page.users', visible: true }]);
+            const b = await putVis(vBoss, [{ role: 'boss', key: 'page.visibility', visible: false }]);
+            const c = await putVis(vBoss, [{ role: 'tournament_host', key: 'page.nope', visible: false }]);
+            const d = await putVis(vBoss, [{ role: 'tournament_host', key: 'page.users', visible: true }]);
+            const rows = (await q('SELECT count(*)::int AS n FROM role_visibility'))[0].n;
+            return { pass: [a, b, c, d].every(r => r.status === 400) && rows === 0, observed: `${a.status} "${a.json?.error}" | ${b.status} "${b.json?.error}" | ${c.status} | host→Users ${d.status}; rows=${rows}` };
+        });
+        await step('V5', 'Boss turns WhatsApp off for hosts', 'host loses it in /me and gets 403 FEATURE_HIDDEN from the API; super_user unaffected', async () => {
+            const r = await putVis(vBoss, [{ role: 'tournament_host', key: 'page.workspace.whatsapp', visible: false }]);
+            const h = await mine(vHost);
+            const hostApi = await api('POST', '/api/whatsapp/config/get', { token: vHost, body: { tournamentId: 'T1' } });
+            const superApi = await api('POST', '/api/whatsapp/config/get', { token: vSuper, body: { tournamentId: 'T1' } });
+            const pass = r.status === 200 && !h.visible.includes('page.workspace.whatsapp') && hostApi.status === 403 && hostApi.json?.code === 'FEATURE_HIDDEN' && superApi.json?.code !== 'FEATURE_HIDDEN';
+            return { pass, observed: `put ${r.status}; host sees whatsapp=${h.visible.includes('page.workspace.whatsapp')}; host API ${hostApi.status} ${hostApi.json?.code}; super API ${superApi.status}` };
+        });
+        await step('V6', 'Boss turns "Create tournament" off for hosts', 'host /tournament/register 403 FEATURE_HIDDEN; super_user can still create', async () => {
+            await putVis(vBoss, [{ role: 'tournament_host', key: 'action.createTournament', visible: false }]);
+            const h = await api('POST', '/api/tournament/register', { token: vHost, body: { name: 'Host New Cup' } });
+            const s = await api('POST', '/api/tournament/register', { token: vSuper, body: { name: 'Super New Cup' } });
+            return { pass: h.status === 403 && h.json?.code === 'FEATURE_HIDDEN' && s.json?.code !== 'FEATURE_HIDDEN', observed: `host ${h.status} ${h.json?.code}; super ${s.status}` };
+        });
+        await step('V7', 'Schedule & Scores off for hosts blocks scoring on their OWN match', '403 FEATURE_HIDDEN on scoring/ball for M1 (T1, host\'s own)', async () => {
+            const before = await api('POST', '/api/scoring/ball', { token: vHost, body: { matchId: 'M1', inningsNumber: 1 } });
+            await putVis(vBoss, [{ role: 'tournament_host', key: 'page.workspace.schedule', visible: false }]);
+            const after = await api('POST', '/api/scoring/ball', { token: vHost, body: { matchId: 'M1', inningsNumber: 1 } });
+            return { pass: before.json?.code !== 'FEATURE_HIDDEN' && before.status !== 403 && after.status === 403 && after.json?.code === 'FEATURE_HIDDEN', observed: `before ${before.status} (not a permission refusal), after ${after.status} ${after.json?.code}` };
+        });
+        await step('V8', 'Reset and set-to-default both remove the stored row', 'rows go to 0; host gets everything back', async () => {
+            const before = (await q('SELECT count(*)::int AS n FROM role_visibility'))[0].n;
+            await putVis(vBoss, [
+                { role: 'tournament_host', key: 'page.workspace.whatsapp', visible: null },
+                { role: 'tournament_host', key: 'action.createTournament', visible: true },
+                { role: 'tournament_host', key: 'page.workspace.schedule', visible: null },
+            ]);
+            const after = (await q('SELECT count(*)::int AS n FROM role_visibility'))[0].n;
+            const h = await mine(vHost);
+            const api2 = await api('POST', '/api/whatsapp/config/get', { token: vHost, body: { tournamentId: 'T1' } });
+            return { pass: before === 3 && after === 0 && h.visible.includes('page.workspace.whatsapp') && api2.json?.code !== 'FEATURE_HIDDEN', observed: `rows ${before} → ${after}; host whatsapp back=${h.visible.includes('page.workspace.whatsapp')}; API ${api2.status}` };
+        });
+        await step('V9', 'Changes are audited with who made them', 'history lists the changes newest first, by Boss', async () => {
+            const r = await api('GET', '/api/visibility/history', { token: vSuper });
+            const top = r.json?.data?.[0];
+            return { pass: r.status === 200 && r.json?.data?.length >= 4 && top?.by === 'Boss' && top.changes.length === 3, observed: `${r.status}; entries=${r.json?.data?.length}; latest by ${top?.by} with ${top?.changes?.length} changes` };
+        });
+        await step('V10', 'Boss hides the Role visibility page from super users', 'super_user loses /me entry and matrix access; boss keeps it', async () => {
+            await putVis(vBoss, [{ role: 'super_user', key: 'page.visibility', visible: false }]);
+            const s = await api('GET', '/api/visibility/matrix', { token: vSuper });
+            const b = await api('GET', '/api/visibility/matrix', { token: vBoss });
+            await putVis(vBoss, [{ role: 'super_user', key: 'page.visibility', visible: null }]);
+            return { pass: s.status === 403 && b.status === 200, observed: `super ${s.status} ${s.json?.code}; boss ${b.status}` };
+        });
+        await step('V11', 'Open browsers are told about a change', 'socket event visibility:changed reaches a connected client', async () => {
+            const { io } = require(path.resolve(BACKEND, '../node_modules/socket.io-client'));
+            const s = io(`${BASE}/auction`, { transports: ['websocket'], forceNew: true });
+            await new Promise((res, rej) => { s.on('connect', res); setTimeout(() => rej(new Error('socket timeout')), 5000); });
+            let got = null;
+            s.on('visibility:changed', (e) => { got = e; });
+            await putVis(vBoss, [{ role: 'super_user', key: 'page.assistant', visible: false }]);
+            await sleep(800);
+            s.close();
+            await putVis(vBoss, [{ role: 'super_user', key: 'page.assistant', visible: null }]);
+            return { pass: !!got && typeof got.version === 'string', observed: `event=${JSON.stringify(got)}` };
         });
     } finally {
         server.kill();

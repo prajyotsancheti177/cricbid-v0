@@ -130,6 +130,14 @@ REST is genuinely authenticated now; the socket layer is the part with history.
   the real tournament of any `playerId`, `teamId`, `teamAId`/`teamBId`, `topupId`, `matchId` or
   `matches[]`. Mount it on any new route a `tournament_host` can reach, after any multer
   middleware. Never record a body `userId` as the actor; use `req.userId`.
+- **Role visibility** (`/site-settings/visibility`, boss-only to change): which roles see each
+  admin page, workspace tab and action. Source of truth is `shared/visibility-manifest.json`
+  (defaults, a per-role **ceiling** no override can exceed, locks; no ceiling may contain
+  `player`); boss overrides live in `role_visibility`. Frontend: `useCan` / `<Gate>` /
+  `VisibleRoute` from `src/lib/visibility.ts`. Backend: `requireVisible(key)` after the role
+  guard for entries marked `enforced` (403 `FEATURE_HIDDEN`). A new admin page or tab needs a
+  manifest entry plus a route guard; it is restriction-only and never replaces
+  `requireTournamentAccess`.
 - Google sign-in (`userService.loginWithGoogle`): a first sign-in creates a `player`. Auto-link
   to an existing admin account happens only for Gmail or Workspace (`hd`) addresses; otherwise
   `LINK_REQUIRES_PASSWORD`. Redirect mode never signs in at the callback: it issues a one-time

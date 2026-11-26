@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ChevronRight, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import apiConfig from "@/config/apiConfig";
 import { useSiteSettings } from "@/lib/siteSettings";
@@ -105,6 +105,20 @@ const SiteSettingsPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      <Link to="/site-settings/visibility" className="block mt-4">
+        <Card className="hover:border-primary/50 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4 text-primary" /> Role visibility
+              </CardTitle>
+              <CardDescription>Choose which roles see each page, workspace tab and action.</CardDescription>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+          </CardHeader>
+        </Card>
+      </Link>
     </div>
   );
 };

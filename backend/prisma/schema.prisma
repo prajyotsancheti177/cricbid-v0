@@ -1065,6 +1065,23 @@ model TournamentAccess {
 /// Sessions used to be a single column on the user, so signing in anywhere
 /// logged you out everywhere else — a laptop and a phone could not both be
 /// signed in, and the loser was told its session had expired on every request.
+/// A boss's change to which roles see a page, workspace tab or action.
+///
+/// Only differences from the code default are stored; the resources, their
+/// defaults and the most any role may be given live in
+/// shared/visibility-manifest.json. No row means "the default". Changes are
+/// audited in user_event (eventType visibility_changed).
+model RoleVisibility {
+  role        Role
+  resourceKey String
+  visible     Boolean
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@id([role, resourceKey])
+  @@map("role_visibility")
+}
+
 model UserSession {
   id String @id @default(cuid())
 
